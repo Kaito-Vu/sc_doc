@@ -1,62 +1,120 @@
-<div align="center">
-    <h1><b>Docmost</b></h1>
-    <p>
-        Open-source collaborative wiki and documentation software.
-        <br />
-        <a href="https://docmost.com"><strong>Website</strong></a> | 
-        <a href="https://docmost.com/docs"><strong>Documentation</strong></a> |
-        <a href="https://twitter.com/DocmostHQ"><strong>Twitter / X</strong></a>
-    </p>
-</div>
-<br />
+# sc_doc — Docmost (unlock-ee fork)
 
-## Getting started
+Fork tự host của [Docmost](https://docmost.com) — nền tảng wiki và tài liệu cộng tác realtime. Branch `unlock-ee` mở khóa Enterprise Edition (EE) cho môi trường self-hosted và bổ sung hệ thống plugin fork-safe.
 
-To get started with Docmost, please refer to our [documentation](https://docmost.com/docs) or try our [cloud version](https://docmost.com/pricing) .
+Dự án gốc: AGPL-3.0. Mã EE nằm trong `apps/server/src/ee` và `apps/client/src/ee` (track trực tiếp trong repo, không dùng git submodule).
 
-## Features
+---
 
-- Real-time collaboration
-- Diagrams (Draw.io, Excalidraw and Mermaid)
-- Spaces
-- Permissions management
-- Groups
-- Comments
-- Page history
-- Search
-- File attachments
-- Embeds (Airtable, Loom, Miro and more)
-- Translations (10+ languages)
+## Tính năng
 
-### Screenshots
+### Nền tảng Docmost (OSS)
 
-<p align="center">
-<img alt="home" src="https://docmost.com/screenshots/home.png" width="70%">
-<img alt="editor" src="https://docmost.com/screenshots/editor.png" width="70%">
-</p>
+- Cộng tác realtime trên trang
+- Spaces, nhóm, phân quyền
+- Editor rich-text (TipTap), diagram (Draw.io, Excalidraw, Mermaid)
+- Tìm kiếm, lịch sử trang, bình luận, đính kèm
+- Đa ngôn ngữ (i18n)
 
-### License
-Docmost core is licensed under the open-source AGPL 3.0 license.  
-Enterprise features are available under an enterprise license (Enterprise Edition).  
+### Enterprise Edition (unlock-ee)
 
-All files in the following directories are licensed under the Docmost Enterprise license defined in `packages/ee/License`.
-  - apps/server/src/ee
-  - apps/client/src/ee
-  - packages/ee
+Backend EE triển khai trong `apps/server/src/ee/` với licence unlock (`UNLOCK_EE=true`). Các module chính:
 
-### Contributing
+| Nhóm | Module |
+|------|--------|
+| Bảo mật | MFA, API Keys, Audit, SSO (cấu hình), LDAP login, SCIM |
+| Nội dung | Page permissions, Templates, Page verification, Comment resolve |
+| Import / Export | DOCX/PDF import, Confluence import, DOCX/PDF export |
+| Khác | Personal spaces, Bases, AI (stub), Billing (stub), MCP (stub) |
 
-See the [development documentation](https://docmost.com/docs/self-hosting/development)
+Một số luồng SSO đầy đủ (OIDC/SAML/Google callback) và tích hợp AI thực vẫn đang hoàn thiện — xem `docs/unlock-ee/`.
 
-## Thanks
-Special thanks to;
+### Plugin system (đang phát triển)
 
-<img width="100" alt="Crowdin" src="https://github.com/user-attachments/assets/a6c3d352-e41b-448d-b6cd-3fbca3109f07" />
+Kiến trúc plugin tách khỏi core, hook qua `apps/server/src/core/plugins/`. Tài liệu: `docs/plugin_management/`.
 
-[Crowdin](https://crowdin.com/) for providing access to their localization platform.
+---
 
+## Yêu cầu
 
-<img width="48" alt="Algolia-mark-square-white" src="https://github.com/user-attachments/assets/6ccad04a-9589-4965-b6a1-d5cb1f4f9e94" />
+- **Node.js** 22+
+- **pnpm** 10+
+- **PostgreSQL** 16+
+- **Redis** 7+
 
-[Algolia](https://www.algolia.com/) for providing full-text search to the docs.
+Hoặc chạy bằng Docker (khuyến nghị cho production / thử nhanh).
 
+---
+
+## Chạy nhanh với Docker
+
+```bash
+docker compose up -d --build
+```
+
+Ứng dụng: [http://localhost:3000](http://localhost:3000)
+
+Cập nhật `APP_SECRET` và mật khẩu database trong `docker-compose.yml` trước khi deploy thật.
+
+---
+
+## Phát triển local
+
+```bash
+pnpm install
+cp .env.example .env
+# Chỉnh DATABASE_URL, REDIS_URL, APP_SECRET, APP_URL
+
+pnpm dev
+```
+
+| Lệnh | Mô tả |
+|------|--------|
+| `pnpm dev` | Client + server (dev) |
+| `pnpm build` | Build toàn monorepo |
+| `pnpm server:build` | Build server |
+| `pnpm client:build` | Build client |
+| `pnpm start` | Chạy server production |
+
+Biến môi trường quan trọng:
+
+```env
+UNLOCK_EE=true          # Mở tất cả tính năng EE (self-hosted)
+APP_URL=http://localhost:3000
+APP_SECRET=<32+ ký tự>
+DATABASE_URL=postgresql://...
+REDIS_URL=redis://...
+```
+
+---
+
+## Cấu trúc monorepo
+
+```
+sc_doc/
+├── apps/
+│   ├── client/          # React + Vite + Mantine
+│   └── server/          # NestJS API + collaboration
+│       └── src/ee/      # Enterprise backend (in-repo)
+├── packages/
+│   ├── editor-ext/      # TipTap extensions
+│   └── base-formula/    # Công thức Bases
+├── docs/
+│   ├── unlock-ee/       # Kế hoạch & spec EE
+│   └── plugin_management/
+├── docker-compose.yml
+└── Dockerfile
+```
+
+EE được load động từ `app.module.ts` qua `require('./ee/ee.module')` — core OSS gần như không đổi.
+
+---
+
+## Tài liệu nội bộ
+
+| Tài liệu | Nội dung |
+|----------|----------|
+| [docs/unlock-ee/README.md](docs/unlock-ee/README.md) | Tổng quan unlock EE, roadmap |
+| [docs/unlock-ee/SSO_IMPLEMENTATION_SPEC.md](docs/unlock-ee/SSO_IMPLEMENTATION_SPEC.md) | Spec SSO (OIDC, SAML, LDAP, Google) |
+| [docs/plugin_management/README.md](docs/plugin_management/README.md) | Hệ thống plugin |
+| [Docmost docs](https://docmost.com/docs) | Tài liệu upstream |
