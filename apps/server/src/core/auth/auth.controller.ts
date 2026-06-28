@@ -46,10 +46,10 @@ export class AuthController {
   private readonly logger = new Logger(AuthController.name);
 
   constructor(
-    private authService: AuthService,
-    private sessionService: SessionService,
-    private environmentService: EnvironmentService,
-    private moduleRef: ModuleRef,
+    private readonly authService: AuthService,
+    private readonly sessionService: SessionService,
+    private readonly environmentService: EnvironmentService,
+    private readonly moduleRef: ModuleRef,
     @Inject(AUDIT_SERVICE) private readonly auditService: IAuditService,
   ) {}
 
@@ -58,17 +58,22 @@ export class AuthController {
   async login(
     @AuthWorkspace() workspace: Workspace,
     @Res({ passthrough: true }) res: FastifyReply,
+    @Req() req: FastifyRequest,
     @Body() loginInput: LoginDto,
   ) {
     validateSsoEnforcement(workspace);
 
+    let loginContext: any = {
+      loginInput,
+      workspaceId: workspace.id,
+      remoteAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+    };
+
     // Hook: BEFORE_LOGIN
     try {
       const hookRegistry = getHookRegistry();
-      await hookRegistry.emit(CoreHooks.BEFORE_LOGIN, {
-        loginInput,
-        workspaceId: workspace.id,
-      });
+      loginContext = await hookRegistry.emit(CoreHooks.BEFORE_LOGIN, loginContext);
     } catch (error: unknown) {
       const code = (error as { code?: string })?.code;
       if (
@@ -87,7 +92,11 @@ export class AuthController {
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       MfaModule = require('./../../ee/mfa/services/mfa.service');
       isMfaModuleReady = true;
-    } catch (err) {
+    } catch (err: unknown) {
+      const code = (err as NodeJS.ErrnoException)?.code;
+      if (code !== 'MODULE_NOT_FOUND') {
+        throw err;
+      }
       this.logger.debug(
         'MFA module requested but EE module not bundled in this build',
       );
@@ -99,7 +108,7 @@ export class AuthController {
       });
 
       const mfaResult = await mfaService.checkMfaRequirements(
-        loginInput,
+        loginContext.loginInput,
         workspace,
         res,
       );
@@ -120,14 +129,17 @@ export class AuthController {
       }
     }
 
-    const authToken = await this.authService.login(loginInput, workspace.id);
+    const authToken = await this.authService.login(
+      loginContext.loginInput,
+      workspace.id,
+    );
     this.setAuthCookie(res, authToken);
 
     // Hook: AFTER_LOGIN
     try {
       const hookRegistry = getHookRegistry();
       await hookRegistry.emit(CoreHooks.AFTER_LOGIN, {
-        loginInput,
+        loginInput: loginContext.loginInput,
         workspaceId: workspace.id,
       });
     } catch (error) {
@@ -140,14 +152,19 @@ export class AuthController {
   @Post('setup')
   async setupWorkspace(
     @Res({ passthrough: true }) res: FastifyReply,
+    @Req() req: FastifyRequest,
     @Body() createAdminUserDto: CreateAdminUserDto,
   ) {
+    let signupContext: any = {
+      signupInput: createAdminUserDto,
+      remoteAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+    };
+
     // Hook: BEFORE_SIGNUP
     try {
       const hookRegistry = getHookRegistry();
-      await hookRegistry.emit(CoreHooks.BEFORE_SIGNUP, {
-        createAdminUserDto,
-      });
+      signupContext = await hookRegistry.emit(CoreHooks.BEFORE_SIGNUP, signupContext);
     } catch (error: unknown) {
       const code = (error as { code?: string })?.code;
       if (
@@ -161,7 +178,7 @@ export class AuthController {
     }
 
     const { workspace, authToken } =
-      await this.authService.setup(createAdminUserDto);
+      await this.authService.setup(signupContext.signupInput);
 
     this.setAuthCookie(res, authToken);
 
@@ -170,7 +187,7 @@ export class AuthController {
       const hookRegistry = getHookRegistry();
       await hookRegistry.emit(CoreHooks.AFTER_SIGNUP, {
         workspace,
-        createAdminUserDto,
+        createAdminUserDto: signupContext.signupInput,
       });
     } catch (error) {
       this.logger.warn('AFTER_SIGNUP hook error (non-blocking):', error);

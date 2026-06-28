@@ -4,9 +4,11 @@ import { PluginRegistry } from './services/plugin.registry'
 import { PluginConfigService } from './services/plugin-config.service'
 import { HookRegistry } from './services/hook.registry'
 import { PluginsController } from './plugins.controller'
+import { RecaptchaModule } from './recaptcha/recaptcha.module'
 
 @Global()
 @Module({
+  imports: [RecaptchaModule],
   providers: [PluginRegistry, PluginConfigService, HookRegistry],
   controllers: [PluginsController],
   exports: [PluginRegistry, PluginConfigService, HookRegistry],

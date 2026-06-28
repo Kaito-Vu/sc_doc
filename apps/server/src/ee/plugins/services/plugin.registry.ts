@@ -22,45 +22,62 @@ export class PluginRegistry {
   }
 
   private loadPlugins(): void {
-    const pluginsDir = path.join(process.cwd(), 'plugins')
+    // Scan multiple plugin directories
+    const pluginDirs = [
+      path.join(process.cwd(), 'plugins'), // External plugins
+      path.join(__dirname, '..'), // Built-in plugins (same level as this registry)
+    ]
 
-    if (!fs.existsSync(pluginsDir)) {
-      this.logger.debug('Plugins directory not found')
-      return
-    }
-
-    try {
-      const entries = fs.readdirSync(pluginsDir, { withFileTypes: true })
-
-      for (const entry of entries) {
-        if (!entry.isDirectory()) continue
-
-        const configPath = path.join(pluginsDir, entry.name, 'plugin.config.json')
-        if (!fs.existsSync(configPath)) continue
-
-        try {
-          const configContent = fs.readFileSync(configPath, 'utf-8')
-          const config: PluginMetadata = JSON.parse(configContent)
-
-          // Validate config
-          if (!config.id || !config.name || !config.version) {
-            this.logger.warn(
-              `Invalid plugin config in ${entry.name}: missing required fields`,
-            )
-            continue
-          }
-
-          this.plugins.set(config.id, config)
-          this.logger.log(`Plugin loaded: ${config.id} v${config.version}`)
-        } catch (error) {
-          this.logger.error(
-            `Failed to parse plugin config from ${configPath}:`,
-            error,
-          )
-        }
+    for (const pluginsDir of pluginDirs) {
+      if (!fs.existsSync(pluginsDir)) {
+        this.logger.debug(`Plugins directory not found: ${pluginsDir}`)
+        continue
       }
-    } catch (error) {
-      this.logger.error('Failed to load plugins directory:', error)
+
+      try {
+        const entries = fs.readdirSync(pluginsDir, { withFileTypes: true })
+
+        for (const entry of entries) {
+          if (!entry.isDirectory()) continue
+
+          const configPath = path.join(pluginsDir, entry.name, 'plugin.config.json')
+          if (!fs.existsSync(configPath)) continue
+
+          try {
+            const configContent = fs.readFileSync(configPath, 'utf-8')
+            const config: PluginMetadata = JSON.parse(configContent)
+
+            // Validate config
+            if (!config.id || !config.name || !config.version) {
+              this.logger.warn(
+                `Invalid plugin config in ${entry.name}: missing required fields`,
+              )
+              continue
+            }
+
+            // Load schema if available
+            const schemaPath = path.join(pluginsDir, entry.name, 'plugin-config.schema.json')
+            if (fs.existsSync(schemaPath)) {
+              try {
+                const schemaContent = fs.readFileSync(schemaPath, 'utf-8')
+                config.configSchema = JSON.parse(schemaContent)
+              } catch (schemaError) {
+                this.logger.warn(`Failed to load schema for plugin ${config.id}:`, schemaError)
+              }
+            }
+
+            this.plugins.set(config.id, config)
+            this.logger.log(`Plugin loaded: ${config.id} v${config.version} from ${pluginsDir}`)
+          } catch (error) {
+            this.logger.error(
+              `Failed to parse plugin config from ${configPath}:`,
+              error,
+            )
+          }
+        }
+      } catch (error) {
+        this.logger.error(`Failed to load plugins directory ${pluginsDir}:`, error)
+      }
     }
   }
 
