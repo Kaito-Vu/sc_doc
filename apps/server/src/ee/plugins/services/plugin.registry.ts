@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common'
-import * as fs from 'fs'
-import * as path from 'path'
+import * as fs from 'node:fs'
+import * as path from 'node:path'
 
 export interface PluginMetadata {
   id: string
@@ -16,79 +16,133 @@ export interface PluginMetadata {
 @Injectable()
 export class PluginRegistry {
   private readonly logger = new Logger(PluginRegistry.name)
-  private plugins: Map<string, PluginMetadata> = new Map()
+  private readonly plugins: Map<string, PluginMetadata> = new Map()
 
   constructor() {
     this.loadPlugins()
   }
 
   private loadPlugins(): void {
-    // Scan multiple plugin directories
     const pluginDirs = [
-      path.join(process.cwd(), 'plugins'), // External plugins
-      path.join(__dirname, '..'), // Built-in plugins (same level as this registry)
+      path.join(process.cwd(), 'plugins'),
+      path.join(__dirname, '..'),
     ]
 
     for (const pluginsDir of pluginDirs) {
-      if (!fs.existsSync(pluginsDir)) {
-        this.logger.debug(`Plugins directory not found: ${pluginsDir}`)
-        continue
-      }
+      this.loadPluginsFromDirectory(pluginsDir)
+    }
+  }
 
-      try {
-        const entries = fs.readdirSync(pluginsDir, { withFileTypes: true })
+  private loadPluginsFromDirectory(pluginsDir: string): void {
+    if (!fs.existsSync(pluginsDir)) {
+      this.logger.debug(`Plugins directory not found: ${pluginsDir}`)
+      return
+    }
 
-        for (const entry of entries) {
-          if (!entry.isDirectory()) continue
+    try {
+      const entries = fs.readdirSync(pluginsDir, { withFileTypes: true })
 
-          const configPath = path.join(pluginsDir, entry.name, 'plugin.config.json')
-          if (!fs.existsSync(configPath)) continue
-
-          try {
-            const configContent = fs.readFileSync(configPath, 'utf-8')
-            const rawConfig = JSON.parse(configContent)
-
-            // Validate config
-            if (!rawConfig.id || !rawConfig.name || !rawConfig.version) {
-              this.logger.warn(
-                `Invalid plugin config in ${entry.name}: missing required fields`,
-              )
-              continue
-            }
-
-            const config: PluginMetadata = {
-              id: rawConfig.id,
-              name: rawConfig.name,
-              version: rawConfig.version,
-              description: rawConfig.description,
-              author: rawConfig.author,
-              hooks: rawConfig.hooks,
-              configRequired: rawConfig.configRequired,
-            }
-
-            // Load schema if available
-            const schemaPath = path.join(pluginsDir, entry.name, 'plugin-config.schema.json')
-            if (fs.existsSync(schemaPath)) {
-              try {
-                const schemaContent = fs.readFileSync(schemaPath, 'utf-8')
-                config.configSchema = JSON.parse(schemaContent)
-              } catch (schemaError) {
-                this.logger.warn(`Failed to load schema for plugin ${config.id}:`, schemaError)
-              }
-            }
-
-            this.plugins.set(config.id, config)
-            this.logger.log(`Plugin loaded: ${config.id} v${config.version} from ${pluginsDir}`)
-          } catch (error) {
-            this.logger.error(
-              `Failed to parse plugin config from ${configPath}:`,
-              error,
-            )
-          }
+      for (const entry of entries) {
+        if (!entry.isDirectory()) {
+          continue
         }
-      } catch (error) {
-        this.logger.error(`Failed to load plugins directory ${pluginsDir}:`, error)
+
+        this.loadPluginFromEntry(pluginsDir, entry.name)
       }
+    } catch (error) {
+      this.logger.error(`Failed to load plugins directory ${pluginsDir}:`, error)
+    }
+  }
+
+  private loadPluginFromEntry(pluginsDir: string, entryName: string): void {
+    const configPath = path.join(pluginsDir, entryName, 'plugin.config.json')
+    if (!fs.existsSync(configPath)) {
+      return
+    }
+
+    try {
+      const configContent = fs.readFileSync(configPath, 'utf-8')
+      const rawConfig = JSON.parse(configContent)
+      const config = this.parsePluginMetadata(rawConfig, entryName)
+
+      if (!config) {
+        return
+      }
+
+      this.attachPluginSchema(pluginsDir, entryName, config)
+      this.plugins.set(config.id, config)
+      this.logger.log(
+        `Plugin loaded: ${config.id} v${config.version} from ${pluginsDir}`,
+      )
+    } catch (error) {
+      this.logger.error(
+        `Failed to parse plugin config from ${configPath}:`,
+        error,
+      )
+    }
+  }
+
+  private parsePluginMetadata(
+    rawConfig: Record<string, unknown>,
+    entryName: string,
+  ): PluginMetadata | null {
+    if (
+      typeof rawConfig.id !== 'string' ||
+      typeof rawConfig.name !== 'string' ||
+      typeof rawConfig.version !== 'string' ||
+      !rawConfig.id ||
+      !rawConfig.name ||
+      !rawConfig.version
+    ) {
+      this.logger.warn(
+        `Invalid plugin config in ${entryName}: missing required fields`,
+      )
+      return null
+    }
+
+    return {
+      id: rawConfig.id,
+      name: rawConfig.name,
+      version: rawConfig.version,
+      description:
+        typeof rawConfig.description === 'string'
+          ? rawConfig.description
+          : undefined,
+      author:
+        typeof rawConfig.author === 'string' ? rawConfig.author : undefined,
+      hooks: Array.isArray(rawConfig.hooks)
+        ? (rawConfig.hooks as string[])
+        : undefined,
+      configRequired:
+        typeof rawConfig.configRequired === 'boolean'
+          ? rawConfig.configRequired
+          : undefined,
+    }
+  }
+
+  private attachPluginSchema(
+    pluginsDir: string,
+    entryName: string,
+    config: PluginMetadata,
+  ): void {
+    const schemaPath = path.join(
+      pluginsDir,
+      entryName,
+      'plugin-config.schema.json',
+    )
+
+    if (!fs.existsSync(schemaPath)) {
+      return
+    }
+
+    try {
+      const schemaContent = fs.readFileSync(schemaPath, 'utf-8')
+      config.configSchema = JSON.parse(schemaContent)
+    } catch (schemaError) {
+      this.logger.warn(
+        `Failed to load schema for plugin ${config.id}:`,
+        schemaError,
+      )
     }
   }
 

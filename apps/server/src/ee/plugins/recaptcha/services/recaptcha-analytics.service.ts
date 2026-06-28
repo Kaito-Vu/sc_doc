@@ -21,7 +21,7 @@ export interface RecaptchaAnalytics {
 export class RecaptchaAnalyticsService {
   private readonly logger = new Logger(RecaptchaAnalyticsService.name)
 
-  constructor(private verificationRepo: RecaptchaVerificationRepo) {}
+  constructor(private readonly verificationRepo: RecaptchaVerificationRepo) {}
 
   async getAnalytics(workspaceId: string, hoursBack: number = 24): Promise<RecaptchaAnalytics> {
     const stats = await this.verificationRepo.getStatistics(workspaceId, hoursBack)

@@ -21,7 +21,7 @@ export interface RecaptchaVerification {
 export class RecaptchaVerificationRepo {
   private readonly logger = new Logger(RecaptchaVerificationRepo.name)
 
-  constructor(@InjectKysely() private db: Kysely<any>) {}
+  constructor(@InjectKysely() private readonly db: Kysely<any>) {}
 
   async create(verification: Omit<RecaptchaVerification, 'id' | 'createdAt'>): Promise<RecaptchaVerification> {
     const result = await this.db

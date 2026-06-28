@@ -25,9 +25,9 @@ export class BeforeLoginHandler {
   private readonly logger = new Logger(BeforeLoginHandler.name)
 
   constructor(
-    private recaptcha: RecaptchaService,
-    private configService: PluginConfigService,
-    private verificationRepo: RecaptchaVerificationRepo,
+    private readonly recaptcha: RecaptchaService,
+    private readonly configService: PluginConfigService,
+    private readonly verificationRepo: RecaptchaVerificationRepo,
   ) {}
 
   async handle(context: LoginHookContext): Promise<LoginHookContext> {

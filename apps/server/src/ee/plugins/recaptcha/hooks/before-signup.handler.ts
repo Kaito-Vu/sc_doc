@@ -25,9 +25,9 @@ export class BeforeSignupHandler {
   private readonly logger = new Logger(BeforeSignupHandler.name)
 
   constructor(
-    private recaptcha: RecaptchaService,
-    private configService: PluginConfigService,
-    private verificationRepo: RecaptchaVerificationRepo,
+    private readonly recaptcha: RecaptchaService,
+    private readonly configService: PluginConfigService,
+    private readonly verificationRepo: RecaptchaVerificationRepo,
   ) {}
 
   async handle(context: SignupHookContext): Promise<SignupHookContext> {

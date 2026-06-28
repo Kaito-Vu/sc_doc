@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   ActionIcon,
   Badge,
@@ -45,18 +45,25 @@ export function PluginList({
 }: Readonly<Props>) {
   const { t } = useTranslation();
   const [toggling, setToggling] = useState<string | null>(null);
+  // Ref guard: setToggling() is an async state update, so disabled={isToggling}
+  // does not take effect until the next render commits. A fast double-click
+  // (or a duplicate change event) before that commit would otherwise call
+  // handleToggle() twice for a single intended click. inFlightRef is checked
+  // and set synchronously, so the second call is rejected immediately.
+  const inFlightRef = useRef<Set<string>>(new Set());
 
   const handleToggle = async (plugin: IPlugin, enabled: boolean) => {
+    if (inFlightRef.current.has(plugin.id)) {
+      console.warn(`[Toggle] Ignored duplicate toggle for ${plugin.id} (already in flight)`);
+      return;
+    }
+    inFlightRef.current.add(plugin.id);
     setToggling(plugin.id);
     try {
       console.log(`[Toggle] Starting toggle for ${plugin.id} to ${enabled}`);
       const toggleResponse = await togglePlugin(plugin.id, enabled);
       console.log(`[Toggle] Toggle response:`, toggleResponse);
 
-      // Small delay to ensure database write completes
-      await new Promise(resolve => setTimeout(resolve, 500));
-
-      console.log(`[Toggle] Calling onRefresh...`);
       await onRefresh({ silent: true });
       console.log(`[Toggle] Refresh completed`);
 
@@ -72,6 +79,7 @@ export function PluginList({
         color: "red",
       });
     } finally {
+      inFlightRef.current.delete(plugin.id);
       setToggling(null);
     }
   };

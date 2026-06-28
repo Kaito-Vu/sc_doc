@@ -18,9 +18,9 @@ export class RecaptchaModule implements OnModuleInit {
   private readonly logger = new Logger(RecaptchaModule.name)
 
   constructor(
-    private beLoginHandler: BeforeLoginHandler,
-    private beSignupHandler: BeforeSignupHandler,
-    private hookRegistry: HookRegistry,
+    private readonly beLoginHandler: BeforeLoginHandler,
+    private readonly beSignupHandler: BeforeSignupHandler,
+    private readonly hookRegistry: HookRegistry,
   ) {}
 
   async onModuleInit() {

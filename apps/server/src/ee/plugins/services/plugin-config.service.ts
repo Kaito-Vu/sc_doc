@@ -5,7 +5,7 @@ import {
   Logger,
 } from '@nestjs/common'
 import { InjectKysely } from 'nestjs-kysely'
-import { Kysely, sql } from 'kysely'
+import { Kysely } from 'kysely'
 import { PluginRegistry } from './plugin.registry'
 
 export interface PluginConfigData {
@@ -24,8 +24,8 @@ export class PluginConfigService {
   private readonly logger = new Logger(PluginConfigService.name)
 
   constructor(
-    @InjectKysely() private db: Kysely<any>,
-    private registry: PluginRegistry,
+    @InjectKysely() private readonly db: Kysely<any>,
+    private readonly registry: PluginRegistry,
   ) {}
 
   async getConfig(
@@ -98,72 +98,12 @@ export class PluginConfigService {
       }
     }
 
-    this.logger.log(`[UpdateConfig] Checking for existing config...`)
-    const existing = await this.db
-      .selectFrom('plugin_configurations')
-      .selectAll()
-      .where('workspace_id', '=', workspaceId)
-      .where('plugin_id', '=', pluginId)
-      .executeTakeFirst()
-
-    this.logger.log(`[UpdateConfig] Existing config:`, existing)
-
-    let result
-
-    if (existing) {
-      this.logger.log(`[UpdateConfig] Updating existing config...`)
-      const existingConfig = existing.config || {}
-      const nextConfig = updates.config
-        ? {
-            ...existingConfig,
-            ...Object.fromEntries(
-              Object.entries(updates.config).filter(
-                ([, value]) => value !== undefined && value !== '',
-              ),
-            ),
-          }
-        : existingConfig
-
-      const updateData = {
-        enabled:
-          updates.enabled !== undefined ? updates.enabled : existing.enabled,
-        config: nextConfig,
-        updated_at: new Date(),
-        updated_by: userId || existing.updated_by,
-        version: existing.version + 1,
-      }
-      this.logger.log(`[UpdateConfig] Update data:`, updateData)
-
-      result = await this.db
-        .updateTable('plugin_configurations')
-        .set(updateData)
-        .where('id', '=', existing.id)
-        .returningAll()
-        .executeTakeFirstOrThrow()
-
-      this.logger.log(`[UpdateConfig] Update result:`, result)
-    } else {
-      // Create new
-      this.logger.log(`[UpdateConfig] Creating new config...`)
-      const insertData = {
-        workspace_id: workspaceId,
-        plugin_id: pluginId,
-        enabled: updates.enabled ?? false,
-        config: updates.config || {},
-        created_by: userId,
-        updated_by: userId,
-        version: 1,
-      }
-      this.logger.log(`[UpdateConfig] Insert data:`, insertData)
-
-      result = await this.db
-        .insertInto('plugin_configurations')
-        .values(insertData)
-        .returningAll()
-        .executeTakeFirstOrThrow()
-
-      this.logger.log(`[UpdateConfig] Insert result:`, result)
-    }
+    const result = await this.upsertConfigWithRetry(
+      workspaceId,
+      pluginId,
+      updates,
+      userId,
+    )
 
     this.logger.log(
       `Plugin ${pluginId} config updated in workspace ${workspaceId}`,
@@ -177,6 +117,104 @@ export class PluginConfigService {
       config: result.config || {},
       version: result.version,
       updatedAt: result.updated_at,
+    }
+  }
+
+  /**
+   * Upserts with optimistic locking on `version`. Two near-simultaneous
+   * requests (e.g. a double-fired toggle click) would otherwise both read
+   * the same `existing` row and the second write would silently overwrite
+   * the first using a stale snapshot (lost update). Checking `version` in
+   * the WHERE clause makes the second write fail to match a row, so we
+   * retry against the now-current row instead of clobbering it.
+   */
+  private async upsertConfigWithRetry(
+    workspaceId: string,
+    pluginId: string,
+    updates: { enabled?: boolean; config?: Record<string, any> },
+    userId?: string,
+    attempt = 0,
+  ): Promise<any> {
+    const existing = await this.db
+      .selectFrom('plugin_configurations')
+      .selectAll()
+      .where('workspace_id', '=', workspaceId)
+      .where('plugin_id', '=', pluginId)
+      .executeTakeFirst()
+
+    if (existing) {
+      const existingConfig = existing.config || {}
+      const nextConfig = updates.config
+        ? {
+            ...existingConfig,
+            ...Object.fromEntries(
+              Object.entries(updates.config).filter(
+                ([, value]) => value !== undefined && value !== '',
+              ),
+            ),
+          }
+        : existingConfig
+
+      const result = await this.db
+        .updateTable('plugin_configurations')
+        .set({
+          enabled: updates.enabled ?? existing.enabled,
+          config: nextConfig,
+          updated_at: new Date(),
+          updated_by: userId || existing.updated_by,
+          version: existing.version + 1,
+        })
+        .where('id', '=', existing.id)
+        .where('version', '=', existing.version)
+        .returningAll()
+        .executeTakeFirst()
+
+      if (!result) {
+        if (attempt >= 3) {
+          throw new Error(
+            `Failed to update plugin ${pluginId} config after ${attempt} retries due to concurrent updates`,
+          )
+        }
+        this.logger.warn(
+          `[UpdateConfig] Version conflict for ${pluginId} (expected version ${existing.version}), retrying (attempt ${attempt + 1})`,
+        )
+        return this.upsertConfigWithRetry(
+          workspaceId,
+          pluginId,
+          updates,
+          userId,
+          attempt + 1,
+        )
+      }
+
+      return result
+    }
+
+    try {
+      return await this.db
+        .insertInto('plugin_configurations')
+        .values({
+          workspace_id: workspaceId,
+          plugin_id: pluginId,
+          enabled: updates.enabled ?? false,
+          config: updates.config || {},
+          created_by: userId,
+          updated_by: userId,
+          version: 1,
+        })
+        .returningAll()
+        .executeTakeFirstOrThrow()
+    } catch (error) {
+      // Unique constraint on (workspace_id, plugin_id): another concurrent
+      // request inserted the row first. Retry as an update against it.
+      if (attempt >= 3) throw error
+      return this.upsertConfigWithRetry(
+        workspaceId,
+        pluginId,
+        updates,
+        userId,
+        attempt + 1,
+      )
     }
   }
 
@@ -244,36 +282,61 @@ export class PluginConfigService {
     config: Record<string, any>,
     schema: Record<string, any>,
   ): { valid: boolean; errors?: string[] } {
-    const errors: string[] = []
-
     if (!schema.properties) {
       return { valid: true }
     }
 
-    for (const [key, propDef] of Object.entries(schema.properties)) {
-      const prop = propDef as any
-      const value = config[key]
-
-      // Check required
-      if (prop.required && value === undefined) {
-        errors.push(`Missing required field: ${key}`)
-      }
-
-      // Check type
-      if (value !== undefined) {
-        if (prop.type === 'string' && typeof value !== 'string') {
-          errors.push(`Field ${key} must be string`)
-        } else if (prop.type === 'number' && typeof value !== 'number') {
-          errors.push(`Field ${key} must be number`)
-        } else if (prop.type === 'boolean' && typeof value !== 'boolean') {
-          errors.push(`Field ${key} must be boolean`)
-        }
-      }
-    }
+    const errors = Object.entries(schema.properties).flatMap(
+      ([key, propDef]) => {
+        const error = this.validateConfigField(key, propDef, config[key])
+        return error ? [error] : []
+      },
+    )
 
     return {
       valid: errors.length === 0,
       errors: errors.length > 0 ? errors : undefined,
     }
+  }
+
+  private validateConfigField(
+    key: string,
+    prop: unknown,
+    value: unknown,
+  ): string | null {
+    const schemaProp =
+      typeof prop === 'object' && prop !== null
+        ? (prop as { required?: boolean; type?: string })
+        : {}
+
+    if (schemaProp.required && value === undefined) {
+      return `Missing required field: ${key}`
+    }
+
+    if (value === undefined) {
+      return null
+    }
+
+    const expectedType = schemaProp.type
+    if (
+      expectedType === 'string' &&
+      typeof value !== 'string'
+    ) {
+      return `Field ${key} must be string`
+    }
+    if (
+      expectedType === 'number' &&
+      typeof value !== 'number'
+    ) {
+      return `Field ${key} must be number`
+    }
+    if (
+      expectedType === 'boolean' &&
+      typeof value !== 'boolean'
+    ) {
+      return `Field ${key} must be boolean`
+    }
+
+    return null
   }
 }
