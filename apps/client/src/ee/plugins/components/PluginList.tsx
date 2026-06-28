@@ -49,15 +49,23 @@ export function PluginList({
   const handleToggle = async (plugin: IPlugin, enabled: boolean) => {
     setToggling(plugin.id);
     try {
-      await togglePlugin(plugin.id, enabled);
+      console.log(`[Toggle] Starting toggle for ${plugin.id} to ${enabled}`);
+      const toggleResponse = await togglePlugin(plugin.id, enabled);
+      console.log(`[Toggle] Toggle response:`, toggleResponse);
+
       // Small delay to ensure database write completes
-      await new Promise(resolve => setTimeout(resolve, 300));
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      console.log(`[Toggle] Calling onRefresh...`);
       await onRefresh({ silent: true });
+      console.log(`[Toggle] Refresh completed`);
+
       notifications.show({
         message: t("Plugin toggled successfully"),
         color: "green",
       });
     } catch (err: any) {
+      console.error(`[Toggle] Error:`, err);
       notifications.show({
         message:
           err?.response?.data?.message || err?.message || t("Unknown error"),
@@ -87,7 +95,7 @@ export function PluginList({
   }
 
   return (
-    <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md">
+    <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
       {plugins.map((plugin) => {
         const PluginIcon = getPluginIcon(plugin.id);
         const isToggling = toggling === plugin.id;

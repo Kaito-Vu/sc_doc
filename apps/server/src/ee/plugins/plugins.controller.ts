@@ -135,22 +135,26 @@ export class PluginsController {
     @Param('pluginId') pluginId: string,
     @Body() body: { enabled: boolean },
   ) {
+    this.logger.log(`[Toggle] Request received - pluginId: ${pluginId}, enabled: ${body.enabled}`)
     if (body.enabled === undefined) {
       throw new BadRequestException('enabled field is required')
     }
 
-    const updated = await this.configService.togglePlugin(
-      workspace.id,
-      pluginId,
-      body.enabled,
-      user.id,
-    )
+    try {
+      this.logger.log(`[Toggle] Calling configService.togglePlugin...`)
+      const updated = await this.configService.togglePlugin(
+        workspace.id,
+        pluginId,
+        body.enabled,
+        user.id,
+      )
+      this.logger.log(`[Toggle] Toggle successful - result:`, updated)
 
-    this.logger.log(
-      `Plugin ${pluginId} toggled to ${body.enabled} by user ${user.id}`,
-    )
-
-    return { success: true, enabled: updated.enabled }
+      return { success: true, enabled: updated.enabled }
+    } catch (error) {
+      this.logger.error(`[Toggle] Error toggling plugin:`, error)
+      throw error
+    }
   }
 
   private redactSecrets(data: any): any {

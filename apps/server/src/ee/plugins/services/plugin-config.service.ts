@@ -76,8 +76,10 @@ export class PluginConfigService {
     },
     userId?: string,
   ): Promise<PluginConfigData> {
+    this.logger.log(`[UpdateConfig] Starting update - workspaceId: ${workspaceId}, pluginId: ${pluginId}, updates:`, updates)
     const plugin = this.registry.getPlugin(pluginId)
     if (!plugin) {
+      this.logger.error(`[UpdateConfig] Plugin not found: ${pluginId}`)
       throw new NotFoundException(`Plugin ${pluginId} not found`)
     }
 
@@ -88,6 +90,7 @@ export class PluginConfigService {
         plugin.configSchema,
       )
       if (!validation.valid) {
+        this.logger.error(`[UpdateConfig] Validation failed:`, validation.errors)
         throw new BadRequestException({
           message: 'Invalid configuration',
           errors: validation.errors,
@@ -95,6 +98,7 @@ export class PluginConfigService {
       }
     }
 
+    this.logger.log(`[UpdateConfig] Checking for existing config...`)
     const existing = await this.db
       .selectFrom('plugin_configurations')
       .selectAll()
@@ -102,9 +106,12 @@ export class PluginConfigService {
       .where('plugin_id', '=', pluginId)
       .executeTakeFirst()
 
+    this.logger.log(`[UpdateConfig] Existing config:`, existing)
+
     let result
 
     if (existing) {
+      this.logger.log(`[UpdateConfig] Updating existing config...`)
       const existingConfig = existing.config || {}
       const nextConfig = updates.config
         ? {
@@ -117,34 +124,45 @@ export class PluginConfigService {
           }
         : existingConfig
 
+      const updateData = {
+        enabled:
+          updates.enabled !== undefined ? updates.enabled : existing.enabled,
+        config: nextConfig,
+        updated_at: new Date(),
+        updated_by: userId || existing.updated_by,
+        version: existing.version + 1,
+      }
+      this.logger.log(`[UpdateConfig] Update data:`, updateData)
+
       result = await this.db
         .updateTable('plugin_configurations')
-        .set({
-          enabled:
-            updates.enabled !== undefined ? updates.enabled : existing.enabled,
-          config: nextConfig,
-          updated_at: new Date(),
-          updated_by: userId || existing.updated_by,
-          version: existing.version + 1,
-        })
+        .set(updateData)
         .where('id', '=', existing.id)
         .returningAll()
         .executeTakeFirstOrThrow()
+
+      this.logger.log(`[UpdateConfig] Update result:`, result)
     } else {
       // Create new
+      this.logger.log(`[UpdateConfig] Creating new config...`)
+      const insertData = {
+        workspace_id: workspaceId,
+        plugin_id: pluginId,
+        enabled: updates.enabled ?? false,
+        config: updates.config || {},
+        created_by: userId,
+        updated_by: userId,
+        version: 1,
+      }
+      this.logger.log(`[UpdateConfig] Insert data:`, insertData)
+
       result = await this.db
         .insertInto('plugin_configurations')
-        .values({
-          workspace_id: workspaceId,
-          plugin_id: pluginId,
-          enabled: updates.enabled ?? false,
-          config: updates.config || {},
-          created_by: userId,
-          updated_by: userId,
-          version: 1,
-        })
+        .values(insertData)
         .returningAll()
         .executeTakeFirstOrThrow()
+
+      this.logger.log(`[UpdateConfig] Insert result:`, result)
     }
 
     this.logger.log(
@@ -168,12 +186,17 @@ export class PluginConfigService {
     enabled: boolean,
     userId?: string,
   ): Promise<PluginConfigData> {
+    this.logger.log(`[TogglePlugin] workspaceId: ${workspaceId}, pluginId: ${pluginId}, enabled: ${enabled}`)
     const plugin = this.registry.getPlugin(pluginId)
     if (!plugin) {
+      this.logger.error(`[TogglePlugin] Plugin not found: ${pluginId}`)
       throw new NotFoundException(`Plugin ${pluginId} not found`)
     }
 
-    return this.updateConfig(workspaceId, pluginId, { enabled }, userId)
+    this.logger.log(`[TogglePlugin] Calling updateConfig...`)
+    const result = await this.updateConfig(workspaceId, pluginId, { enabled }, userId)
+    this.logger.log(`[TogglePlugin] updateConfig result:`, result)
+    return result
   }
 
   isConfigured(

@@ -37,7 +37,8 @@ import {
   AUDIT_SERVICE,
   IAuditService,
 } from '../../integrations/audit/audit.service';
-import { CoreHooks, getHookRegistry } from '../plugins/plugin-hooks';
+import { CoreHooks } from '../plugins/plugin-hooks';
+import { runHook } from '../plugins/run-hook';
 
 @SkipThrottle({ [AI_CHAT_THROTTLER]: true })
 @UseGuards(ThrottlerGuard)
@@ -70,21 +71,7 @@ export class AuthController {
       userAgent: req.headers['user-agent'],
     };
 
-    // Hook: BEFORE_LOGIN
-    try {
-      const hookRegistry = getHookRegistry();
-      loginContext = await hookRegistry.emit(CoreHooks.BEFORE_LOGIN, loginContext);
-    } catch (error: unknown) {
-      const code = (error as { code?: string })?.code;
-      if (
-        code === 'BOT_DETECTED' ||
-        code === 'UNAUTHORIZED' ||
-        code === 'FORBIDDEN'
-      ) {
-        throw error;
-      }
-      this.logger.warn('BEFORE_LOGIN hook error (non-blocking):', error);
-    }
+    loginContext = await runHook(CoreHooks.BEFORE_LOGIN, loginContext);
 
     let MfaModule: any;
     let isMfaModuleReady = false;
@@ -135,16 +122,10 @@ export class AuthController {
     );
     this.setAuthCookie(res, authToken);
 
-    // Hook: AFTER_LOGIN
-    try {
-      const hookRegistry = getHookRegistry();
-      await hookRegistry.emit(CoreHooks.AFTER_LOGIN, {
-        loginInput: loginContext.loginInput,
-        workspaceId: workspace.id,
-      });
-    } catch (error) {
-      this.logger.warn('AFTER_LOGIN hook error (non-blocking):', error);
-    }
+    await runHook(CoreHooks.AFTER_LOGIN, {
+      loginInput: loginContext.loginInput,
+      workspaceId: workspace.id,
+    });
   }
 
   @UseGuards(SetupGuard)
@@ -161,37 +142,17 @@ export class AuthController {
       userAgent: req.headers['user-agent'],
     };
 
-    // Hook: BEFORE_SIGNUP
-    try {
-      const hookRegistry = getHookRegistry();
-      signupContext = await hookRegistry.emit(CoreHooks.BEFORE_SIGNUP, signupContext);
-    } catch (error: unknown) {
-      const code = (error as { code?: string })?.code;
-      if (
-        code === 'BOT_DETECTED' ||
-        code === 'UNAUTHORIZED' ||
-        code === 'FORBIDDEN'
-      ) {
-        throw error;
-      }
-      this.logger.warn('BEFORE_SIGNUP hook error (non-blocking):', error);
-    }
+    signupContext = await runHook(CoreHooks.BEFORE_SIGNUP, signupContext);
 
     const { workspace, authToken } =
       await this.authService.setup(signupContext.signupInput);
 
     this.setAuthCookie(res, authToken);
 
-    // Hook: AFTER_SIGNUP
-    try {
-      const hookRegistry = getHookRegistry();
-      await hookRegistry.emit(CoreHooks.AFTER_SIGNUP, {
-        workspace,
-        createAdminUserDto: signupContext.signupInput,
-      });
-    } catch (error) {
-      this.logger.warn('AFTER_SIGNUP hook error (non-blocking):', error);
-    }
+    await runHook(CoreHooks.AFTER_SIGNUP, {
+      workspace,
+      createAdminUserDto: signupContext.signupInput,
+    });
 
     return workspace;
   }

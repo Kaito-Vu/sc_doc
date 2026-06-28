@@ -1,9 +1,8 @@
-import { Module, OnModuleInit, Inject } from '@nestjs/common'
+import { Module, OnModuleInit, Logger } from '@nestjs/common'
 import { RecaptchaService } from './recaptcha.service'
 import { BeforeLoginHandler } from './hooks/before-login.handler'
 import { BeforeSignupHandler } from './hooks/before-signup.handler'
 import { RecaptchaVerificationRepo } from './repositories/recaptcha-verification.repo'
-import { PluginConfigService } from '../services/plugin-config.service'
 import { HookRegistry } from '../services/hook.registry'
 
 @Module({
@@ -16,11 +15,12 @@ import { HookRegistry } from '../services/hook.registry'
   exports: [RecaptchaService, RecaptchaVerificationRepo]
 })
 export class RecaptchaModule implements OnModuleInit {
+  private readonly logger = new Logger(RecaptchaModule.name)
+
   constructor(
     private beLoginHandler: BeforeLoginHandler,
     private beSignupHandler: BeforeSignupHandler,
     private hookRegistry: HookRegistry,
-    private configService: PluginConfigService
   ) {}
 
   async onModuleInit() {
@@ -33,6 +33,6 @@ export class RecaptchaModule implements OnModuleInit {
       return this.beSignupHandler.handle(context)
     })
 
-    console.log('✓ reCAPTCHA v3 plugin initialized and hooks registered')
+    this.logger.log('reCAPTCHA v3 plugin initialized and hooks registered')
   }
 }

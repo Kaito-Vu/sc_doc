@@ -28,9 +28,21 @@ export default function PluginsPage() {
         setLoading(true);
       }
       setError(null);
+      console.log(`[LoadPlugins] Fetching plugins...`, { silent: options?.silent });
       const data = await getPlugins();
+      console.log(`[LoadPlugins] Received data (count: ${data?.length}):`, data);
+
+      // Debug each plugin's enabled state
+      if (data) {
+        data.forEach(p => {
+          console.log(`  - ${p.id}: enabled=${p.enabled}, configured=${p.configured}`);
+        });
+      }
+
       setPlugins(data || []);
+      console.log(`[LoadPlugins] State setPlugins called with ${data?.length} plugins`);
     } catch (err: any) {
+      console.error(`[LoadPlugins] Error:`, err);
       setError(
         err?.response?.data?.message || err?.message || t("Failed to load plugins"),
       );

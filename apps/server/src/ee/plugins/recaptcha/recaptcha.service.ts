@@ -73,14 +73,21 @@ export class RecaptchaService {
         errorCodes: []
       }
     } catch (error) {
-      if (error instanceof BadRequestException || error instanceof InternalServerErrorException) {
+      if (
+        error instanceof BadRequestException ||
+        error instanceof InternalServerErrorException
+      ) {
         throw error
       }
 
-      this.logger.error('Failed to verify reCAPTCHA token', error instanceof Error ? error.message : 'Unknown error')
+      this.logger.error(
+        'Failed to verify reCAPTCHA token',
+        error instanceof Error ? error.stack : String(error),
+      )
 
-      // Network or timeout error
-      throw new InternalServerErrorException('reCAPTCHA verification temporarily unavailable')
+      throw new InternalServerErrorException(
+        'reCAPTCHA verification temporarily unavailable',
+      )
     }
   }
 

@@ -4,6 +4,7 @@ import {
   HookHandler,
   HookContext,
 } from '../../../core/plugins/plugin-hooks'
+import { shouldPropagateHookError } from '../../platform/errors/hook-error.policy'
 
 @Injectable()
 export class HookRegistry implements IHookRegistry {
@@ -44,19 +45,20 @@ export class HookRegistry implements IHookRegistry {
     for (const handler of handlerArray) {
       try {
         result = await handler(result)
-      } catch (error: any) {
-        // Critical errors should block
-        if (
-          error?.code === 'BOT_DETECTED' ||
-          error?.code === 'UNAUTHORIZED' ||
-          error?.code === 'FORBIDDEN'
-        ) {
+      } catch (error: unknown) {
+        if (shouldPropagateHookError(event, error)) {
           throw error
         }
 
-        // Non-critical errors should be logged but not block
+        const errorMessage =
+          error instanceof Error
+            ? error.message
+            : typeof error === 'string'
+              ? error
+              : 'Unknown hook error';
+
         this.logger.warn(
-          `Hook ${event} handler error (non-blocking): ${error?.message}`,
+          `Hook ${event} handler error (non-blocking): ${errorMessage}`,
         )
       }
     }
