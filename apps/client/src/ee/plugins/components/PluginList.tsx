@@ -1,4 +1,26 @@
 import { useState } from "react";
+import {
+  ActionIcon,
+  Badge,
+  Card,
+  Center,
+  Group,
+  Loader,
+  Menu,
+  SimpleGrid,
+  Stack,
+  Switch,
+  Text,
+  ThemeIcon,
+} from "@mantine/core";
+import {
+  IconDots,
+  IconPuzzle,
+  IconSettings,
+  IconShieldCheck,
+} from "@tabler/icons-react";
+import { notifications } from "@mantine/notifications";
+import { useTranslation } from "react-i18next";
 import { IPlugin, togglePlugin } from "../services/plugin-service";
 
 interface Props {
@@ -8,95 +30,152 @@ interface Props {
   onConfigClick: (pluginId: string) => void;
 }
 
+function getPluginIcon(pluginId: string) {
+  if (pluginId === "recaptcha") {
+    return IconShieldCheck;
+  }
+  return IconPuzzle;
+}
+
 export function PluginList({
   plugins,
   loading,
   onRefresh,
   onConfigClick,
 }: Readonly<Props>) {
+  const { t } = useTranslation();
   const [toggling, setToggling] = useState<string | null>(null);
 
-  const handleToggle = async (plugin: IPlugin) => {
+  const handleToggle = async (plugin: IPlugin, enabled: boolean) => {
     setToggling(plugin.id);
     try {
-      await togglePlugin(plugin.id, !plugin.enabled);
+      await togglePlugin(plugin.id, enabled);
       onRefresh();
     } catch (err: any) {
-      alert(
-        `Error: ${err?.response?.data?.message || err?.message || "Unknown error"}`,
-      );
+      notifications.show({
+        message:
+          err?.response?.data?.message || err?.message || t("Unknown error"),
+        color: "red",
+      });
     } finally {
       setToggling(null);
     }
   };
 
   if (loading) {
-    return <div className="p-4 text-center text-gray-500">Loading...</div>;
+    return (
+      <Center py="xl">
+        <Loader size="sm" />
+      </Center>
+    );
   }
 
   if (plugins.length === 0) {
     return (
-      <div className="p-4 text-center text-gray-500">
-        No plugins available
-      </div>
+      <Card withBorder radius="md" padding="xl">
+        <Text ta="center" c="dimmed">
+          {t("No plugins available")}
+        </Text>
+      </Card>
     );
   }
 
   return (
-    <div className="space-y-3">
-      {plugins.map((plugin) => (
-        <div
-          key={plugin.id}
-          className="flex items-start justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition"
-        >
-          <div className="flex-1">
-            <h3 className="font-semibold">{plugin.name}</h3>
-            <p className="text-sm text-gray-600 mb-2">{plugin.description}</p>
-            <div className="flex gap-2 text-xs">
-              <span className="text-gray-500">v{plugin.version}</span>
-              <span className="text-gray-500">by {plugin.author}</span>
-              {plugin.enabled && (
-                <span className="px-2 py-1 bg-green-100 text-green-800 rounded">
-                  Enabled
-                </span>
-              )}
-              {!plugin.enabled && (
-                <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded">
-                  Disabled
-                </span>
-              )}
+    <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md">
+      {plugins.map((plugin) => {
+        const PluginIcon = getPluginIcon(plugin.id);
+        const isToggling = toggling === plugin.id;
+
+        return (
+          <Card
+            key={plugin.id}
+            withBorder
+            radius="md"
+            padding="lg"
+            shadow="xs"
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              minHeight: 168,
+            }}
+          >
+            <Group justify="space-between" align="flex-start" wrap="nowrap">
+              <Group gap="md" align="flex-start" wrap="nowrap" style={{ flex: 1 }}>
+                <ThemeIcon
+                  size={44}
+                  radius="md"
+                  variant="light"
+                  color={plugin.enabled ? "blue" : "gray"}
+                >
+                  <PluginIcon size={24} stroke={1.5} />
+                </ThemeIcon>
+
+                <Stack gap={4} style={{ flex: 1, minWidth: 0 }}>
+                  <Text fw={600} size="sm" lineClamp={1}>
+                    {plugin.name}
+                  </Text>
+                  <Text size="xs" c="dimmed" lineClamp={2}>
+                    {plugin.description}
+                  </Text>
+                </Stack>
+              </Group>
+
+              <Group gap={4} wrap="nowrap">
+                <Switch
+                  checked={plugin.enabled}
+                  onChange={(e) =>
+                    handleToggle(plugin, e.currentTarget.checked)
+                  }
+                  disabled={isToggling}
+                  size="md"
+                  aria-label={
+                    plugin.enabled
+                      ? t("Disable {{name}}", { name: plugin.name })
+                      : t("Enable {{name}}", { name: plugin.name })
+                  }
+                />
+                <Menu position="bottom-end" withinPortal>
+                  <Menu.Target>
+                    <ActionIcon
+                      variant="subtle"
+                      color="gray"
+                      aria-label={t("Plugin options")}
+                    >
+                      <IconDots size={18} />
+                    </ActionIcon>
+                  </Menu.Target>
+                  <Menu.Dropdown>
+                    <Menu.Item
+                      leftSection={<IconSettings size={16} />}
+                      onClick={() => onConfigClick(plugin.id)}
+                    >
+                      {t("Configure")}
+                    </Menu.Item>
+                  </Menu.Dropdown>
+                </Menu>
+              </Group>
+            </Group>
+
+            <Group gap={6} mt="auto" pt="md">
+              <Text size="xs" c="dimmed">
+                v{plugin.version} · {plugin.author}
+              </Text>
               {plugin.configured && (
-                <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded">
-                  Configured
-                </span>
+                <Badge size="xs" variant="light" color="blue">
+                  {t("Configured")}
+                </Badge>
               )}
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2 ml-4">
-            <button
-              onClick={() => handleToggle(plugin)}
-              disabled={toggling === plugin.id}
-              className={`relative w-10 h-6 rounded-full transition ${
-                plugin.enabled ? "bg-green-600" : "bg-gray-300"
-              } ${toggling === plugin.id ? "opacity-50" : ""}`}
-            >
-              <div
-                className={`absolute top-1 w-4 h-4 bg-white rounded-full transition ${
-                  plugin.enabled ? "right-1" : "left-1"
-                }`}
-              />
-            </button>
-
-            <button
-              onClick={() => onConfigClick(plugin.id)}
-              className="px-3 py-1 text-sm text-blue-600 hover:bg-blue-50 rounded"
-            >
-              Configure
-            </button>
-          </div>
-        </div>
-      ))}
-    </div>
+              <Badge
+                size="xs"
+                variant="light"
+                color={plugin.enabled ? "green" : "gray"}
+              >
+                {plugin.enabled ? t("Enabled") : t("Disabled")}
+              </Badge>
+            </Group>
+          </Card>
+        );
+      })}
+    </SimpleGrid>
   );
 }

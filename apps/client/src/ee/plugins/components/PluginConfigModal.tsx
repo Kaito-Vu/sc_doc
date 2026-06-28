@@ -1,5 +1,20 @@
 import { useEffect, useState } from "react";
 import {
+  Alert,
+  Button,
+  Checkbox,
+  Group,
+  Loader,
+  Modal,
+  NumberInput,
+  Select,
+  Stack,
+  Text,
+  TextInput,
+} from "@mantine/core";
+import { notifications } from "@mantine/notifications";
+import { useTranslation } from "react-i18next";
+import {
   getPlugin,
   getPluginConfig,
   updatePluginConfig,
@@ -17,6 +32,7 @@ export function PluginConfigModal({
   onClose,
   onSave,
 }: Readonly<Props>) {
+  const { t } = useTranslation();
   const [plugin, setPlugin] = useState<IPluginDetail | null>(null);
   const [config, setConfig] = useState<Record<string, any>>({});
   const [loading, setLoading] = useState(true);
@@ -43,7 +59,7 @@ export function PluginConfigModal({
       setError(
         err?.response?.data?.message ||
           err?.message ||
-          "Failed to load configuration",
+          t("Failed to load configuration"),
       );
     } finally {
       setLoading(false);
@@ -57,156 +73,141 @@ export function PluginConfigModal({
 
       await updatePluginConfig(pluginId, { config });
 
+      notifications.show({
+        message: t("Plugin configuration saved"),
+        color: "green",
+      });
       onSave();
       onClose();
     } catch (err: any) {
-      setError(
-        err?.response?.data?.message || err?.message || "Save failed",
-      );
+      setError(err?.response?.data?.message || err?.message || t("Save failed"));
     } finally {
       setSaving(false);
     }
   };
 
-  const renderConfigContent = () => {
+  const renderConfigFields = () => {
     if (loading) {
       return (
-        <div className="text-center py-6 text-gray-500">Loading...</div>
+        <Group justify="center" py="xl">
+          <Loader size="sm" />
+        </Group>
       );
     }
 
-    if (plugin?.configSchema?.properties) {
+    if (!plugin?.configSchema?.properties) {
       return (
-        <div className="space-y-3">
-          {Object.entries(plugin.configSchema.properties).map(
-            ([key, prop]: [string, any]) => (
-              <div key={key}>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  {prop.title || key}
-                  {prop.required && <span className="text-red-500">*</span>}
-                </label>
-
-                {prop.description && (
-                  <p className="text-xs text-gray-500 mb-2">
-                    {prop.description}
-                  </p>
-                )}
-
-                {prop.type === "string" && !prop.enum && (
-                  <input
-                    type={
-                      key.includes("secret") || key.includes("password")
-                        ? "password"
-                        : "text"
-                    }
-                    value={config[key] || ""}
-                    onChange={(e) =>
-                      setConfig({
-                        ...config,
-                        [key]: e.target.value,
-                      })
-                    }
-                    placeholder={prop.placeholder || ""}
-                    className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                )}
-
-                {prop.type === "number" && (
-                  <input
-                    type="number"
-                    value={config[key] ?? ""}
-                    onChange={(e) =>
-                      setConfig({
-                        ...config,
-                        [key]: Number.parseFloat(e.target.value),
-                      })
-                    }
-                    className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                )}
-
-                {prop.type === "boolean" && (
-                  <input
-                    type="checkbox"
-                    checked={config[key] || false}
-                    onChange={(e) =>
-                      setConfig({
-                        ...config,
-                        [key]: e.target.checked,
-                      })
-                    }
-                    className="w-4 h-4"
-                  />
-                )}
-
-                {prop.enum && (
-                  <select
-                    value={config[key] || ""}
-                    onChange={(e) =>
-                      setConfig({
-                        ...config,
-                        [key]: e.target.value,
-                      })
-                    }
-                    className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="">Select...</option>
-                    {prop.enum.map((opt: string) => (
-                      <option key={opt} value={opt}>
-                        {opt}
-                      </option>
-                    ))}
-                  </select>
-                )}
-              </div>
-            ),
-          )}
-        </div>
+        <Text ta="center" c="dimmed" py="lg">
+          {t("No configuration available")}
+        </Text>
       );
     }
 
     return (
-      <p className="text-center text-gray-500 py-6">
-        No configuration available
-      </p>
+      <Stack gap="md">
+        {Object.entries(plugin.configSchema.properties).map(
+          ([key, prop]: [string, any]) => (
+            <div key={key}>
+              {prop.type === "string" && !prop.enum && (
+                <TextInput
+                  label={prop.title || key}
+                  description={prop.description}
+                  required={prop.required}
+                  type={
+                    key.includes("secret") || key.includes("password")
+                      ? "password"
+                      : "text"
+                  }
+                  value={config[key] || ""}
+                  onChange={(e) =>
+                    setConfig({ ...config, [key]: e.target.value })
+                  }
+                  placeholder={prop.placeholder || ""}
+                />
+              )}
+
+              {prop.type === "number" && (
+                <NumberInput
+                  label={prop.title || key}
+                  description={prop.description}
+                  required={prop.required}
+                  value={config[key]}
+                  onChange={(value) =>
+                    setConfig({ ...config, [key]: value })
+                  }
+                />
+              )}
+
+              {prop.type === "boolean" && (
+                <Checkbox
+                  label={prop.title || key}
+                  description={prop.description}
+                  checked={config[key] || false}
+                  onChange={(e) =>
+                    setConfig({
+                      ...config,
+                      [key]: e.currentTarget.checked,
+                    })
+                  }
+                />
+              )}
+
+              {prop.enum && (
+                <Select
+                  label={prop.title || key}
+                  description={prop.description}
+                  required={prop.required}
+                  value={config[key] || ""}
+                  onChange={(value) =>
+                    setConfig({ ...config, [key]: value })
+                  }
+                  data={[
+                    { value: "", label: t("Select...") },
+                    ...prop.enum.map((opt: string) => ({
+                      value: opt,
+                      label: opt,
+                    })),
+                  ]}
+                  allowDeselect={false}
+                />
+              )}
+            </div>
+          ),
+        )}
+      </Stack>
     );
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-md max-h-96 overflow-y-auto">
-        <div className="p-4 border-b border-gray-200">
-          <h2 className="font-semibold text-lg">
-            {plugin?.name || "Configure Plugin"}
-          </h2>
-        </div>
+    <Modal
+      opened
+      onClose={onClose}
+      title={plugin?.name || t("Configure Plugin")}
+      size="md"
+      centered
+    >
+      {plugin?.description && (
+        <Text size="sm" c="dimmed" mb="md">
+          {plugin.description}
+        </Text>
+      )}
 
-        <div className="p-4">
-          {error && (
-            <div className="mb-3 p-2 bg-red-100 border border-red-400 text-red-700 text-sm rounded">
-              {error}
-            </div>
-          )}
+      {error && (
+        <Alert color="red" mb="md">
+          {error}
+        </Alert>
+      )}
 
-          {renderConfigContent()}
-        </div>
+      {renderConfigFields()}
 
-        <div className="p-4 border-t border-gray-200 flex gap-2 justify-end">
-          <button
-            onClick={onClose}
-            className="px-3 py-1 text-gray-700 border border-gray-300 rounded hover:bg-gray-50"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
-          >
-            {saving ? "Saving..." : "Save"}
-          </button>
-        </div>
-      </div>
-    </div>
+      <Group justify="flex-end" mt="xl">
+        <Button variant="default" onClick={onClose}>
+          {t("Cancel")}
+        </Button>
+        <Button onClick={handleSave} loading={saving} disabled={loading}>
+          {t("Save")}
+        </Button>
+      </Group>
+    </Modal>
   );
 }

@@ -2,6 +2,7 @@ import { Module, Global, OnModuleInit, Logger } from '@nestjs/common'
 import { setHookRegistry } from '../../core/plugins/plugin-hooks'
 import { PluginRegistry } from './services/plugin.registry'
 import { PluginConfigService } from './services/plugin-config.service'
+import { PluginDefinitionService } from './services/plugin-definition.service'
 import { HookRegistry } from './services/hook.registry'
 import { PluginsController } from './plugins.controller'
 import { RecaptchaModule } from './recaptcha/recaptcha.module'
@@ -9,14 +10,17 @@ import { RecaptchaModule } from './recaptcha/recaptcha.module'
 @Global()
 @Module({
   imports: [RecaptchaModule],
-  providers: [PluginRegistry, PluginConfigService, HookRegistry],
+  providers: [PluginRegistry, PluginConfigService, PluginDefinitionService, HookRegistry],
   controllers: [PluginsController],
-  exports: [PluginRegistry, PluginConfigService, HookRegistry],
+  exports: [PluginRegistry, PluginConfigService, PluginDefinitionService, HookRegistry],
 })
 export class PluginsModule implements OnModuleInit {
   private readonly logger = new Logger(PluginsModule.name)
 
-  constructor(private readonly hookRegistry: HookRegistry) {}
+  constructor(
+    private readonly hookRegistry: HookRegistry,
+    private readonly pluginDefinitionService: PluginDefinitionService,
+  ) {}
 
   async onModuleInit() {
     this.logger.log('Initializing Plugins Module')

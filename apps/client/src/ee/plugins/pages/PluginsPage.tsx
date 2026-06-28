@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { Helmet } from "react-helmet-async";
+import { Alert, Text } from "@mantine/core";
+import { useTranslation } from "react-i18next";
 import { getAppName } from "@/lib/config";
 import SettingsTitle from "@/components/settings/settings-title";
 import { PluginList } from "../components/PluginList";
@@ -7,6 +9,7 @@ import { PluginConfigModal } from "../components/PluginConfigModal";
 import { getPlugins, IPlugin } from "../services/plugin-service";
 
 export default function PluginsPage() {
+  const { t } = useTranslation();
   const [plugins, setPlugins] = useState<IPlugin[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -26,7 +29,7 @@ export default function PluginsPage() {
       setPlugins(data || []);
     } catch (err: any) {
       setError(
-        err?.response?.data?.message || err?.message || "Failed to load plugins",
+        err?.response?.data?.message || err?.message || t("Failed to load plugins"),
       );
     } finally {
       setLoading(false);
@@ -36,15 +39,21 @@ export default function PluginsPage() {
   return (
     <>
       <Helmet>
-        <title>Plugins - {getAppName()}</title>
+        <title>{t("Plugins")} - {getAppName()}</title>
       </Helmet>
 
-      <SettingsTitle title="Plugins" />
+      <SettingsTitle title={t("Plugins")} />
+
+      <Text size="sm" c="dimmed" mb="lg">
+        {t(
+          "Manage plugins that extend authentication, security, and other workspace features.",
+        )}
+      </Text>
 
       {error && (
-        <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
+        <Alert color="red" mb="md">
           {error}
-        </div>
+        </Alert>
       )}
 
       <PluginList
