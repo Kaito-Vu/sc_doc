@@ -1,5 +1,15 @@
 import { useEffect, useState } from "react";
-import { Button, Divider, Group, Stack, Text, TextInput } from "@mantine/core";
+import {
+  Button,
+  Divider,
+  Fieldset,
+  Group,
+  NumberInput,
+  Stack,
+  Switch,
+  Text,
+  TextInput,
+} from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { useTranslation } from "react-i18next";
 import {
@@ -12,6 +22,14 @@ import { clearRecaptchaConfigCache } from "@/ee/plugins/recaptcha/services/recap
 const RECAPTCHA_PLUGIN_ID = "recaptcha";
 const REDACTED_SECRET = "***REDACTED***";
 
+interface ActionSettings {
+  enabled: boolean;
+  threshold: number;
+}
+
+const DEFAULT_LOGIN_ACTION: ActionSettings = { enabled: true, threshold: 0.5 };
+const DEFAULT_SIGNUP_ACTION: ActionSettings = { enabled: true, threshold: 0.7 };
+
 export default function RecaptchaSettings() {
   const { t } = useTranslation();
   const [visible, setVisible] = useState(false);
@@ -20,7 +38,12 @@ export default function RecaptchaSettings() {
   const [siteKey, setSiteKey] = useState("");
   const [secretKey, setSecretKey] = useState("");
   const [hasStoredSecret, setHasStoredSecret] = useState(false);
+  const [loginAction, setLoginAction] = useState<ActionSettings>(DEFAULT_LOGIN_ACTION);
+  const [signupAction, setSignupAction] = useState<ActionSettings>(DEFAULT_SIGNUP_ACTION);
+
   const [initialSiteKey, setInitialSiteKey] = useState("");
+  const [initialLoginAction, setInitialLoginAction] = useState<ActionSettings>(DEFAULT_LOGIN_ACTION);
+  const [initialSignupAction, setInitialSignupAction] = useState<ActionSettings>(DEFAULT_SIGNUP_ACTION);
 
   useEffect(() => {
     loadSettings();
@@ -42,11 +65,23 @@ export default function RecaptchaSettings() {
       const config = configData.config || {};
       const nextSiteKey = config.siteKey || "";
       const storedSecret = config.secretKey === REDACTED_SECRET;
+      const nextLoginAction: ActionSettings = {
+        ...DEFAULT_LOGIN_ACTION,
+        ...(config.actions?.login || {}),
+      };
+      const nextSignupAction: ActionSettings = {
+        ...DEFAULT_SIGNUP_ACTION,
+        ...(config.actions?.signup || {}),
+      };
 
       setSiteKey(nextSiteKey);
       setInitialSiteKey(nextSiteKey);
       setSecretKey("");
       setHasStoredSecret(storedSecret || Boolean(config.secretKey));
+      setLoginAction(nextLoginAction);
+      setInitialLoginAction(nextLoginAction);
+      setSignupAction(nextSignupAction);
+      setInitialSignupAction(nextSignupAction);
     } catch (err: any) {
       notifications.show({
         message:
@@ -79,8 +114,12 @@ export default function RecaptchaSettings() {
 
     setSaving(true);
     try {
-      const config: Record<string, string> = {
+      const config: Record<string, any> = {
         siteKey: siteKey.trim(),
+        actions: {
+          login: loginAction,
+          signup: signupAction,
+        },
       };
 
       if (secretKey.trim()) {
@@ -92,6 +131,8 @@ export default function RecaptchaSettings() {
       setInitialSiteKey(siteKey.trim());
       setSecretKey("");
       setHasStoredSecret(true);
+      setInitialLoginAction(loginAction);
+      setInitialSignupAction(signupAction);
 
       notifications.show({
         message: t("reCAPTCHA settings saved"),
@@ -115,7 +156,10 @@ export default function RecaptchaSettings() {
   }
 
   const isDirty =
-    siteKey.trim() !== initialSiteKey.trim() || secretKey.trim().length > 0;
+    siteKey.trim() !== initialSiteKey.trim() ||
+    secretKey.trim().length > 0 ||
+    JSON.stringify(loginAction) !== JSON.stringify(initialLoginAction) ||
+    JSON.stringify(signupAction) !== JSON.stringify(initialSignupAction);
 
   return (
     <>
@@ -123,7 +167,7 @@ export default function RecaptchaSettings() {
         <Text size="md">{t("Google reCAPTCHA")}</Text>
         <Text size="sm" c="dimmed" mb="sm">
           {t(
-            "Configure Google reCAPTCHA v3 credentials used for login and signup protection.",
+            "Configure Google reCAPTCHA v3 credentials and enforcement used for login and signup protection.",
           )}
         </Text>
 
@@ -151,6 +195,68 @@ export default function RecaptchaSettings() {
             placeholder={hasStoredSecret ? "••••••••" : undefined}
             required={!hasStoredSecret}
           />
+
+          <Fieldset legend={t("Login")} disabled={loading}>
+            <Stack gap="sm">
+              <Switch
+                label={t("Verify reCAPTCHA on login")}
+                checked={loginAction.enabled}
+                onChange={(event) =>
+                  setLoginAction((prev) => ({
+                    ...prev,
+                    enabled: event.currentTarget.checked,
+                  }))
+                }
+              />
+              <NumberInput
+                label={t("Score threshold")}
+                description={t("Minimum score to allow login (0-1)")}
+                value={loginAction.threshold}
+                onChange={(value) =>
+                  setLoginAction((prev) => ({
+                    ...prev,
+                    threshold: typeof value === "number" ? value : prev.threshold,
+                  }))
+                }
+                min={0}
+                max={1}
+                step={0.05}
+                decimalScale={2}
+                disabled={!loginAction.enabled}
+              />
+            </Stack>
+          </Fieldset>
+
+          <Fieldset legend={t("Signup")} disabled={loading}>
+            <Stack gap="sm">
+              <Switch
+                label={t("Verify reCAPTCHA on signup")}
+                checked={signupAction.enabled}
+                onChange={(event) =>
+                  setSignupAction((prev) => ({
+                    ...prev,
+                    enabled: event.currentTarget.checked,
+                  }))
+                }
+              />
+              <NumberInput
+                label={t("Score threshold")}
+                description={t("Minimum score to allow signup (0-1)")}
+                value={signupAction.threshold}
+                onChange={(value) =>
+                  setSignupAction((prev) => ({
+                    ...prev,
+                    threshold: typeof value === "number" ? value : prev.threshold,
+                  }))
+                }
+                min={0}
+                max={1}
+                step={0.05}
+                decimalScale={2}
+                disabled={!signupAction.enabled}
+              />
+            </Stack>
+          </Fieldset>
 
           <Group justify="flex-start">
             <Button

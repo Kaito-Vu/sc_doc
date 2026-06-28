@@ -30,12 +30,14 @@ import {
   WorkspaceCaslAction,
   WorkspaceCaslSubject,
 } from '../../casl/interfaces/workspace-ability.type';
-import { FastifyReply } from 'fastify';
+import { FastifyReply, FastifyRequest } from 'fastify';
 import { EnvironmentService } from '../../../integrations/environment/environment.service';
 import { LicenseCheckService } from '../../../integrations/environment/license-check.service';
 import { CheckHostnameDto } from '../dto/check-hostname.dto';
 import { RemoveWorkspaceUserDto } from '../dto/remove-workspace-user.dto';
 import { WorkspaceRepo } from '@docmost/db/repos/workspace/workspace.repo';
+import { CoreHooks } from '../../../core/plugins/plugin-hooks';
+import { runHook } from '../../../core/plugins/run-hook';
 
 @UseGuards(JwtAuthGuard)
 @Controller('workspace')
@@ -234,6 +236,7 @@ export class WorkspaceController {
     @Body() inviteUserDto: InviteUserDto,
     @AuthUser() user: User,
     @AuthWorkspace() workspace: Workspace,
+    @Req() req: FastifyRequest,
   ) {
     const ability = this.workspaceAbility.createForUser(user, workspace);
     if (
@@ -241,6 +244,16 @@ export class WorkspaceController {
     ) {
       throw new ForbiddenException();
     }
+
+    let inviteCreateContext: any = {
+      inviteInput: { emails: inviteUserDto.emails, role: inviteUserDto.role },
+      workspaceId: workspace.id,
+      userId: user.id,
+      remoteAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+    };
+
+    inviteCreateContext = await runHook(CoreHooks.BEFORE_INVITE_CREATE, inviteCreateContext);
 
     return this.workspaceInvitationService.createInvitation(
       inviteUserDto,

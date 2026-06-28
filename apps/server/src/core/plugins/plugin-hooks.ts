@@ -9,6 +9,21 @@ export enum CoreHooks {
   AFTER_LOGIN = 'auth:afterLogin',
   BEFORE_SIGNUP = 'auth:beforeSignup',
   AFTER_SIGNUP = 'auth:afterSignup',
+  BEFORE_FORGOT_PASSWORD = 'auth:beforeForgotPassword',
+  BEFORE_PASSWORD_RESET = 'auth:beforePasswordReset',
+  BEFORE_VERIFY_TOKEN = 'auth:beforeVerifyToken',
+
+  // MFA events
+  BEFORE_MFA_VERIFY = 'mfa:beforeVerify',
+  BEFORE_MFA_ENABLE = 'mfa:beforeEnable',
+  BEFORE_MFA_DISABLE = 'mfa:beforeDisable',
+
+  // Workspace events
+  BEFORE_INVITE_CREATE = 'workspace:beforeInviteCreate',
+  BEFORE_INVITE_ACCEPT = 'workspace:beforeInviteAccept',
+
+  // Share events
+  BEFORE_SHARE_GET_INFO = 'share:beforeGetInfo',
 
   // Page events
   BEFORE_PAGE_CREATE = 'page:beforeCreate',

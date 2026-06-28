@@ -17,6 +17,8 @@ import { RequireFeature } from '../common/decorators/require-feature.decorator';
 import { Feature } from '../../common/features';
 import { FastifyReply, FastifyRequest } from 'fastify';
 import { Public } from '../../common/decorators/public.decorator';
+import { CoreHooks } from '../../core/plugins/plugin-hooks';
+import { runHook } from '../../core/plugins/run-hook';
 
 @Controller('mfa')
 export class MfaController {
@@ -88,10 +90,25 @@ export class MfaController {
   @HttpCode(HttpStatus.OK)
   @Post('verify')
   async verify(
-    @Body() body: { code: string },
+    @Body() body: { code: string; mfaToken?: string; recaptchaToken?: string },
     @Req() req: FastifyRequest,
     @Res({ passthrough: true }) res: FastifyReply,
   ) {
+    // Emit MFA verify hook for reCAPTCHA evaluation
+    // MFA workspace is extracted from mfaToken by the service
+    let mfaVerifyContext: any = {
+      mfaVerifyInput: { code: body.code, mfaToken: body.mfaToken, recaptchaToken: body.recaptchaToken },
+      workspaceId: '', // Will be populated by service if available
+      remoteAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+    };
+
+    try {
+      mfaVerifyContext = await runHook(CoreHooks.BEFORE_MFA_VERIFY, mfaVerifyContext);
+    } catch (err) {
+      throw err;
+    }
+
     return this.mfaService.verifyAndLogin(body.code, req, res);
   }
 }

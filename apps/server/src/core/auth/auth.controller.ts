@@ -181,8 +181,19 @@ export class AuthController {
   async forgotPassword(
     @Body() forgotPasswordDto: ForgotPasswordDto,
     @AuthWorkspace() workspace: Workspace,
+    @Req() req: FastifyRequest,
   ) {
     validateSsoEnforcement(workspace);
+
+    let forgotPasswordContext: any = {
+      forgotPasswordInput: { email: forgotPasswordDto.email, recaptchaToken: forgotPasswordDto.recaptchaToken },
+      workspaceId: workspace.id,
+      remoteAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+    };
+
+    forgotPasswordContext = await runHook(CoreHooks.BEFORE_FORGOT_PASSWORD, forgotPasswordContext);
+
     return this.authService.forgotPassword(forgotPasswordDto, workspace);
   }
 
@@ -192,7 +203,17 @@ export class AuthController {
     @Res({ passthrough: true }) res: FastifyReply,
     @Body() passwordResetDto: PasswordResetDto,
     @AuthWorkspace() workspace: Workspace,
+    @Req() req: FastifyRequest,
   ) {
+    let passwordResetContext: any = {
+      passwordResetInput: { token: passwordResetDto.token, newPassword: passwordResetDto.newPassword, recaptchaToken: passwordResetDto.recaptchaToken },
+      workspaceId: workspace.id,
+      remoteAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+    };
+
+    passwordResetContext = await runHook(CoreHooks.BEFORE_PASSWORD_RESET, passwordResetContext);
+
     const result = await this.authService.passwordReset(
       passwordResetDto,
       workspace,
