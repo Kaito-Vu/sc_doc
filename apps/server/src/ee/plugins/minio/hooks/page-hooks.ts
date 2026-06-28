@@ -1,4 +1,4 @@
-import { Injectable, Logger, Inject } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { AttachmentService } from '../services/attachment.service';
 
 export enum CoreHooks {
@@ -8,18 +8,27 @@ export enum CoreHooks {
 @Injectable()
 export class MinioPageHooksHandler {
   private logger = new Logger(MinioPageHooksHandler.name);
+  private hookRegistry: any = null;
 
-  constructor(
-    @Inject('HookRegistry') private hookRegistry: any,
-    private attachmentService: AttachmentService,
-  ) {}
+  constructor(private attachmentService: AttachmentService) {}
 
   registerHooks(): void {
-    // Register hook for page deletion
-    this.hookRegistry.on(CoreHooks.AFTER_PAGE_DELETE, this.handlePageDelete.bind(this));
+    // Note: HookRegistry is available globally from PluginsModule
+    // We'll attempt to register hooks when called, but won't fail if unavailable
+    // This allows the plugin to work even without hook integration initially
 
-    // Note: Page rename is not yet in CoreHooks, but can be added
-    // For now, we handle it via direct service call in controller
+    try {
+      const { getHookRegistry } = require('../../../core/plugins/plugin-hooks');
+      this.hookRegistry = getHookRegistry();
+
+      if (this.hookRegistry) {
+        this.hookRegistry.on(CoreHooks.AFTER_PAGE_DELETE, this.handlePageDelete.bind(this));
+        this.logger.log('Page deletion hooks registered');
+      }
+    } catch (error) {
+      // Hooks may not be fully initialized yet, log warning but don't fail
+      this.logger.warn('Could not register page deletion hooks - they may be registered later');
+    }
   }
 
   private async handlePageDelete(context: any): Promise<void> {
