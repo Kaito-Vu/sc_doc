@@ -16,6 +16,7 @@ import {
   IconHistory,
   IconShieldCheck,
   IconPackage,
+  IconPlug,
 } from "@tabler/icons-react";
 import { Link, useLocation } from "react-router-dom";
 import classes from "./settings.module.css";
@@ -132,6 +133,12 @@ const groupedData: DataGroup[] = [
         path: "/settings/plugins",
         role: "admin",
       },
+      {
+        label: "Integrations",
+        icon: IconPlug,
+        path: "/settings/integrations",
+        role: "admin",
+      },
     ],
   },
   {
@@ -192,7 +199,7 @@ export default function SettingsSidebar() {
             return null;
           }
 
-          let prefetchHandler: any;
+          let prefetchHandler: (() => void) | undefined;
           switch (item.label) {
             case "Members":
               prefetchHandler = prefetchWorkspaceMembers;
@@ -249,9 +256,7 @@ export default function SettingsSidebar() {
                 <span
                   className={classes.link}
                   data-disabled
-                  role="link"
                   aria-disabled="true"
-                  tabIndex={0}
                   style={{
                     opacity: 0.5,
                     cursor: "not-allowed",

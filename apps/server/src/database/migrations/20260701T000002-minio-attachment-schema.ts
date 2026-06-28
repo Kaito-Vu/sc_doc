@@ -75,6 +75,21 @@ export async function up(db: Kysely<any>): Promise<void> {
     .addColumn('health_check_at', 'timestamptz')
     .addColumn('health_status', 'varchar(50)')
     .addColumn('health_message', 'text')
+    .addColumn('minio_host_new', 'varchar(255)')
+    .addColumn('migration_status', 'varchar(50)', (col) =>
+      col.defaultTo('idle'),
+    )
+    .addColumn('migration_progress', 'integer', (col) =>
+      col.defaultTo(0),
+    )
+    .addColumn('migration_total_files', 'integer')
+    .addColumn('migration_processed_files', 'integer')
+    .addColumn('migration_started_at', 'timestamptz')
+    .addColumn('migration_eta', 'timestamptz')
+    .addColumn('migration_error', 'text')
+    .addColumn('last_successful_host', 'varchar(255)')
+    .addColumn('encrypted_secret_key', 'text')
+    .addColumn('host_change_requested_at', 'timestamptz')
     .addColumn('created_at', 'timestamptz', (col) =>
       col.notNull().defaultTo(sql`now()`),
     )

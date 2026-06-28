@@ -1,14 +1,13 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { MinioConfig } from '../types';
+import { MinioConfig, MinioObjectStat } from '../types';
 
 // MinIO client is loaded dynamically at runtime
-type MinioClient = any;
 let MinioModule: any = null;
 
 @Injectable()
 export class MinioClientService {
-  private clients: Map<string, MinioClient> = new Map();
-  private logger = new Logger(MinioClientService.name);
+  private readonly clients: Map<string, any> = new Map();
+  private readonly logger = new Logger(MinioClientService.name);
 
   private async ensureMinioLoaded(): Promise<void> {
     if (!MinioModule) {
@@ -16,26 +15,27 @@ export class MinioClientService {
         // Dynamically load minio at runtime
         MinioModule = require('minio');
       } catch (error) {
-        this.logger.error('MinIO client not available. Please install: npm install minio');
-        throw new Error('MinIO client library not found');
+        const detail = error instanceof Error ? error.message : String(error);
+        this.logger.error(`MinIO client not available. Please install: npm install minio (${detail})`);
+        throw new Error(`MinIO client library not found: ${detail}`);
       }
     }
   }
 
-  getOrCreateClient(workspaceId: string, config: MinioConfig): MinioClient {
+  getOrCreateClient(workspaceId: string, config: MinioConfig): any {
     const key = `${workspaceId}`;
 
     if (this.clients.has(key)) {
       return this.clients.get(key)!;
     }
 
-    if (!MinioModule || !MinioModule.Client) {
+    if (!MinioModule?.Client) {
       throw new Error('MinIO client not initialized. Call ensureMinioLoaded first.');
     }
 
     const client = new MinioModule.Client({
       endPoint: config.endpoint.split(':')[0],
-      port: parseInt(config.endpoint.split(':')[1] || (config.useSSL ? '443' : '9000'), 10),
+      port: Number.parseInt(config.endpoint.split(':')[1] || (config.useSSL ? '443' : '9000'), 10),
       useSSL: config.useSSL,
       accessKey: config.accessKey,
       secretKey: config.secretKey,
@@ -50,7 +50,7 @@ export class MinioClientService {
     this.clients.delete(workspaceId);
   }
 
-  async health(client: MinioClient): Promise<boolean> {
+  async health(client: any): Promise<boolean> {
     try {
       await client.listBuckets();
       return true;
@@ -60,7 +60,7 @@ export class MinioClientService {
     }
   }
 
-  async bucketExists(client: MinioClient, bucketName: string): Promise<boolean> {
+  async bucketExists(client: any, bucketName: string): Promise<boolean> {
     try {
       return await client.bucketExists(bucketName);
     } catch (error) {
@@ -69,7 +69,7 @@ export class MinioClientService {
     }
   }
 
-  async createBucket(client: MinioClient, bucketName: string): Promise<void> {
+  async createBucket(client: any, bucketName: string): Promise<void> {
     try {
       const exists = await this.bucketExists(client, bucketName);
       if (!exists) {
@@ -82,7 +82,7 @@ export class MinioClientService {
     }
   }
 
-  async enableVersioning(client: MinioClient, bucketName: string): Promise<void> {
+  async enableVersioning(client: any, bucketName: string): Promise<void> {
     try {
       // MinIO versioning is enabled via bucket policy
       const versioningConfig = {
@@ -97,7 +97,7 @@ export class MinioClientService {
   }
 
   async putObject(
-    client: MinioClient,
+    client: any,
     bucketName: string,
     objectName: string,
     stream: Buffer | NodeJS.ReadableStream,
@@ -116,7 +116,7 @@ export class MinioClientService {
   }
 
   async getObject(
-    client: MinioClient,
+    client: any,
     bucketName: string,
     objectName: string,
     versionId?: string,
@@ -130,7 +130,7 @@ export class MinioClientService {
   }
 
   async removeObject(
-    client: MinioClient,
+    client: any,
     bucketName: string,
     objectName: string,
     versionId?: string,
@@ -141,7 +141,10 @@ export class MinioClientService {
       } else {
         await client.removeObject(bucketName, objectName);
       }
-      this.logger.debug(`Removed object: ${bucketName}/${objectName}${versionId ? ` (${versionId})` : ''}`);
+      const objectPath = versionId
+        ? `${bucketName}/${objectName} (${versionId})`
+        : `${bucketName}/${objectName}`;
+      this.logger.debug(`Removed object: ${objectPath}`);
     } catch (error) {
       this.logger.error(`Failed to remove object: ${error instanceof Error ? error.message : String(error)}`);
       throw error;
@@ -149,7 +152,7 @@ export class MinioClientService {
   }
 
   async removeAllVersions(
-    client: MinioClient,
+    client: any,
     bucketName: string,
     objectName: string,
   ): Promise<number> {
@@ -176,7 +179,7 @@ export class MinioClientService {
   }
 
   async copyObject(
-    client: MinioClient,
+    client: any,
     sourceBucket: string,
     sourceObject: string,
     destBucket: string,
@@ -192,23 +195,35 @@ export class MinioClientService {
   }
 
   async statObject(
-    client: MinioClient,
+    client: any,
     bucketName: string,
     objectName: string,
-  ): Promise<any | null> {
+  ): Promise<MinioObjectStat | null> {
     try {
       return await client.statObject(bucketName, objectName);
-    } catch (error) {
-      if ((error as any)?.code === 'NotFound') {
+    } catch (error: unknown) {
+      const code =
+        typeof error === 'object' && error !== null
+          ? Reflect.get(error, 'code')
+          : undefined;
+      if (code === 'NotFound') {
         return null;
       }
-      this.logger.error(`Failed to stat object: ${error instanceof Error ? error.message : String(error)}`);
+      let message: string;
+      if (error instanceof Error) {
+        message = error.message;
+      } else if (typeof error === 'string') {
+        message = error;
+      } else {
+        message = JSON.stringify(error);
+      }
+      this.logger.error(`Failed to stat object: ${message}`);
       throw error;
     }
   }
 
   async listObjects(
-    client: MinioClient,
+    client: any,
     bucketName: string,
     prefix?: string,
     recursive: boolean = false,
@@ -229,7 +244,7 @@ export class MinioClientService {
   }
 
   async getBucketSize(
-    client: MinioClient,
+    client: any,
     bucketName: string,
   ): Promise<number> {
     try {
@@ -238,6 +253,19 @@ export class MinioClientService {
     } catch (error) {
       this.logger.error(`Failed to get bucket size: ${error instanceof Error ? error.message : String(error)}`);
       return 0;
+    }
+  }
+
+  async listObjectsStream(
+    client: any,
+    bucketName: string,
+    prefix?: string,
+  ): Promise<AsyncIterable<any>> {
+    try {
+      return client.listObjects(bucketName, prefix, true);
+    } catch (error) {
+      this.logger.error(`Failed to get objects stream: ${error instanceof Error ? error.message : String(error)}`);
+      throw error;
     }
   }
 }

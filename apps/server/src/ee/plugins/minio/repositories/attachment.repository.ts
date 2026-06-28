@@ -1,12 +1,11 @@
 import { Injectable } from '@nestjs/common';
-import { Kysely } from 'kysely';
 import { InjectKysely } from 'nestjs-kysely';
 import { KyselyDB } from '@docmost/db/types/kysely.types';
 import { AttachmentMetadata } from '../types';
 
 @Injectable()
 export class AttachmentRepository {
-  constructor(@InjectKysely() private db: KyselyDB) {}
+  constructor(@InjectKysely() private readonly db: KyselyDB) {}
 
   async createAttachment(data: Omit<AttachmentMetadata, 'id' | 'createdAt'>): Promise<AttachmentMetadata> {
     const result = await this.db

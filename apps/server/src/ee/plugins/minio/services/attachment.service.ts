@@ -1,19 +1,18 @@
-import { Injectable, BadRequestException, ForbiddenException, NotFoundException, Logger } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException, Logger } from '@nestjs/common';
 import { v4 as uuidv4 } from 'uuid';
 import { MinioClientService } from './minio-client.service';
 import { AttachmentRepository } from '../repositories/attachment.repository';
 import { MinioSettingsRepository } from '../repositories/minio-settings.repository';
-import { AttachmentMetadata, UploadAttachmentRequest, MinioConfig } from '../types';
+import { AttachmentMetadata, UploadAttachmentRequest, MinioConfig, WorkspaceMinioSettings } from '../types';
 
 @Injectable()
 export class AttachmentService {
-  private logger = new Logger(AttachmentService.name);
-  private lockTimeoutMs = 30000; // 30 seconds
+  private readonly logger = new Logger(AttachmentService.name);
 
   constructor(
-    private minioClient: MinioClientService,
-    private attachmentRepo: AttachmentRepository,
-    private settingsRepo: MinioSettingsRepository,
+    private readonly minioClient: MinioClientService,
+    private readonly attachmentRepo: AttachmentRepository,
+    private readonly settingsRepo: MinioSettingsRepository,
   ) {}
 
   async uploadAttachment(
@@ -23,7 +22,7 @@ export class AttachmentService {
   ): Promise<AttachmentMetadata> {
     // Validate settings exist and are configured
     const settings = await this.settingsRepo.getSettings(workspaceId);
-    if (!settings || !settings.isConfigured) {
+    if (!settings?.isConfigured) {
       throw new BadRequestException('MinIO storage not configured for this workspace');
     }
 
@@ -89,7 +88,7 @@ export class AttachmentService {
     }
 
     const settings = await this.settingsRepo.getSettings(workspaceId);
-    if (!settings || !settings.isConfigured) {
+    if (!settings?.isConfigured) {
       throw new BadRequestException('MinIO storage not configured');
     }
 
@@ -127,7 +126,7 @@ export class AttachmentService {
     }
 
     const settings = await this.settingsRepo.getSettings(workspaceId);
-    if (!settings || !settings.isConfigured) {
+    if (!settings?.isConfigured) {
       throw new BadRequestException('MinIO storage not configured');
     }
 
@@ -166,7 +165,7 @@ export class AttachmentService {
     }
 
     const settings = await this.settingsRepo.getSettings(workspaceId);
-    if (!settings || !settings.isConfigured) {
+    if (!settings?.isConfigured) {
       this.logger.warn(`MinIO not configured for workspace ${workspaceId}, skipping sync`);
       return;
     }
@@ -174,47 +173,54 @@ export class AttachmentService {
     const client = this.minioClient.getOrCreateClient(workspaceId, this.parseConfig(settings));
 
     for (const attachment of attachments) {
-      try {
-        const newMinioPath = this.buildMinioPath(
-          newSlug,
-          newSubSlug || attachment.subpageSlug,
-          attachment.filename,
-          attachment.minioVersionId.split('_')[1] || uuidv4(),
-        );
+      await this.syncAttachmentOnPageRename(attachment, client, settings, newSlug, newSubSlug);
+    }
+  }
 
-        // Copy to new path
-        await this.minioClient.copyObject(
-          client,
-          settings.minioBucketName,
-          attachment.minioPath,
-          settings.minioBucketName,
-          newMinioPath,
-        );
+  private async syncAttachmentOnPageRename(
+    attachment: AttachmentMetadata,
+    client: any,
+    settings: WorkspaceMinioSettings,
+    newSlug: string,
+    newSubSlug?: string,
+  ): Promise<void> {
+    try {
+      const newMinioPath = this.buildMinioPath(
+        newSlug,
+        newSubSlug || attachment.subpageSlug,
+        attachment.filename,
+        attachment.minioVersionId.split('_')[1] || uuidv4(),
+      );
 
-        // Update database
-        await this.attachmentRepo.updateAttachmentPath(
-          attachment.id,
-          newMinioPath,
-          newSlug,
-          newSubSlug,
-        );
+      await this.minioClient.copyObject(
+        client,
+        settings.minioBucketName,
+        attachment.minioPath,
+        settings.minioBucketName,
+        newMinioPath,
+      );
 
-        // Delete old path
-        try {
-          await this.minioClient.removeAllVersions(
-            client,
-            settings.minioBucketName,
-            attachment.minioPath,
-          );
-        } catch (error) {
-          this.logger.warn(`Failed to delete old path ${attachment.minioPath}: ${error instanceof Error ? error.message : String(error)}`);
-        }
-      } catch (error) {
-        this.logger.error(
-          `Failed to sync attachment ${attachment.id} during page rename: ${error instanceof Error ? error.message : String(error)}`,
-        );
-        await this.attachmentRepo.markSyncFailed(attachment.id, error instanceof Error ? error.message : String(error));
-      }
+      await this.attachmentRepo.updateAttachmentPath(
+        attachment.id,
+        newMinioPath,
+        newSlug,
+        newSubSlug,
+      );
+
+      await this.removeOldMinioPath(client, settings.minioBucketName, attachment.minioPath);
+    } catch (error) {
+      this.logger.error(
+        `Failed to sync attachment ${attachment.id} during page rename: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      await this.attachmentRepo.markSyncFailed(attachment.id, error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  private async removeOldMinioPath(client: any, bucketName: string, oldPath: string): Promise<void> {
+    try {
+      await this.minioClient.removeAllVersions(client, bucketName, oldPath);
+    } catch (error) {
+      this.logger.warn(`Failed to delete old path ${oldPath}: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
@@ -256,7 +262,7 @@ export class AttachmentService {
     for (const attachment of attachments) {
       try {
         const settings = await this.settingsRepo.getSettings(workspaceId);
-        if (!settings || !settings.isConfigured) {
+        if (!settings?.isConfigured) {
           continue;
         }
 

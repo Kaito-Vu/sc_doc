@@ -32,12 +32,12 @@ import {
 @Controller('api/v1/attachments')
 @UseGuards(JwtAuthGuard)
 export class AttachmentController {
-  private logger = new Logger(AttachmentController.name);
+  private readonly logger = new Logger(AttachmentController.name);
 
   constructor(
-    private attachmentService: AttachmentService,
-    private minioSettingsService: MinioSettingsService,
-    private pageRepo: PageRepo,
+    private readonly attachmentService: AttachmentService,
+    private readonly minioSettingsService: MinioSettingsService,
+    private readonly pageRepo: PageRepo,
   ) {}
 
   @Post('upload')
@@ -76,8 +76,8 @@ export class AttachmentController {
   async download(
     @Param('id') attachmentId: string,
     @AuthWorkspace() workspace: Workspace,
-    @Query('version') versionId: string = '',
     @Res() res: FastifyReply,
+    @Query('version') versionId: string = '',
   ) {
     try {
       const buffer = await this.attachmentService.downloadAttachment(attachmentId, workspace.id, versionId);

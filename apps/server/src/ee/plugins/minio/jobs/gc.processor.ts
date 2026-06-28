@@ -12,11 +12,11 @@ export enum MinioQueueJob {
 
 @Processor('minio-queue')
 export class MinioGarbageCollectorProcessor extends WorkerHost {
-  private logger = new Logger(MinioGarbageCollectorProcessor.name);
+  private readonly logger = new Logger(MinioGarbageCollectorProcessor.name);
 
   constructor(
-    private attachmentService: AttachmentService,
-    private settingsRepo: MinioSettingsRepository,
+    private readonly attachmentService: AttachmentService,
+    private readonly settingsRepo: MinioSettingsRepository,
   ) {
     super();
   }

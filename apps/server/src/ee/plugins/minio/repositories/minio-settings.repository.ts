@@ -5,7 +5,7 @@ import { WorkspaceMinioSettings } from '../types';
 
 @Injectable()
 export class MinioSettingsRepository {
-  constructor(@InjectKysely() private db: KyselyDB) {}
+  constructor(@InjectKysely() private readonly db: KyselyDB) {}
 
   async getSettings(workspaceId: string): Promise<WorkspaceMinioSettings | null> {
     const result = await this.db
@@ -35,6 +35,9 @@ export class MinioSettingsRepository {
           is_enabled: data.isEnabled,
           health_status: data.healthStatus,
           health_message: data.healthMessage,
+          minio_host_new: data.minioHostNew,
+          encrypted_secret_key: data.encryptedSecretKey,
+          host_change_requested_at: data.hostChangeRequestedAt,
           updated_at: new Date(),
         } as any)
         .where('workspace_id' as any, '=', workspaceId)
@@ -56,6 +59,8 @@ export class MinioSettingsRepository {
           gc_version_retention_days: data.gcVersionRetentionDays || 90,
           is_configured: data.isConfigured || false,
           is_enabled: data.isEnabled || true,
+          migration_status: 'idle',
+          migration_progress: 0,
         } as any)
         .returningAll()
         .executeTakeFirstOrThrow();
@@ -97,6 +102,109 @@ export class MinioSettingsRepository {
       .execute();
   }
 
+  async updateMigrationStatus(
+    workspaceId: string,
+    status: 'idle' | 'in_progress' | 'completed' | 'failed',
+    progress?: number,
+    processedFiles?: number,
+    eta?: Date,
+    error?: string,
+  ): Promise<void> {
+    const update: any = {
+      migration_status: status,
+      updated_at: new Date(),
+    };
+
+    if (progress !== undefined) {
+      update.migration_progress = progress;
+    }
+    if (processedFiles !== undefined) {
+      update.migration_processed_files = processedFiles;
+    }
+    if (eta !== undefined) {
+      update.migration_eta = eta;
+    }
+    if (error !== undefined) {
+      update.migration_error = error;
+    }
+
+    await this.db
+      .updateTable('workspace_minio_settings' as any)
+      .set(update)
+      .where('workspace_id' as any, '=', workspaceId)
+      .execute();
+  }
+
+  async startMigration(
+    workspaceId: string,
+    newHost: string,
+    totalFiles: number,
+  ): Promise<void> {
+    await this.db
+      .updateTable('workspace_minio_settings' as any)
+      .set({
+        minio_host_new: newHost,
+        migration_status: 'in_progress',
+        migration_progress: 0,
+        migration_processed_files: 0,
+        migration_total_files: totalFiles,
+        migration_started_at: new Date(),
+        host_change_requested_at: new Date(),
+        updated_at: new Date(),
+      } as any)
+      .where('workspace_id' as any, '=', workspaceId)
+      .execute();
+  }
+
+  async completeMigration(workspaceId: string): Promise<void> {
+    const settings = await this.getSettings(workspaceId);
+    if (!settings) return;
+
+    await this.db
+      .updateTable('workspace_minio_settings' as any)
+      .set({
+        minio_endpoint: settings.minioHostNew,
+        last_successful_host: settings.minioEndpoint,
+        migration_status: 'completed',
+        migration_progress: 100,
+        minio_host_new: null,
+        updated_at: new Date(),
+      } as any)
+      .where('workspace_id' as any, '=', workspaceId)
+      .execute();
+  }
+
+  async failMigration(workspaceId: string, error: string): Promise<void> {
+    await this.db
+      .updateTable('workspace_minio_settings' as any)
+      .set({
+        migration_status: 'failed',
+        migration_error: error,
+        minio_host_new: null,
+        updated_at: new Date(),
+      } as any)
+      .where('workspace_id' as any, '=', workspaceId)
+      .execute();
+  }
+
+  async rollbackMigration(workspaceId: string): Promise<void> {
+    const settings = await this.getSettings(workspaceId);
+    if (!settings || !settings.lastSuccessfulHost) return;
+
+    await this.db
+      .updateTable('workspace_minio_settings' as any)
+      .set({
+        minio_endpoint: settings.lastSuccessfulHost,
+        migration_status: 'idle',
+        migration_progress: 0,
+        minio_host_new: null,
+        migration_error: null,
+        updated_at: new Date(),
+      } as any)
+      .where('workspace_id' as any, '=', workspaceId)
+      .execute();
+  }
+
   async getAllEnabledSettings(): Promise<WorkspaceMinioSettings[]> {
     const results = await this.db
       .selectFrom('workspace_minio_settings' as any)
@@ -124,6 +232,17 @@ export class MinioSettingsRepository {
       isConfigured: row.is_configured,
       healthStatus: row.health_status,
       healthMessage: row.health_message,
+      minioHostNew: row.minio_host_new,
+      migrationStatus: row.migration_status,
+      migrationProgress: row.migration_progress,
+      migrationTotalFiles: row.migration_total_files,
+      migrationProcessedFiles: row.migration_processed_files,
+      migrationStartedAt: row.migration_started_at,
+      migrationEta: row.migration_eta,
+      migrationError: row.migration_error,
+      lastSuccessfulHost: row.last_successful_host,
+      encryptedSecretKey: row.encrypted_secret_key,
+      hostChangeRequestedAt: row.host_change_requested_at,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     };

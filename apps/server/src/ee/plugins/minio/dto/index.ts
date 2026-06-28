@@ -27,6 +27,61 @@ export class UpdateMinioSettingsDto {
   gcVersionRetentionDays?: number;
 }
 
+export class TestMinioConnectionDto {
+  @IsString()
+  minioEndpoint: string;
+
+  @IsString()
+  minioAccessKey: string;
+
+  @IsString()
+  minioSecretKey: string;
+
+  @IsBoolean()
+  @IsOptional()
+  minioUseSsl?: boolean;
+}
+
+export class StartMigrationDto {
+  @IsString()
+  newEndpoint: string;
+
+  @IsString()
+  accessKey: string;
+
+  @IsString()
+  secretKey: string;
+
+  @IsBoolean()
+  @IsOptional()
+  useSSL?: boolean;
+}
+
+export class MigrationStatusDto {
+  status: 'idle' | 'in_progress' | 'completed' | 'failed';
+  progress: number;
+  processedFiles: number;
+  totalFiles: number;
+  eta?: Date;
+  error?: string;
+  remainingTime?: string;
+}
+
+export class GetMinioConfigDto {
+  workspaceId: string;
+  minioEndpoint: string;
+  minioAccessKey: string;
+  minioUseSsl: boolean;
+  isConfigured: boolean;
+  isEnabled: boolean;
+  healthStatus?: string;
+}
+
+export class TestConnectionResponseDto {
+  success: boolean;
+  message?: string;
+}
+
 export class UploadAttachmentDto {
   @IsString()
   pageId: string;

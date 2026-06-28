@@ -6,6 +6,13 @@ export interface MinioConfig {
   region?: string;
 }
 
+export interface MinioObjectStat {
+  size: number;
+  etag: string;
+  lastModified: Date;
+  metaData?: Record<string, string>;
+}
+
 export interface AttachmentMetadata {
   id: string;
   workspaceId: string;
@@ -66,6 +73,17 @@ export interface WorkspaceMinioSettings {
   isConfigured: boolean;
   healthStatus?: string;
   healthMessage?: string;
+  minioHostNew?: string;
+  migrationStatus?: 'idle' | 'in_progress' | 'completed' | 'failed';
+  migrationProgress?: number;
+  migrationTotalFiles?: number;
+  migrationProcessedFiles?: number;
+  migrationStartedAt?: Date;
+  migrationEta?: Date;
+  migrationError?: string;
+  lastSuccessfulHost?: string;
+  encryptedSecretKey?: string;
+  hostChangeRequestedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
