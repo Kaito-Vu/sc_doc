@@ -1,0 +1,16 @@
+{
+  "id": "recaptcha",
+  "name": "reCAPTCHA v3",
+  "version": "1.0.0",
+  "description": "Score-based bot detection for login and signup using Google reCAPTCHA v3",
+  "author": "Docmost",
+  "license": "MIT",
+  "homepage": "https://developers.google.com/recaptcha/docs/v3",
+  "hooks": [
+    "auth:beforeLogin",
+    "auth:beforeSignup"
+  ],
+  "configRequired": false,
+  "configLocation": "security",
+  "configSchemaFile": "./plugin-config.schema.json"
+}

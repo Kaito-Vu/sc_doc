@@ -1,12 +1,14 @@
 export interface ILogin {
   email: string;
   password: string;
+  recaptchaToken?: string;
 }
 
 export interface IRegister {
   name?: string;
   email: string;
   password: string;
+  recaptchaToken?: string;
 }
 
 export interface ISetupWorkspace {
@@ -14,6 +16,7 @@ export interface ISetupWorkspace {
   name: string;
   email: string;
   password: string;
+  recaptchaToken?: string;
 }
 
 export interface IChangePassword {

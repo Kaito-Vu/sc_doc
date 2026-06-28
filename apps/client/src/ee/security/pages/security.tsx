@@ -22,6 +22,7 @@ import { useTranslation } from "react-i18next";
 import EnforceMfa from "@/ee/security/components/enforce-mfa.tsx";
 import DisablePublicSharing from "@/ee/security/components/disable-public-sharing.tsx";
 import TrashRetention from "@/ee/security/components/trash-retention.tsx";
+import RecaptchaSettings from "@/ee/security/components/recaptcha-settings.tsx";
 import { useAtom } from "jotai";
 import { workspaceAtom } from "@/features/user/atoms/current-user-atom.ts";
 import { useHasFeature } from "@/ee/hooks/use-feature";
@@ -78,6 +79,8 @@ export default function Security() {
 
       <TrashRetention />
       <Divider my="lg" />
+
+      <RecaptchaSettings />
 
       <Title order={4} my="lg">
         {t("Single sign-on (SSO)")}

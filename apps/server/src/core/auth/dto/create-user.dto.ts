@@ -27,4 +27,8 @@ export class CreateUserDto {
   @MaxLength(70)
   @IsString()
   password: string;
+
+  @IsOptional()
+  @IsString()
+  recaptchaToken?: string;
 }

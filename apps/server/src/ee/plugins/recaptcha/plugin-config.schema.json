@@ -1,0 +1,210 @@
+{
+  "type": "object",
+  "title": "reCAPTCHA v3 Configuration",
+  "properties": {
+    "siteKey": {
+      "type": "string",
+      "title": "Site Key",
+      "description": "Google reCAPTCHA v3 Site Key (public)",
+      "required": true
+    },
+    "secretKey": {
+      "type": "string",
+      "title": "Secret Key",
+      "description": "Google reCAPTCHA v3 Secret Key (keep secret!)",
+      "isSecret": true,
+      "required": true
+    },
+    "actions": {
+      "type": "object",
+      "title": "Actions Configuration",
+      "properties": {
+        "login": {
+          "type": "object",
+          "title": "Login Configuration",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "title": "Enabled",
+              "description": "Enable reCAPTCHA for login",
+              "default": true
+            },
+            "threshold": {
+              "type": "number",
+              "title": "Score Threshold",
+              "description": "Minimum score to allow login (0-1)",
+              "minimum": 0,
+              "maximum": 1,
+              "default": 0.5
+            },
+            "blockAction": {
+              "type": "string",
+              "title": "Action on Low Score",
+              "description": "What to do when score is below threshold",
+              "enum": ["allow", "challenge", "block"],
+              "default": "challenge"
+            }
+          }
+        },
+        "signup": {
+          "type": "object",
+          "title": "Signup Configuration",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "title": "Enabled",
+              "description": "Enable reCAPTCHA for signup",
+              "default": true
+            },
+            "threshold": {
+              "type": "number",
+              "title": "Score Threshold",
+              "description": "Minimum score to allow signup (0-1)",
+              "minimum": 0,
+              "maximum": 1,
+              "default": 0.7
+            },
+            "blockAction": {
+              "type": "string",
+              "title": "Action on Low Score",
+              "description": "What to do when score is below threshold",
+              "enum": ["allow", "challenge", "block"],
+              "default": "block"
+            }
+          }
+        },
+        "forgotPassword": {
+          "type": "object",
+          "title": "Forgot Password Configuration",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "title": "Enabled",
+              "description": "Enable reCAPTCHA for forgot password requests",
+              "default": false
+            },
+            "threshold": {
+              "type": "number",
+              "title": "Score Threshold",
+              "description": "Minimum score to allow request (0-1)",
+              "minimum": 0,
+              "maximum": 1,
+              "default": 0.3
+            }
+          }
+        },
+        "passwordReset": {
+          "type": "object",
+          "title": "Password Reset Configuration",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "title": "Enabled",
+              "description": "Enable reCAPTCHA for password reset with token",
+              "default": false
+            },
+            "threshold": {
+              "type": "number",
+              "title": "Score Threshold",
+              "description": "Minimum score to allow reset (0-1)",
+              "minimum": 0,
+              "maximum": 1,
+              "default": 0.3
+            }
+          }
+        },
+        "mfaVerify": {
+          "type": "object",
+          "title": "MFA Code Verification Configuration",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "title": "Enabled",
+              "description": "Enable reCAPTCHA for MFA code verification",
+              "default": false
+            },
+            "threshold": {
+              "type": "number",
+              "title": "Score Threshold",
+              "description": "Minimum score to attempt MFA code entry (0-1)",
+              "minimum": 0,
+              "maximum": 1,
+              "default": 0.5
+            }
+          }
+        },
+        "inviteCreate": {
+          "type": "object",
+          "title": "Workspace Invitation Configuration",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "title": "Enabled",
+              "description": "Enable reCAPTCHA for creating workspace invitations",
+              "default": false
+            },
+            "threshold": {
+              "type": "number",
+              "title": "Score Threshold",
+              "description": "Minimum score to create invitation (0-1)",
+              "minimum": 0,
+              "maximum": 1,
+              "default": 0.3
+            }
+          }
+        },
+        "shareGetInfo": {
+          "type": "object",
+          "title": "Shared Page Info Configuration",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "title": "Enabled",
+              "description": "Enable reCAPTCHA for accessing shared page info",
+              "default": false
+            },
+            "threshold": {
+              "type": "number",
+              "title": "Score Threshold",
+              "description": "Minimum score to access share link (0-1)",
+              "minimum": 0,
+              "maximum": 1,
+              "default": 0.3
+            }
+          }
+        }
+      }
+    },
+    "rateLimiting": {
+      "type": "object",
+      "title": "Rate Limiting Configuration",
+      "description": "Advanced rate limiting for high-risk endpoints",
+      "properties": {
+        "mfaVerifyLimit": {
+          "type": "number",
+          "title": "MFA Verify Attempts Per Minute",
+          "description": "Max attempts to verify MFA code per IP per minute",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 5
+        },
+        "mfaVerifyFailureLockout": {
+          "type": "number",
+          "title": "MFA Verify Lockout After Failures",
+          "description": "Lock account after N failed MFA attempts",
+          "minimum": 1,
+          "maximum": 20,
+          "default": 5
+        },
+        "inviteCreateLimit": {
+          "type": "number",
+          "title": "Invites Per Hour Per User",
+          "description": "Max invitations a user can create per hour",
+          "minimum": 1,
+          "maximum": 1000,
+          "default": 50
+        }
+      }
+    }
+  }
+}

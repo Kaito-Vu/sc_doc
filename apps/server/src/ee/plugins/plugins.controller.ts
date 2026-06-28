@@ -26,6 +26,26 @@ export class PluginsController {
     private readonly registry: PluginRegistry,
   ) {}
 
+  // Public (unauthenticated) endpoint: the login/signup pages need the
+  // reCAPTCHA site key and per-action enablement before a session exists.
+  // Must be declared before ':pluginId/config' so the static "recaptcha"
+  // segment isn't swallowed by that param route. Never returns secretKey.
+  @Get('recaptcha/config')
+  async getRecaptchaPublicConfig(@AuthWorkspace() workspace: Workspace) {
+    const config = await this.configService.getConfig(
+      workspace.id,
+      'recaptcha',
+    )
+
+    return {
+      enabled: Boolean(config.enabled),
+      config: {
+        siteKey: config.config?.siteKey,
+        actions: config.config?.actions,
+      },
+    }
+  }
+
   @UseGuards(JwtAuthGuard)
   @Get()
   async listPlugins(
@@ -35,24 +55,31 @@ export class PluginsController {
     try {
       const plugins = this.registry.getAllPlugins()
       const configs = await this.configService.listConfigs(workspace.id)
-
       const configMap = new Map(configs.map((c) => [c.pluginId, c]))
 
       const enriched = plugins.map((plugin) => {
         const config = configMap.get(plugin.id)
+        const isConfigured = this.configService.isConfigured(
+          plugin.configSchema,
+          config?.config || {},
+        )
+
         return {
           id: plugin.id,
           name: plugin.name,
           version: plugin.version,
           description: plugin.description || '',
           author: plugin.author || 'Unknown',
-          enabled: config?.enabled || false,
-          configured: !!config?.id,
+          enabled: Boolean(config?.enabled),
+          configured: isConfigured,
           hooks: plugin.hooks || [],
+          configSchema: plugin.configSchema,
+          configRequired: plugin.configRequired,
+          configLocation: plugin.configLocation,
         }
       })
 
-      return { data: enriched }
+      return enriched
     } catch (error) {
       this.logger.error('Failed to list plugins:', error)
       throw error
@@ -73,16 +100,14 @@ export class PluginsController {
     const config = await this.configService.getConfig(workspace.id, pluginId)
 
     return {
-      data: {
-        id: plugin.id,
-        name: plugin.name,
-        version: plugin.version,
-        description: plugin.description,
-        author: plugin.author,
-        configSchema: plugin.configSchema,
-        hooks: plugin.hooks,
-        ...config,
-      },
+      id: plugin.id,
+      name: plugin.name,
+      version: plugin.version,
+      description: plugin.description,
+      author: plugin.author,
+      configSchema: plugin.configSchema,
+      hooks: plugin.hooks,
+      ...config,
     }
   }
 
@@ -93,7 +118,7 @@ export class PluginsController {
     @Param('pluginId') pluginId: string,
   ) {
     const config = await this.configService.getConfig(workspace.id, pluginId)
-    return { data: this.redactSecrets(config) }
+    return this.redactSecrets(config)
   }
 
   @UseGuards(JwtAuthGuard)
@@ -119,7 +144,7 @@ export class PluginsController {
       `Plugin ${pluginId} config updated by user ${user.id} in workspace ${workspace.id}`,
     )
 
-    return { data: this.redactSecrets(updated) }
+    return this.redactSecrets(updated)
   }
 
   @UseGuards(JwtAuthGuard)
@@ -130,22 +155,26 @@ export class PluginsController {
     @Param('pluginId') pluginId: string,
     @Body() body: { enabled: boolean },
   ) {
+    this.logger.log(`[Toggle] Request received - pluginId: ${pluginId}, enabled: ${body.enabled}`)
     if (body.enabled === undefined) {
       throw new BadRequestException('enabled field is required')
     }
 
-    await this.configService.togglePlugin(
-      workspace.id,
-      pluginId,
-      body.enabled,
-      user.id,
-    )
+    try {
+      this.logger.log(`[Toggle] Calling configService.togglePlugin...`)
+      const updated = await this.configService.togglePlugin(
+        workspace.id,
+        pluginId,
+        body.enabled,
+        user.id,
+      )
+      this.logger.log(`[Toggle] Toggle successful - result:`, updated)
 
-    this.logger.log(
-      `Plugin ${pluginId} toggled to ${body.enabled} by user ${user.id}`,
-    )
-
-    return { data: { success: true, enabled: body.enabled } }
+      return { success: true, enabled: updated.enabled }
+    } catch (error) {
+      this.logger.error(`[Toggle] Error toggling plugin:`, error)
+      throw error
+    }
   }
 
   private redactSecrets(data: any): any {

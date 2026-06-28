@@ -22,6 +22,8 @@ import { useWorkspacePublicDataQuery } from "@/features/workspace/queries/worksp
 import { Error404 } from "@/components/ui/error-404.tsx";
 import React from "react";
 import { AuthLayout } from "./auth-layout.tsx";
+import { getRecaptchaConfig } from "@/ee/plugins/recaptcha/services/recaptcha-config.service";
+import { useRecaptcha } from "@/ee/plugins/recaptcha/hooks/use-recaptcha";
 
 const formSchema = z.object({
   email: z
@@ -42,6 +44,23 @@ export function LoginForm() {
     error,
   } = useWorkspacePublicDataQuery();
 
+  const [recaptchaSiteKey, setRecaptchaSiteKey] = React.useState("");
+  const [recaptchaLoginEnabled, setRecaptchaLoginEnabled] = React.useState(false);
+
+  React.useEffect(() => {
+    getRecaptchaConfig().then((config) => {
+      if (config.enabled && config.actions.login?.enabled && config.siteKey) {
+        setRecaptchaSiteKey(config.siteKey);
+        setRecaptchaLoginEnabled(true);
+      }
+    });
+  }, []);
+
+  const { getToken: getRecaptchaToken } = useRecaptcha({
+    siteKey: recaptchaSiteKey,
+    enabled: recaptchaLoginEnabled,
+  });
+
   const form = useForm<FormValues>({
     validate: zod4Resolver(formSchema),
     initialValues: {
@@ -51,7 +70,12 @@ export function LoginForm() {
   });
 
   async function onSubmit(data: FormValues) {
-    await signIn(data);
+    if (recaptchaLoginEnabled) {
+      const recaptchaToken = await getRecaptchaToken("login");
+      await signIn({ ...data, recaptchaToken });
+    } else {
+      await signIn(data);
+    }
   }
 
   function handleValidationFailure(errors: Record<string, unknown>) {

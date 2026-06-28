@@ -37,7 +37,8 @@ import {
   AUDIT_SERVICE,
   IAuditService,
 } from '../../integrations/audit/audit.service';
-import { CoreHooks, getHookRegistry } from '../plugins/plugin-hooks';
+import { CoreHooks } from '../plugins/plugin-hooks';
+import { runHook } from '../plugins/run-hook';
 
 @SkipThrottle({ [AI_CHAT_THROTTLER]: true })
 @UseGuards(ThrottlerGuard)
@@ -46,10 +47,10 @@ export class AuthController {
   private readonly logger = new Logger(AuthController.name);
 
   constructor(
-    private authService: AuthService,
-    private sessionService: SessionService,
-    private environmentService: EnvironmentService,
-    private moduleRef: ModuleRef,
+    private readonly authService: AuthService,
+    private readonly sessionService: SessionService,
+    private readonly environmentService: EnvironmentService,
+    private readonly moduleRef: ModuleRef,
     @Inject(AUDIT_SERVICE) private readonly auditService: IAuditService,
   ) {}
 
@@ -58,28 +59,19 @@ export class AuthController {
   async login(
     @AuthWorkspace() workspace: Workspace,
     @Res({ passthrough: true }) res: FastifyReply,
+    @Req() req: FastifyRequest,
     @Body() loginInput: LoginDto,
   ) {
     validateSsoEnforcement(workspace);
 
-    // Hook: BEFORE_LOGIN
-    try {
-      const hookRegistry = getHookRegistry();
-      await hookRegistry.emit(CoreHooks.BEFORE_LOGIN, {
-        loginInput,
-        workspaceId: workspace.id,
-      });
-    } catch (error: unknown) {
-      const code = (error as { code?: string })?.code;
-      if (
-        code === 'BOT_DETECTED' ||
-        code === 'UNAUTHORIZED' ||
-        code === 'FORBIDDEN'
-      ) {
-        throw error;
-      }
-      this.logger.warn('BEFORE_LOGIN hook error (non-blocking):', error);
-    }
+    let loginContext: any = {
+      loginInput,
+      workspaceId: workspace.id,
+      remoteAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+    };
+
+    loginContext = await runHook(CoreHooks.BEFORE_LOGIN, loginContext);
 
     let MfaModule: any;
     let isMfaModuleReady = false;
@@ -87,7 +79,11 @@ export class AuthController {
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       MfaModule = require('./../../ee/mfa/services/mfa.service');
       isMfaModuleReady = true;
-    } catch (err) {
+    } catch (err: unknown) {
+      const code = (err as NodeJS.ErrnoException)?.code;
+      if (code !== 'MODULE_NOT_FOUND') {
+        throw err;
+      }
       this.logger.debug(
         'MFA module requested but EE module not bundled in this build',
       );
@@ -99,7 +95,7 @@ export class AuthController {
       });
 
       const mfaResult = await mfaService.checkMfaRequirements(
-        loginInput,
+        loginContext.loginInput,
         workspace,
         res,
       );
@@ -120,19 +116,16 @@ export class AuthController {
       }
     }
 
-    const authToken = await this.authService.login(loginInput, workspace.id);
+    const authToken = await this.authService.login(
+      loginContext.loginInput,
+      workspace.id,
+    );
     this.setAuthCookie(res, authToken);
 
-    // Hook: AFTER_LOGIN
-    try {
-      const hookRegistry = getHookRegistry();
-      await hookRegistry.emit(CoreHooks.AFTER_LOGIN, {
-        loginInput,
-        workspaceId: workspace.id,
-      });
-    } catch (error) {
-      this.logger.warn('AFTER_LOGIN hook error (non-blocking):', error);
-    }
+    await runHook(CoreHooks.AFTER_LOGIN, {
+      loginInput: loginContext.loginInput,
+      workspaceId: workspace.id,
+    });
   }
 
   @UseGuards(SetupGuard)
@@ -140,41 +133,26 @@ export class AuthController {
   @Post('setup')
   async setupWorkspace(
     @Res({ passthrough: true }) res: FastifyReply,
+    @Req() req: FastifyRequest,
     @Body() createAdminUserDto: CreateAdminUserDto,
   ) {
-    // Hook: BEFORE_SIGNUP
-    try {
-      const hookRegistry = getHookRegistry();
-      await hookRegistry.emit(CoreHooks.BEFORE_SIGNUP, {
-        createAdminUserDto,
-      });
-    } catch (error: unknown) {
-      const code = (error as { code?: string })?.code;
-      if (
-        code === 'BOT_DETECTED' ||
-        code === 'UNAUTHORIZED' ||
-        code === 'FORBIDDEN'
-      ) {
-        throw error;
-      }
-      this.logger.warn('BEFORE_SIGNUP hook error (non-blocking):', error);
-    }
+    let signupContext: any = {
+      signupInput: createAdminUserDto,
+      remoteAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+    };
+
+    signupContext = await runHook(CoreHooks.BEFORE_SIGNUP, signupContext);
 
     const { workspace, authToken } =
-      await this.authService.setup(createAdminUserDto);
+      await this.authService.setup(signupContext.signupInput);
 
     this.setAuthCookie(res, authToken);
 
-    // Hook: AFTER_SIGNUP
-    try {
-      const hookRegistry = getHookRegistry();
-      await hookRegistry.emit(CoreHooks.AFTER_SIGNUP, {
-        workspace,
-        createAdminUserDto,
-      });
-    } catch (error) {
-      this.logger.warn('AFTER_SIGNUP hook error (non-blocking):', error);
-    }
+    await runHook(CoreHooks.AFTER_SIGNUP, {
+      workspace,
+      createAdminUserDto: signupContext.signupInput,
+    });
 
     return workspace;
   }
@@ -203,8 +181,19 @@ export class AuthController {
   async forgotPassword(
     @Body() forgotPasswordDto: ForgotPasswordDto,
     @AuthWorkspace() workspace: Workspace,
+    @Req() req: FastifyRequest,
   ) {
     validateSsoEnforcement(workspace);
+
+    let forgotPasswordContext: any = {
+      forgotPasswordInput: { email: forgotPasswordDto.email, recaptchaToken: forgotPasswordDto.recaptchaToken },
+      workspaceId: workspace.id,
+      remoteAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+    };
+
+    forgotPasswordContext = await runHook(CoreHooks.BEFORE_FORGOT_PASSWORD, forgotPasswordContext);
+
     return this.authService.forgotPassword(forgotPasswordDto, workspace);
   }
 
@@ -214,7 +203,17 @@ export class AuthController {
     @Res({ passthrough: true }) res: FastifyReply,
     @Body() passwordResetDto: PasswordResetDto,
     @AuthWorkspace() workspace: Workspace,
+    @Req() req: FastifyRequest,
   ) {
+    let passwordResetContext: any = {
+      passwordResetInput: { token: passwordResetDto.token, newPassword: passwordResetDto.newPassword, recaptchaToken: passwordResetDto.recaptchaToken },
+      workspaceId: workspace.id,
+      remoteAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+    };
+
+    passwordResetContext = await runHook(CoreHooks.BEFORE_PASSWORD_RESET, passwordResetContext);
+
     const result = await this.authService.passwordReset(
       passwordResetDto,
       workspace,

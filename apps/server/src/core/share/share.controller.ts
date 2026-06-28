@@ -8,8 +8,10 @@ import {
   Inject,
   NotFoundException,
   Post,
+  Req,
   UseGuards,
 } from '@nestjs/common';
+import { FastifyRequest } from 'fastify';
 import { AuthUser } from '../../common/decorators/auth-user.decorator';
 import { User, Workspace } from '@docmost/db/types/entity.types';
 import { AuthWorkspace } from '../../common/decorators/auth-workspace.decorator';
@@ -35,6 +37,8 @@ import {
   AUDIT_SERVICE,
   IAuditService,
 } from '../../integrations/audit/audit.service';
+import { CoreHooks } from '../plugins/plugin-hooks';
+import { runHook } from '../plugins/run-hook';
 
 @UseGuards(JwtAuthGuard)
 @Controller('shares')
@@ -62,12 +66,24 @@ export class ShareController {
   @HttpCode(HttpStatus.OK)
   @Post('/page-info')
   async getSharedPageInfo(
-    @Body() dto: ShareInfoDto,
+    @Body() dto: ShareInfoDto & { recaptchaToken?: string },
     @AuthWorkspace() workspace: Workspace,
+    @Req() req: FastifyRequest,
   ) {
     if (!dto.pageId && !dto.shareId) {
       throw new BadRequestException();
     }
+
+    // Emit share get-info hook for reCAPTCHA evaluation
+    let shareGetInfoContext: any = {
+      shareId: dto.shareId || '',
+      workspaceId: workspace.id,
+      recaptchaToken: dto.recaptchaToken,
+      remoteAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+    };
+
+    shareGetInfoContext = await runHook(CoreHooks.BEFORE_SHARE_GET_INFO, shareGetInfoContext);
 
     const shareData = await this.shareService.getSharedPage(dto, workspace.id);
 

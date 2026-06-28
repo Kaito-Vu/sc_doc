@@ -20,6 +20,8 @@ import { isCloud } from "@/lib/config.ts";
 import { Link } from "react-router-dom";
 import APP_ROUTE from "@/lib/app-route.ts";
 import { AuthLayout } from "./auth-layout.tsx";
+import { getRecaptchaConfig } from "@/ee/plugins/recaptcha/services/recaptcha-config.service";
+import { useRecaptcha } from "@/ee/plugins/recaptcha/hooks/use-recaptcha";
 
 const formSchema = z.object({
   workspaceName: z.string().trim().max(50).optional(),
@@ -36,6 +38,23 @@ export function SetupWorkspaceForm() {
   const { setupWorkspace, isLoading } = useAuth();
   // useRedirectIfAuthenticated();
 
+  const [recaptchaSiteKey, setRecaptchaSiteKey] = React.useState("");
+  const [recaptchaSignupEnabled, setRecaptchaSignupEnabled] = React.useState(false);
+
+  React.useEffect(() => {
+    getRecaptchaConfig().then((config) => {
+      if (config.enabled && config.actions.signup?.enabled && config.siteKey) {
+        setRecaptchaSiteKey(config.siteKey);
+        setRecaptchaSignupEnabled(true);
+      }
+    });
+  }, []);
+
+  const { getToken: getRecaptchaToken } = useRecaptcha({
+    siteKey: recaptchaSiteKey,
+    enabled: recaptchaSignupEnabled,
+  });
+
   const form = useForm<FormValues>({
     validate: zod4Resolver(formSchema),
     initialValues: {
@@ -47,7 +66,12 @@ export function SetupWorkspaceForm() {
   });
 
   async function onSubmit(data: FormValues) {
-    await setupWorkspace(data);
+    if (recaptchaSignupEnabled) {
+      const recaptchaToken = await getRecaptchaToken("signup");
+      await setupWorkspace({ ...data, recaptchaToken });
+    } else {
+      await setupWorkspace(data);
+    }
   }
 
   return (

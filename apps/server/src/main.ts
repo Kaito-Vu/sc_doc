@@ -145,19 +145,10 @@ async function bootstrap() {
   app.useGlobalInterceptors(new TransformHttpResponseInterceptor(reflector));
   app.enableShutdownHooks();
 
-  const logger = new Logger('NestApplication');
-
-  process.on('unhandledRejection', (reason, promise) => {
-    logger.error(`UnhandledRejection, reason: ${reason}`, promise);
-  });
-
-  process.on('uncaughtException', (error) => {
-    logger.error('UncaughtException:', error);
-  });
-
   const port = process.env.PORT || 3000;
   const host = process.env.HOST || '0.0.0.0';
   await app.listen(port, host, () => {
+    const logger = new Logger('NestApplication');
     logger.log(
       `Listening on http://127.0.0.1:${port} / ${process.env.APP_URL}`,
     );

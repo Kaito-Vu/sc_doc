@@ -3,7 +3,6 @@ import {
   Text,
   Switch,
   MantineSize,
-  Title,
   Tooltip,
 } from "@mantine/core";
 import { useAtom } from "jotai";
@@ -39,7 +38,10 @@ interface EnforceMfaToggleProps {
   size?: MantineSize;
   label?: string;
 }
-export function EnforceMfaToggle({ size, label }: EnforceMfaToggleProps) {
+export function EnforceMfaToggle({
+  size,
+  label,
+}: Readonly<EnforceMfaToggleProps>) {
   const { t } = useTranslation();
   const [workspace, setWorkspace] = useAtom(workspaceAtom);
   const [checked, setChecked] = useState(workspace?.enforceMfa);
