@@ -40,19 +40,24 @@ export class PluginsController {
 
       const enriched = plugins.map((plugin) => {
         const config = configMap.get(plugin.id)
+        const configured = config
+          ? this.configService.isConfigured(plugin.configSchema, config.config)
+          : false
+
         return {
           id: plugin.id,
           name: plugin.name,
           version: plugin.version,
           description: plugin.description || '',
           author: plugin.author || 'Unknown',
-          enabled: config?.enabled || false,
-          configured: !!config?.id,
+          enabled: Boolean(config?.enabled),
+          configured,
+          configRequired: Boolean(plugin.configRequired),
           hooks: plugin.hooks || [],
         }
       })
 
-      return { data: enriched }
+      return enriched
     } catch (error) {
       this.logger.error('Failed to list plugins:', error)
       throw error
@@ -71,18 +76,22 @@ export class PluginsController {
     }
 
     const config = await this.configService.getConfig(workspace.id, pluginId)
+    const configured = this.configService.isConfigured(
+      plugin.configSchema,
+      config.config,
+    )
 
     return {
-      data: {
-        id: plugin.id,
-        name: plugin.name,
-        version: plugin.version,
-        description: plugin.description,
-        author: plugin.author,
-        configSchema: plugin.configSchema,
-        hooks: plugin.hooks,
-        ...config,
-      },
+      id: plugin.id,
+      name: plugin.name,
+      version: plugin.version,
+      description: plugin.description,
+      author: plugin.author,
+      configSchema: plugin.configSchema,
+      hooks: plugin.hooks,
+      configRequired: Boolean(plugin.configRequired),
+      configured,
+      ...config,
     }
   }
 
@@ -93,7 +102,7 @@ export class PluginsController {
     @Param('pluginId') pluginId: string,
   ) {
     const config = await this.configService.getConfig(workspace.id, pluginId)
-    return { data: this.redactSecrets(config) }
+    return this.redactSecrets(config)
   }
 
   @UseGuards(JwtAuthGuard)
@@ -119,7 +128,7 @@ export class PluginsController {
       `Plugin ${pluginId} config updated by user ${user.id} in workspace ${workspace.id}`,
     )
 
-    return { data: this.redactSecrets(updated) }
+    return this.redactSecrets(updated)
   }
 
   @UseGuards(JwtAuthGuard)
@@ -134,7 +143,7 @@ export class PluginsController {
       throw new BadRequestException('enabled field is required')
     }
 
-    await this.configService.togglePlugin(
+    const updated = await this.configService.togglePlugin(
       workspace.id,
       pluginId,
       body.enabled,
@@ -145,7 +154,7 @@ export class PluginsController {
       `Plugin ${pluginId} toggled to ${body.enabled} by user ${user.id}`,
     )
 
-    return { data: { success: true, enabled: body.enabled } }
+    return { success: true, enabled: updated.enabled }
   }
 
   private redactSecrets(data: any): any {

@@ -8,6 +8,7 @@ export interface IPlugin {
   author: string;
   enabled: boolean;
   configured: boolean;
+  configRequired?: boolean;
   hooks: string[];
 }
 
@@ -25,35 +26,48 @@ export interface IPluginConfig {
   version: number;
 }
 
+function unwrap<T>(res: { data?: T }): T {
+  return res.data as T;
+}
+
 export async function getPlugins(): Promise<IPlugin[]> {
-  const res: any = await api.get("/plugins");
-  return res.data?.data || [];
+  const res = await api.get<{ data: IPlugin[] }>("/plugins");
+  const data = unwrap(res);
+  return Array.isArray(data) ? data : [];
 }
 
 export async function getPlugin(pluginId: string): Promise<IPluginDetail> {
-  const res: any = await api.get(`/plugins/${pluginId}`);
-  return res.data?.data || {};
+  const res = await api.get<{ data: IPluginDetail }>(`/plugins/${pluginId}`);
+  return unwrap(res) || {};
 }
 
 export async function getPluginConfig(
   pluginId: string,
 ): Promise<IPluginConfig> {
-  const res: any = await api.get(`/plugins/${pluginId}/config`);
-  return res.data?.data || {};
+  const res = await api.get<{ data: IPluginConfig }>(
+    `/plugins/${pluginId}/config`,
+  );
+  return unwrap(res) || {};
 }
 
 export async function updatePluginConfig(
   pluginId: string,
   payload: { config?: Record<string, any>; enabled?: boolean },
 ): Promise<IPluginConfig> {
-  const res: any = await api.put(`/plugins/${pluginId}/config`, payload);
-  return res.data?.data || {};
+  const res = await api.put<{ data: IPluginConfig }>(
+    `/plugins/${pluginId}/config`,
+    payload,
+  );
+  return unwrap(res) || {};
 }
 
 export async function togglePlugin(
   pluginId: string,
   enabled: boolean,
 ): Promise<{ success: boolean; enabled: boolean }> {
-  const res: any = await api.post(`/plugins/${pluginId}/toggle`, { enabled });
-  return res.data?.data || { success: false, enabled };
+  const res = await api.post<{ data: { success: boolean; enabled: boolean } }>(
+    `/plugins/${pluginId}/toggle`,
+    { enabled },
+  );
+  return unwrap(res) || { success: false, enabled };
 }

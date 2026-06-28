@@ -10,6 +10,7 @@ export interface PluginMetadata {
   author?: string
   configSchema?: Record<string, any>
   hooks?: string[]
+  configRequired?: boolean
 }
 
 @Injectable()

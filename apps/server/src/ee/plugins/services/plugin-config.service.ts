@@ -157,7 +157,42 @@ export class PluginConfigService {
     enabled: boolean,
     userId?: string,
   ): Promise<PluginConfigData> {
+    const plugin = this.registry.getPlugin(pluginId)
+    if (!plugin) {
+      throw new NotFoundException(`Plugin ${pluginId} not found`)
+    }
+
+    if (enabled && plugin.configRequired) {
+      const existing = await this.getConfig(workspaceId, pluginId)
+      if (!this.isConfigured(plugin.configSchema, existing.config)) {
+        throw new BadRequestException(
+          'Plugin must be configured before it can be enabled',
+        )
+      }
+    }
+
     return this.updateConfig(workspaceId, pluginId, { enabled }, userId)
+  }
+
+  isConfigured(
+    configSchema: Record<string, any> | undefined,
+    config: Record<string, any>,
+  ): boolean {
+    if (!configSchema?.properties) {
+      return true
+    }
+
+    for (const [key, propDef] of Object.entries(configSchema.properties)) {
+      const prop = propDef as { required?: boolean }
+      if (!prop.required) continue
+
+      const value = config[key]
+      if (value === undefined || value === null || value === '') {
+        return false
+      }
+    }
+
+    return true
   }
 
   async listConfigs(workspaceId: string): Promise<PluginConfigData[]> {

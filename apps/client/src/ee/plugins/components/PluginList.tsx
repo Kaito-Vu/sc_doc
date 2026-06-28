@@ -26,8 +26,8 @@ import { IPlugin, togglePlugin } from "../services/plugin-service";
 interface Props {
   plugins: IPlugin[];
   loading: boolean;
-  onRefresh: () => void;
-  onConfigClick: (pluginId: string) => void;
+  onRefresh: () => Promise<void>;
+  onConfigClick: (pluginId: string, options?: { enableAfterSave?: boolean }) => void;
 }
 
 function getPluginIcon(pluginId: string) {
@@ -47,10 +47,19 @@ export function PluginList({
   const [toggling, setToggling] = useState<string | null>(null);
 
   const handleToggle = async (plugin: IPlugin, enabled: boolean) => {
+    if (enabled && plugin.configRequired && !plugin.configured) {
+      onConfigClick(plugin.id, { enableAfterSave: true });
+      return;
+    }
+
     setToggling(plugin.id);
     try {
       await togglePlugin(plugin.id, enabled);
-      onRefresh();
+      await onRefresh();
+      notifications.show({
+        message: t("Plugin toggled successfully"),
+        color: "green",
+      });
     } catch (err: any) {
       notifications.show({
         message:
@@ -81,7 +90,7 @@ export function PluginList({
   }
 
   return (
-    <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md">
+    <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
       {plugins.map((plugin) => {
         const PluginIcon = getPluginIcon(plugin.id);
         const isToggling = toggling === plugin.id;
