@@ -37,6 +37,7 @@ const azureAdSchema = z.object({
   isEnabled: z.boolean(),
   allowSignup: z.boolean(),
   groupSync: z.boolean(),
+  avatarSync: z.boolean(),
 });
 
 type SSOFormValues = z.infer<typeof azureAdSchema>;
@@ -59,6 +60,7 @@ export function SsoAzureAdForm({ provider, onClose }: Readonly<SsoAzureAdFormPro
       isEnabled: provider.isEnabled,
       allowSignup: provider.allowSignup,
       groupSync: provider.groupSync || false,
+      avatarSync: provider.avatarSync || false,
     },
     validate: zod4Resolver(azureAdSchema),
   });
@@ -98,6 +100,9 @@ export function SsoAzureAdForm({ provider, onClose }: Readonly<SsoAzureAdFormPro
     }
     if (form.isDirty("groupSync")) {
       ssoData.groupSync = values.groupSync;
+    }
+    if (form.isDirty("avatarSync")) {
+      ssoData.avatarSync = values.avatarSync;
     }
 
     await updateSsoProviderMutation.mutateAsync(ssoData);
@@ -179,6 +184,17 @@ export function SsoAzureAdForm({ provider, onClose }: Readonly<SsoAzureAdFormPro
                 checked={form.values.groupSync}
                 onChange={(event) =>
                   form.setFieldValue("groupSync", event.currentTarget.checked)
+                }
+              />
+
+              <Switch
+                label={t("Enable avatar sync")}
+                description={t(
+                  "Sync user profile photo from Azure AD"
+                )}
+                checked={form.values.avatarSync}
+                onChange={(event) =>
+                  form.setFieldValue("avatarSync", event.currentTarget.checked)
                 }
               />
             </Stack>

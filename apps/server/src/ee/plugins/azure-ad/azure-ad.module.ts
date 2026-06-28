@@ -3,6 +3,7 @@ import { AzureAdService } from './services/azure-ad.service'
 import { TokenValidationService } from './services/token-validation.service'
 import { GroupSyncService } from './services/group-sync.service'
 import { TokenCacheService } from './services/token-cache.service'
+import { AvatarSyncService } from './services/avatar-sync.service'
 import { AuthOidcLoginHandler } from './hooks/auth-oidc-login.handler'
 import { AzureAdValidateTenantHandler } from './hooks/azure-ad-validate-tenant.handler'
 import { HookRegistry } from '../services/hook.registry'
@@ -15,6 +16,7 @@ import { AzureAdGroupSyncRepository } from './repositories/azure-ad-group-sync.r
     TokenValidationService,
     GroupSyncService,
     TokenCacheService,
+    AvatarSyncService,
     AuthOidcLoginHandler,
     AzureAdValidateTenantHandler,
     AzureAdGroupSyncRepository,
@@ -24,6 +26,7 @@ import { AzureAdGroupSyncRepository } from './repositories/azure-ad-group-sync.r
     TokenValidationService,
     GroupSyncService,
     TokenCacheService,
+    AvatarSyncService,
     AuthOidcLoginHandler,
     AzureAdValidateTenantHandler,
     AzureAdGroupSyncRepository,

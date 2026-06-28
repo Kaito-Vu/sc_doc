@@ -14,6 +14,7 @@ export interface AzureAdConfig {
   validateAudience?: boolean
   requireEmailDomainMatch?: boolean
   allowedEmailDomains?: string[]
+  avatarSyncEnabled?: boolean
 }
 
 export interface TokenClaims {

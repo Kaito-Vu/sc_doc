@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common'
 import { AzureAdService, AzureAdConfig } from '../services/azure-ad.service'
 import { TokenValidationService } from '../services/token-validation.service'
 import { GroupSyncService } from '../services/group-sync.service'
+import { AvatarSyncService } from '../services/avatar-sync.service'
 
 export interface OidcLoginContext {
   providerId: string
@@ -22,6 +23,7 @@ export interface OidcLoginResult {
   groups?: string[]
   groupMapping?: string[]
   tokenClaims?: Record<string, any>
+  avatar?: string
 }
 
 @Injectable()
@@ -31,7 +33,8 @@ export class AuthOidcLoginHandler {
   constructor(
     private readonly azureAdService: AzureAdService,
     private readonly tokenValidationService: TokenValidationService,
-    private readonly groupSyncService: GroupSyncService
+    private readonly groupSyncService: GroupSyncService,
+    private readonly avatarSyncService: AvatarSyncService
   ) {}
 
   async handle(context: OidcLoginContext): Promise<OidcLoginResult> {
@@ -108,6 +111,24 @@ export class AuthOidcLoginHandler {
       } catch (error) {
         this.logger.error('Failed to sync groups, continuing without groups:', error)
         // Don't fail the entire login if group sync fails
+      }
+    }
+
+    // Fetch and sync avatar if enabled
+    if (context.config.avatarSyncEnabled && context.accessToken) {
+      try {
+        const photoResult = await this.avatarSyncService.fetchUserPhoto(
+          context.accessToken,
+          'base64'
+        )
+
+        if (photoResult.synced && photoResult.photoBase64) {
+          result.avatar = photoResult.photoBase64
+          this.logger.debug('Successfully synced user avatar')
+        }
+      } catch (error) {
+        this.logger.error('Failed to sync avatar, continuing without avatar:', error)
+        // Don't fail the entire login if avatar sync fails
       }
     }
 

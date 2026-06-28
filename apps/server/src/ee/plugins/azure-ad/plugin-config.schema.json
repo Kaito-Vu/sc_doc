@@ -38,6 +38,12 @@
       "description": "Fetch user groups from Azure AD and map to workspace roles",
       "default": true
     },
+    "avatarSyncEnabled": {
+      "type": "boolean",
+      "title": "Enable Avatar Sync",
+      "description": "Sync user profile photo from Azure AD",
+      "default": true
+    },
     "groupClaimName": {
       "type": "string",
       "title": "Group Claim Name",
