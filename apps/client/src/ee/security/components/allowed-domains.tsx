@@ -3,7 +3,7 @@ import { z } from "zod/v4";
 import { useForm } from "@mantine/form";
 import { zod4Resolver } from "mantine-form-zod-resolver";
 import { workspaceAtom } from "@/features/user/atoms/current-user-atom.ts";
-import React, { useState } from "react";
+import { useState } from "react";
 import { Button, Text, TagsInput } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { useTranslation } from "react-i18next";
@@ -19,7 +19,6 @@ export default function AllowedDomains() {
   const { t } = useTranslation();
   const [isLoading, setIsLoading] = useState(false);
   const [workspace, setWorkspace] = useAtom(workspaceAtom);
-  const [, setDomains] = useState<string[]>([]);
 
   const form = useForm<FormValues>({
     validate: zod4Resolver(formSchema),
@@ -73,7 +72,6 @@ export default function AllowedDomains() {
           splitChars={[",", " "]}
           maxDropdownHeight={0}
           maxTags={20}
-          onChange={setDomains}
           {...form.getInputProps("emailDomains")}
         />
 

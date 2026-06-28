@@ -12,7 +12,7 @@ import {
   Tooltip,
 } from "@mantine/core";
 import { IconInfoCircle } from "@tabler/icons-react";
-import React, { useState } from "react";
+import { useState } from "react";
 import useUserRole from "@/hooks/use-user-role.tsx";
 import SsoProviderList from "@/ee/security/components/sso-provider-list.tsx";
 import CreateSsoProvider from "@/ee/security/components/create-sso-provider.tsx";

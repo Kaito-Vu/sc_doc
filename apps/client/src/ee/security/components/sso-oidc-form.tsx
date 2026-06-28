@@ -1,4 +1,3 @@
-import React from "react";
 import { z } from "zod/v4";
 import { useForm } from "@mantine/form";
 import { zod4Resolver } from "mantine-form-zod-resolver";
@@ -12,7 +11,7 @@ import { useUpdateSsoProviderMutation } from "@/ee/security/queries/security-que
 
 const ssoSchema = z.object({
   name: z.string().min(1, "Display name is required"),
-  oidcIssuer: z.string().url(),
+  oidcIssuer: z.url({ message: "Must be a valid URL" }),
   oidcClientId: z.string().min(1, "Client id is required"),
   oidcClientSecret: z.string().min(1, "Client secret is required"),
   isEnabled: z.boolean(),
@@ -26,7 +25,7 @@ interface SsoFormProps {
   provider: IAuthProvider;
   onClose?: () => void;
 }
-export function SsoOIDCForm({ provider, onClose }: SsoFormProps) {
+export function SsoOIDCForm({ provider, onClose }: Readonly<SsoFormProps>) {
   const { t } = useTranslation();
   const updateSsoProviderMutation = useUpdateSsoProviderMutation();
 

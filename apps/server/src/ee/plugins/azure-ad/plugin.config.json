@@ -1,0 +1,17 @@
+{
+  "id": "azure-ad",
+  "name": "Azure AD (Entra ID)",
+  "version": "1.0.0",
+  "description": "OIDC login and group sync with Microsoft Azure AD / Entra ID",
+  "author": "Anthropic Claude Haiku",
+  "license": "MIT",
+  "homepage": "https://learn.microsoft.com/en-us/azure/active-directory/",
+  "hooks": [
+    "auth:oidcLogin",
+    "azure-ad:validateTenant",
+    "azure-ad:onGroupSync"
+  ],
+  "configRequired": true,
+  "configLocation": "security",
+  "configSchemaFile": "./plugin-config.schema.json"
+}

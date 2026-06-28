@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { useDisclosure } from "@mantine/hooks";
 import { Button, Menu, Group } from "@mantine/core";
 import { IconChevronDown, IconLock, IconServer } from "@tabler/icons-react";
@@ -7,6 +7,7 @@ import { SSO_PROVIDER } from "@/ee/security/contants.ts";
 import { IAuthProvider } from "@/ee/security/types/security.types.ts";
 import SsoProviderModal from "@/ee/security/components/sso-provider-modal.tsx";
 import { OpenIdIcon } from "@/components/icons/openid-icon.tsx";
+import { AzureAdIcon } from "@/components/icons/azure-ad-icon.tsx";
 
 export default function CreateSsoProvider() {
   const [opened, { open, close }] = useDisclosure(false);
@@ -53,6 +54,19 @@ export default function CreateSsoProvider() {
     }
   };
 
+  const handleCreateAzureAd = async () => {
+    try {
+      const newProvider = await createSsoProviderMutation.mutateAsync({
+        type: SSO_PROVIDER.AZURE_AD,
+        name: "Azure AD",
+      });
+      setProvider(newProvider);
+      open();
+    } catch (error) {
+      console.error("Failed to create Azure AD provider", error);
+    }
+  };
+
   return (
     <>
       <SsoProviderModal opened={opened} onClose={close} provider={provider} />
@@ -83,6 +97,13 @@ export default function CreateSsoProvider() {
               leftSection={<OpenIdIcon size={16} />}
             >
               OpenID (OIDC)
+            </Menu.Item>
+
+            <Menu.Item
+              onClick={handleCreateAzureAd}
+              leftSection={<AzureAdIcon size={16} />}
+            >
+              Azure AD (Entra ID)
             </Menu.Item>
 
             <Menu.Item

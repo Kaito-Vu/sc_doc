@@ -49,7 +49,6 @@ export class PluginsController {
   @UseGuards(JwtAuthGuard)
   @Get()
   async listPlugins(
-    @AuthUser() user: User,
     @AuthWorkspace() workspace: Workspace,
   ) {
     try {

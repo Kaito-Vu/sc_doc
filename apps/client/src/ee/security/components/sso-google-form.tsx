@@ -1,4 +1,3 @@
-import React from "react";
 import { z } from "zod/v4";
 import { useForm } from "@mantine/form";
 import { zod4Resolver } from "mantine-form-zod-resolver";
@@ -20,7 +19,7 @@ interface SsoFormProps {
   provider: IAuthProvider;
   onClose?: () => void;
 }
-export function SsoGoogleForm({ provider, onClose }: SsoFormProps) {
+export function SsoGoogleForm({ provider, onClose }: Readonly<SsoFormProps>) {
   const { t } = useTranslation();
   const updateSsoProviderMutation = useUpdateSsoProviderMutation();
 

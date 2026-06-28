@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common'
+import { Injectable } from '@nestjs/common'
 import { InjectKysely } from 'nestjs-kysely'
 import { Kysely, sql } from 'kysely'
 
@@ -19,8 +19,6 @@ export interface RecaptchaVerification {
 
 @Injectable()
 export class RecaptchaVerificationRepo {
-  private readonly logger = new Logger(RecaptchaVerificationRepo.name)
-
   constructor(@InjectKysely() private readonly db: Kysely<any>) {}
 
   async create(verification: Omit<RecaptchaVerification, 'id' | 'createdAt'>): Promise<RecaptchaVerification> {

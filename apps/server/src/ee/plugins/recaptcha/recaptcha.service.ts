@@ -93,7 +93,7 @@ export class RecaptchaService {
 
   async evaluateScore(
     score: number,
-    action: string,
+    _action: string,
     threshold: number
   ): Promise<EvaluationResult> {
     // Validate inputs

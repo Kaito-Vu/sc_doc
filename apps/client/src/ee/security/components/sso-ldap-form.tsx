@@ -1,4 +1,3 @@
-import React from "react";
 import { z } from "zod/v4";
 import { useForm } from "@mantine/form";
 import { zod4Resolver } from "mantine-form-zod-resolver";
@@ -21,7 +20,9 @@ import { IconInfoCircle } from "@tabler/icons-react";
 
 const ssoSchema = z.object({
   name: z.string().min(1, "Display name is required"),
-  ldapUrl: z.string().url().startsWith("ldap", "Must be an LDAP URL"),
+  ldapUrl: z
+    .url({ message: "Must be a valid URL" })
+    .refine((url) => url.startsWith("ldap"), "Must be an LDAP URL"),
   ldapBindDn: z.string().min(1, "Bind DN is required"),
   ldapBindPassword: z.string().min(1, "Bind password is required"),
   ldapBaseDn: z.string().min(1, "Base DN is required"),
@@ -40,7 +41,7 @@ interface SsoFormProps {
   onClose?: () => void;
 }
 
-export function SsoLDAPForm({ provider, onClose }: SsoFormProps) {
+export function SsoLDAPForm({ provider, onClose }: Readonly<SsoFormProps>) {
   const { t } = useTranslation();
   const updateSsoProviderMutation = useUpdateSsoProviderMutation();
 

@@ -185,16 +185,23 @@ export class AuthController {
   ) {
     validateSsoEnforcement(workspace);
 
-    let forgotPasswordContext: any = {
-      forgotPasswordInput: { email: forgotPasswordDto.email, recaptchaToken: forgotPasswordDto.recaptchaToken },
-      workspaceId: workspace.id,
-      remoteAddress: req.ip,
-      userAgent: req.headers['user-agent'],
-    };
+    const forgotPasswordContext = await runHook(
+      CoreHooks.BEFORE_FORGOT_PASSWORD,
+      {
+        forgotPasswordInput: {
+          email: forgotPasswordDto.email,
+          recaptchaToken: forgotPasswordDto.recaptchaToken,
+        },
+        workspaceId: workspace.id,
+        remoteAddress: req.ip,
+        userAgent: req.headers['user-agent'],
+      },
+    );
 
-    forgotPasswordContext = await runHook(CoreHooks.BEFORE_FORGOT_PASSWORD, forgotPasswordContext);
-
-    return this.authService.forgotPassword(forgotPasswordDto, workspace);
+    return this.authService.forgotPassword(
+      forgotPasswordContext.forgotPasswordInput,
+      workspace,
+    );
   }
 
   @HttpCode(HttpStatus.OK)
@@ -205,17 +212,22 @@ export class AuthController {
     @AuthWorkspace() workspace: Workspace,
     @Req() req: FastifyRequest,
   ) {
-    let passwordResetContext: any = {
-      passwordResetInput: { token: passwordResetDto.token, newPassword: passwordResetDto.newPassword, recaptchaToken: passwordResetDto.recaptchaToken },
-      workspaceId: workspace.id,
-      remoteAddress: req.ip,
-      userAgent: req.headers['user-agent'],
-    };
-
-    passwordResetContext = await runHook(CoreHooks.BEFORE_PASSWORD_RESET, passwordResetContext);
+    const passwordResetContext = await runHook(
+      CoreHooks.BEFORE_PASSWORD_RESET,
+      {
+        passwordResetInput: {
+          token: passwordResetDto.token,
+          newPassword: passwordResetDto.newPassword,
+          recaptchaToken: passwordResetDto.recaptchaToken,
+        },
+        workspaceId: workspace.id,
+        remoteAddress: req.ip,
+        userAgent: req.headers['user-agent'],
+      },
+    );
 
     const result = await this.authService.passwordReset(
-      passwordResetDto,
+      passwordResetContext.passwordResetInput,
       workspace,
     );
 
