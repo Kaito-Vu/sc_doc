@@ -158,23 +158,34 @@ export class AttachmentService {
     oldSubSlug?: string,
     newSubSlug?: string,
   ): Promise<void> {
-    const attachments = await this.attachmentRepo.findByPageId(pageId, workspaceId);
-
-    if (attachments.length === 0) {
+    const context = await this.preparePageRenameContext(workspaceId, pageId);
+    if (!context) {
       return;
+    }
+
+    const { attachments, client, settings } = context;
+    for (const attachment of attachments) {
+      await this.syncAttachmentOnPageRename(attachment, client, settings, newSlug, newSubSlug);
+    }
+  }
+
+  private async preparePageRenameContext(
+    workspaceId: string,
+    pageId: string,
+  ): Promise<{ attachments: AttachmentMetadata[]; client: any; settings: WorkspaceMinioSettings } | null> {
+    const attachments = await this.attachmentRepo.findByPageId(pageId, workspaceId);
+    if (attachments.length === 0) {
+      return null;
     }
 
     const settings = await this.settingsRepo.getSettings(workspaceId);
     if (!settings?.isConfigured) {
       this.logger.warn(`MinIO not configured for workspace ${workspaceId}, skipping sync`);
-      return;
+      return null;
     }
 
     const client = this.minioClient.getOrCreateClient(workspaceId, this.parseConfig(settings));
-
-    for (const attachment of attachments) {
-      await this.syncAttachmentOnPageRename(attachment, client, settings, newSlug, newSubSlug);
-    }
+    return { attachments, client, settings };
   }
 
   private async syncAttachmentOnPageRename(

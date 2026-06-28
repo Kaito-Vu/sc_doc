@@ -189,7 +189,7 @@ export class MinioSettingsRepository {
 
   async rollbackMigration(workspaceId: string): Promise<void> {
     const settings = await this.getSettings(workspaceId);
-    if (!settings || !settings.lastSuccessfulHost) return;
+    if (!settings?.lastSuccessfulHost) return;
 
     await this.db
       .updateTable('workspace_minio_settings' as any)
