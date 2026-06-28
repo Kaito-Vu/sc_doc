@@ -1,0 +1,36 @@
+{
+  "id": "docmost-minio",
+  "name": "MinIO Attachment Storage",
+  "version": "1.0.0",
+  "description": "Scalable object storage for attachments using MinIO",
+  "author": "Docmost Team",
+  "type": "storage",
+  "enabled": true,
+  "config": {
+    "minioEndpoint": {
+      "type": "string",
+      "label": "MinIO Endpoint",
+      "description": "MinIO server endpoint (e.g., localhost:9000 or minio.example.com:9000)",
+      "required": true
+    },
+    "minioAccessKey": {
+      "type": "string",
+      "label": "Access Key",
+      "description": "MinIO access key",
+      "required": true
+    },
+    "minioSecretKey": {
+      "type": "string",
+      "label": "Secret Key",
+      "description": "MinIO secret key",
+      "required": true,
+      "masked": true
+    },
+    "minioUseSsl": {
+      "type": "boolean",
+      "label": "Use SSL",
+      "description": "Enable SSL/TLS for MinIO connection",
+      "default": false
+    }
+  }
+}

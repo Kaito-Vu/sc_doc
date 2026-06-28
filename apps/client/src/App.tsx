@@ -47,6 +47,7 @@ import AiChat from "@/ee/ai-chat/pages/ai-chat.tsx";
 import VerifyEmail from "@/ee/pages/verify-email.tsx";
 import LabelPage from "@/pages/label/label-page";
 import PluginsPage from "@/ee/plugins/pages/PluginsPage";
+import IntegrationsSettings from "@/pages/settings/workspace/integrations";
 
 export default function App() {
   useRedirectToCloudSelect();
@@ -127,6 +128,8 @@ export default function App() {
             <Route path={"audit"} element={<AuditLogs />} />
             <Route path={"verifications"} element={<VerifiedPages />} />
             <Route path={"plugins"} element={<PluginsPage />} />
+            <Route path={"integrations"} element={<IntegrationsSettings />} />
+            <Route path={"integrations/minio"} element={<IntegrationsSettings />} />
             {!isCloud() && <Route path={"license"} element={<License />} />}
             {isCloud() && <Route path={"billing"} element={<Billing />} />}
           </Route>
