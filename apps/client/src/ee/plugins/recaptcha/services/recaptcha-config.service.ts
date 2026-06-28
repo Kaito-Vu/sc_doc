@@ -18,42 +18,54 @@ export interface RecaptchaConfigResponse {
 let cachedConfig: RecaptchaConfigResponse | null = null
 let configFetchPromise: Promise<RecaptchaConfigResponse> | null = null
 
+const defaultConfig = (): RecaptchaConfigResponse => ({
+  enabled: false,
+  actions: {
+    login: { enabled: false, threshold: 0.5 },
+    signup: { enabled: false, threshold: 0.7 },
+  },
+})
+
 export async function getRecaptchaConfig(): Promise<RecaptchaConfigResponse> {
-  // Return cached config if available
   if (cachedConfig) {
     return cachedConfig
   }
 
-  // Prevent multiple concurrent requests
   if (configFetchPromise) {
     return configFetchPromise
   }
 
   configFetchPromise = (async () => {
     try {
-      // Try to get config from plugin API
-      const response: any = await api.get('/plugins/recaptcha/config')
-      const config = response.data?.data || {
-        enabled: false,
-        actions: {
-          login: { enabled: false, threshold: 0.5 },
-          signup: { enabled: false, threshold: 0.7 }
+      const res = await api.get<{
+        enabled: boolean
+        config?: {
+          siteKey?: string
+          actions?: RecaptchaConfigResponse['actions']
+        }
+      }>('/plugins/recaptcha/config')
+
+      const payload = res.data as {
+        enabled: boolean
+        config?: {
+          siteKey?: string
+          actions?: RecaptchaConfigResponse['actions']
         }
       }
+
+      const config: RecaptchaConfigResponse = {
+        enabled: Boolean(payload?.enabled),
+        siteKey: payload?.config?.siteKey,
+        actions: payload?.config?.actions || defaultConfig().actions,
+      }
+
       cachedConfig = config
       return config
     } catch (err) {
-      // If plugin not configured, return disabled config
       console.warn('Failed to fetch reCAPTCHA config:', err)
-      const defaultConfig: RecaptchaConfigResponse = {
-        enabled: false,
-        actions: {
-          login: { enabled: false, threshold: 0.5 },
-          signup: { enabled: false, threshold: 0.7 }
-        }
-      }
-      cachedConfig = defaultConfig
-      return defaultConfig
+      const fallback = defaultConfig()
+      cachedConfig = fallback
+      return fallback
     } finally {
       configFetchPromise = null
     }

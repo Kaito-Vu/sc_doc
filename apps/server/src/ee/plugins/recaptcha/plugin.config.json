@@ -10,6 +10,6 @@
     "auth:beforeLogin",
     "auth:beforeSignup"
   ],
-  "configRequired": true,
+  "configRequired": false,
   "configSchemaFile": "./plugin-config.schema.json"
 }

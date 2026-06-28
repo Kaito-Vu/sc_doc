@@ -16,10 +16,7 @@ export default function PluginsPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [selectedPluginId, setSelectedPluginId] = useState<string | null>(
-    null,
-  );
-  const [enableAfterSave, setEnableAfterSave] = useState(false);
+  const [selectedPluginId, setSelectedPluginId] = useState<string | null>(null);
 
   useEffect(() => {
     loadPlugins();
@@ -63,19 +60,6 @@ export default function PluginsPage() {
     }
   };
 
-  const handleConfigClick = (
-    pluginId: string,
-    options?: { enableAfterSave?: boolean },
-  ) => {
-    setSelectedPluginId(pluginId);
-    setEnableAfterSave(Boolean(options?.enableAfterSave));
-  };
-
-  const handleCloseModal = () => {
-    setSelectedPluginId(null);
-    setEnableAfterSave(false);
-  };
-
   return (
     <>
       <Helmet>
@@ -87,7 +71,7 @@ export default function PluginsPage() {
       <Group justify="space-between" align="flex-start" mb="lg" wrap="nowrap">
         <Text size="sm" c="dimmed" maw="75%">
           {t(
-            "Manage plugins that extend authentication, security, and other workspace features.",
+            "Enable or disable plugins that extend authentication, security, and other workspace features.",
           )}
         </Text>
         <Button
@@ -110,14 +94,13 @@ export default function PluginsPage() {
         plugins={plugins}
         loading={loading}
         onRefresh={loadPlugins}
-        onConfigClick={handleConfigClick}
+        onConfigClick={setSelectedPluginId}
       />
 
       {selectedPluginId && (
         <PluginConfigModal
           pluginId={selectedPluginId}
-          enableAfterSave={enableAfterSave}
-          onClose={handleCloseModal}
+          onClose={() => setSelectedPluginId(null)}
           onSave={loadPlugins}
         />
       )}

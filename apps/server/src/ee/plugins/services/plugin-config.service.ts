@@ -105,13 +105,24 @@ export class PluginConfigService {
     let result
 
     if (existing) {
-      // Update existing
+      const existingConfig = existing.config || {}
+      const nextConfig = updates.config
+        ? {
+            ...existingConfig,
+            ...Object.fromEntries(
+              Object.entries(updates.config).filter(
+                ([, value]) => value !== undefined && value !== '',
+              ),
+            ),
+          }
+        : existingConfig
+
       result = await this.db
         .updateTable('plugin_configurations')
         .set({
           enabled:
             updates.enabled !== undefined ? updates.enabled : existing.enabled,
-          config: updates.config || existing.config,
+          config: nextConfig,
           updated_at: new Date(),
           updated_by: userId || existing.updated_by,
           version: existing.version + 1,
@@ -160,15 +171,6 @@ export class PluginConfigService {
     const plugin = this.registry.getPlugin(pluginId)
     if (!plugin) {
       throw new NotFoundException(`Plugin ${pluginId} not found`)
-    }
-
-    if (enabled && plugin.configRequired) {
-      const existing = await this.getConfig(workspaceId, pluginId)
-      if (!this.isConfigured(plugin.configSchema, existing.config)) {
-        throw new BadRequestException(
-          'Plugin must be configured before it can be enabled',
-        )
-      }
     }
 
     return this.updateConfig(workspaceId, pluginId, { enabled }, userId)

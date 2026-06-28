@@ -40,9 +40,10 @@ export class PluginsController {
 
       const enriched = plugins.map((plugin) => {
         const config = configMap.get(plugin.id)
-        const configured = config
-          ? this.configService.isConfigured(plugin.configSchema, config.config)
-          : false
+        const isConfigured = this.configService.isConfigured(
+          plugin.configSchema,
+          config?.config || {},
+        )
 
         return {
           id: plugin.id,
@@ -51,9 +52,10 @@ export class PluginsController {
           description: plugin.description || '',
           author: plugin.author || 'Unknown',
           enabled: Boolean(config?.enabled),
-          configured,
-          configRequired: Boolean(plugin.configRequired),
+          configured: isConfigured,
           hooks: plugin.hooks || [],
+          configSchema: plugin.configSchema,
+          configRequired: plugin.configRequired,
         }
       })
 
@@ -76,10 +78,6 @@ export class PluginsController {
     }
 
     const config = await this.configService.getConfig(workspace.id, pluginId)
-    const configured = this.configService.isConfigured(
-      plugin.configSchema,
-      config.config,
-    )
 
     return {
       id: plugin.id,
@@ -89,8 +87,6 @@ export class PluginsController {
       author: plugin.author,
       configSchema: plugin.configSchema,
       hooks: plugin.hooks,
-      configRequired: Boolean(plugin.configRequired),
-      configured,
       ...config,
     }
   }

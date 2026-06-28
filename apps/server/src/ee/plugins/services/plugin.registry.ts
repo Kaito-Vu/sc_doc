@@ -46,14 +46,24 @@ export class PluginRegistry {
 
           try {
             const configContent = fs.readFileSync(configPath, 'utf-8')
-            const config: PluginMetadata = JSON.parse(configContent)
+            const rawConfig = JSON.parse(configContent)
 
             // Validate config
-            if (!config.id || !config.name || !config.version) {
+            if (!rawConfig.id || !rawConfig.name || !rawConfig.version) {
               this.logger.warn(
                 `Invalid plugin config in ${entry.name}: missing required fields`,
               )
               continue
+            }
+
+            const config: PluginMetadata = {
+              id: rawConfig.id,
+              name: rawConfig.name,
+              version: rawConfig.version,
+              description: rawConfig.description,
+              author: rawConfig.author,
+              hooks: rawConfig.hooks,
+              configRequired: rawConfig.configRequired,
             }
 
             // Load schema if available

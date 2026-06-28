@@ -8,8 +8,9 @@ export interface IPlugin {
   author: string;
   enabled: boolean;
   configured: boolean;
-  configRequired?: boolean;
   hooks: string[];
+  configSchema?: Record<string, any>;
+  configRequired?: boolean;
 }
 
 export interface IPluginDetail extends IPlugin {
@@ -26,48 +27,47 @@ export interface IPluginConfig {
   version: number;
 }
 
-function unwrap<T>(res: { data?: T }): T {
-  return res.data as T;
-}
-
 export async function getPlugins(): Promise<IPlugin[]> {
-  const res = await api.get<{ data: IPlugin[] }>("/plugins");
-  const data = unwrap(res);
+  const res = await api.get<IPlugin[]>("/plugins");
+  const data = res.data as IPlugin[];
   return Array.isArray(data) ? data : [];
 }
 
 export async function getPlugin(pluginId: string): Promise<IPluginDetail> {
-  const res = await api.get<{ data: IPluginDetail }>(`/plugins/${pluginId}`);
-  return unwrap(res) || {};
+  const res = await api.get<IPluginDetail>(`/plugins/${pluginId}`);
+  return (res.data as IPluginDetail) || ({} as IPluginDetail);
 }
 
 export async function getPluginConfig(
   pluginId: string,
 ): Promise<IPluginConfig> {
-  const res = await api.get<{ data: IPluginConfig }>(
-    `/plugins/${pluginId}/config`,
-  );
-  return unwrap(res) || {};
+  const res = await api.get<IPluginConfig>(`/plugins/${pluginId}/config`);
+  return (res.data as IPluginConfig) || ({} as IPluginConfig);
 }
 
 export async function updatePluginConfig(
   pluginId: string,
   payload: { config?: Record<string, any>; enabled?: boolean },
 ): Promise<IPluginConfig> {
-  const res = await api.put<{ data: IPluginConfig }>(
+  const res = await api.put<IPluginConfig>(
     `/plugins/${pluginId}/config`,
     payload,
   );
-  return unwrap(res) || {};
+  return (res.data as IPluginConfig) || ({} as IPluginConfig);
 }
 
 export async function togglePlugin(
   pluginId: string,
   enabled: boolean,
 ): Promise<{ success: boolean; enabled: boolean }> {
-  const res = await api.post<{ data: { success: boolean; enabled: boolean } }>(
+  const res = await api.post<{ success: boolean; enabled: boolean }>(
     `/plugins/${pluginId}/toggle`,
     { enabled },
   );
-  return unwrap(res) || { success: false, enabled };
+  return (
+    (res.data as { success: boolean; enabled: boolean }) || {
+      success: false,
+      enabled,
+    }
+  );
 }

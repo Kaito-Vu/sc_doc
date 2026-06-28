@@ -27,7 +27,7 @@ interface Props {
   plugins: IPlugin[];
   loading: boolean;
   onRefresh: (options?: { silent?: boolean }) => Promise<void>;
-  onConfigClick: (pluginId: string, options?: { enableAfterSave?: boolean }) => void;
+  onConfigClick?: (pluginId: string) => void;
 }
 
 function getPluginIcon(pluginId: string) {
@@ -47,14 +47,11 @@ export function PluginList({
   const [toggling, setToggling] = useState<string | null>(null);
 
   const handleToggle = async (plugin: IPlugin, enabled: boolean) => {
-    if (enabled && plugin.configRequired && !plugin.configured) {
-      onConfigClick(plugin.id, { enableAfterSave: true });
-      return;
-    }
-
     setToggling(plugin.id);
     try {
       await togglePlugin(plugin.id, enabled);
+      // Small delay to ensure database write completes
+      await new Promise(resolve => setTimeout(resolve, 300));
       await onRefresh({ silent: true });
       notifications.show({
         message: t("Plugin toggled successfully"),
@@ -90,10 +87,11 @@ export function PluginList({
   }
 
   return (
-    <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
+    <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md">
       {plugins.map((plugin) => {
         const PluginIcon = getPluginIcon(plugin.id);
         const isToggling = toggling === plugin.id;
+        const hasConfig = !!plugin.configSchema;
 
         return (
           <Card
@@ -105,7 +103,7 @@ export function PluginList({
             style={{
               display: "flex",
               flexDirection: "column",
-              minHeight: 168,
+              minHeight: 200,
             }}
           >
             <Group justify="space-between" align="flex-start" wrap="nowrap">
@@ -132,9 +130,7 @@ export function PluginList({
               <Group gap={4} wrap="nowrap">
                 <Switch
                   checked={plugin.enabled}
-                  onChange={(e) =>
-                    handleToggle(plugin, e.currentTarget.checked)
-                  }
+                  onChange={(e) => handleToggle(plugin, e.currentTarget.checked)}
                   disabled={isToggling}
                   size="md"
                   aria-label={
@@ -143,27 +139,44 @@ export function PluginList({
                       : t("Enable {{name}}", { name: plugin.name })
                   }
                 />
-                <Menu position="bottom-end" withinPortal>
-                  <Menu.Target>
-                    <ActionIcon
-                      variant="subtle"
-                      color="gray"
-                      aria-label={t("Plugin options")}
-                    >
-                      <IconDots size={18} />
-                    </ActionIcon>
-                  </Menu.Target>
-                  <Menu.Dropdown>
-                    <Menu.Item
-                      leftSection={<IconSettings size={16} />}
-                      onClick={() => onConfigClick(plugin.id)}
-                    >
-                      {t("Configure")}
-                    </Menu.Item>
-                  </Menu.Dropdown>
-                </Menu>
+
+                {hasConfig && onConfigClick && (
+                  <Menu position="bottom-end" withinPortal>
+                    <Menu.Target>
+                      <ActionIcon
+                        variant="subtle"
+                        color="gray"
+                        aria-label={t("Plugin options")}
+                      >
+                        <IconDots size={18} />
+                      </ActionIcon>
+                    </Menu.Target>
+                    <Menu.Dropdown>
+                      <Menu.Item
+                        leftSection={<IconSettings size={16} />}
+                        onClick={() => onConfigClick(plugin.id)}
+                      >
+                        {t("Configure")}
+                      </Menu.Item>
+                    </Menu.Dropdown>
+                  </Menu>
+                )}
               </Group>
             </Group>
+
+            {plugin.enabled && !plugin.configured && hasConfig && (
+              <div style={{ marginTop: "auto", paddingTop: "12px" }}>
+                <Badge
+                  size="sm"
+                  variant="dot"
+                  color="yellow"
+                  style={{ cursor: "pointer" }}
+                  onClick={() => onConfigClick?.(plugin.id)}
+                >
+                  {t("Needs configuration")}
+                </Badge>
+              </div>
+            )}
 
             <Group gap={6} mt="auto" pt="md">
               <Text size="xs" c="dimmed">
