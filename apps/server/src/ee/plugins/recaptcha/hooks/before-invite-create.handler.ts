@@ -1,12 +1,5 @@
-import {
-  Injectable,
-  Logger,
-  HttpException,
-  HttpStatus,
-} from '@nestjs/common'
-import { RecaptchaService } from '../recaptcha.service'
+import { Injectable, Logger } from '@nestjs/common'
 import { PluginConfigService } from '../../services/plugin-config.service'
-import { RecaptchaVerificationRepo } from '../repositories/recaptcha-verification.repo'
 
 export interface InviteCreateHookContext {
   inviteInput: {
@@ -23,11 +16,7 @@ export interface InviteCreateHookContext {
 export class BeforeInviteCreateHandler {
   private readonly logger = new Logger(BeforeInviteCreateHandler.name)
 
-  constructor(
-    private readonly recaptcha: RecaptchaService,
-    private readonly configService: PluginConfigService,
-    private readonly verificationRepo: RecaptchaVerificationRepo,
-  ) {}
+  constructor(private readonly configService: PluginConfigService) {}
 
   async handle(context: InviteCreateHookContext): Promise<InviteCreateHookContext> {
     const { inviteInput, workspaceId, userId } = context
@@ -37,22 +26,18 @@ export class BeforeInviteCreateHandler {
       'recaptcha',
     )
 
-    if (!pluginConfig.enabled) {
-      return context
+    const shouldLog =
+      pluginConfig.enabled &&
+      pluginConfig.config?.actions?.inviteCreate?.enabled
+
+    if (shouldLog) {
+      // For authenticated endpoints, we may not have reCAPTCHA token.
+      // In that case, we log but don't block (rate limiting will be enforced separately).
+      // This handler provides additional protection for suspicious patterns.
+      this.logger.debug(
+        `Workspace invitations created by ${userId} for ${inviteInput.emails.join(', ')}`,
+      )
     }
-
-    const actionConfig = pluginConfig.config?.actions?.inviteCreate
-    if (!actionConfig?.enabled) {
-      return context
-    }
-
-    // For authenticated endpoints, we may not have reCAPTCHA token.
-    // In that case, we log but don't block (rate limiting will be enforced separately).
-    // This handler provides additional protection for suspicious patterns.
-
-    this.logger.debug(
-      `Workspace invitations created by ${userId} for ${inviteInput.emails.join(', ')}`,
-    )
 
     return context
   }

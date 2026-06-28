@@ -3,4 +3,5 @@ export enum SSO_PROVIDER {
   SAML = 'saml',
   GOOGLE = 'google',
   LDAP = 'ldap',
+  AZURE_AD = 'azure-ad',
 }

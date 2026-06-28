@@ -1,0 +1,100 @@
+{
+  "type": "object",
+  "title": "Azure AD Configuration",
+  "properties": {
+    "tenantId": {
+      "type": "string",
+      "title": "Tenant ID",
+      "description": "Azure Directory (Tenant) ID (UUID format)",
+      "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$",
+      "required": true
+    },
+    "clientId": {
+      "type": "string",
+      "title": "Client ID",
+      "description": "Application (Client) ID (UUID format)",
+      "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$",
+      "required": true
+    },
+    "clientSecret": {
+      "type": "string",
+      "title": "Client Secret",
+      "description": "Client secret (keep secret!)",
+      "isSecret": true,
+      "required": true
+    },
+    "scopes": {
+      "type": "array",
+      "title": "OAuth Scopes",
+      "items": {
+        "type": "string"
+      },
+      "default": ["openid", "profile", "email"],
+      "description": "OAuth scopes to request (e.g., openid, profile, email, Directory.Read.All)"
+    },
+    "groupSyncEnabled": {
+      "type": "boolean",
+      "title": "Enable Group Sync",
+      "description": "Fetch user groups from Azure AD and map to workspace roles",
+      "default": true
+    },
+    "avatarSyncEnabled": {
+      "type": "boolean",
+      "title": "Enable Avatar Sync",
+      "description": "Sync user profile photo from Azure AD",
+      "default": true
+    },
+    "groupClaimName": {
+      "type": "string",
+      "title": "Group Claim Name",
+      "description": "Token claim containing group IDs (default: 'groups')",
+      "default": "groups"
+    },
+    "groupFilters": {
+      "type": "array",
+      "title": "Group Filters",
+      "items": {
+        "type": "string"
+      },
+      "description": "Optional: Only sync these group display names",
+      "default": []
+    },
+    "groupMappingRules": {
+      "type": "object",
+      "title": "Group Mapping Rules",
+      "description": "Map Azure AD group objectIds to workspace roles (admin, member, viewer)",
+      "default": {},
+      "additionalProperties": {
+        "type": "string",
+        "enum": ["workspace-admin", "workspace-member", "workspace-viewer"]
+      }
+    },
+    "validateIssuer": {
+      "type": "boolean",
+      "title": "Validate Token Issuer",
+      "description": "Verify token issuer matches configured tenant",
+      "default": true
+    },
+    "validateAudience": {
+      "type": "boolean",
+      "title": "Validate Audience",
+      "description": "Verify 'aud' claim contains client ID",
+      "default": true
+    },
+    "requireEmailDomainMatch": {
+      "type": "boolean",
+      "title": "Require Email Domain Match",
+      "description": "Only allow users whose email matches tenant domain (optional security control)",
+      "default": false
+    },
+    "allowedEmailDomains": {
+      "type": "array",
+      "title": "Allowed Email Domains",
+      "items": {
+        "type": "string"
+      },
+      "description": "Whitelist specific email domains (if requireEmailDomainMatch enabled)",
+      "default": []
+    }
+  }
+}

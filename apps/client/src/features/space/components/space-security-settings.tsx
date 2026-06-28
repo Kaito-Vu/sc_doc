@@ -1,5 +1,4 @@
-import { Text, Divider, Title } from "@mantine/core";
-import React from "react";
+import { Divider, Title } from "@mantine/core";
 import { useTranslation } from "react-i18next";
 import { ISpace } from "@/features/space/types/space.types.ts";
 import SpacePublicSharingToggle from "@/ee/security/components/space-public-sharing-toggle.tsx";
@@ -13,7 +12,7 @@ type SpaceSecuritySettingsProps = {
 export default function SpaceSecuritySettings({
   space,
   readOnly,
-}: SpaceSecuritySettingsProps) {
+}: Readonly<SpaceSecuritySettingsProps>) {
   const { t } = useTranslation();
 
   if (readOnly) return null;

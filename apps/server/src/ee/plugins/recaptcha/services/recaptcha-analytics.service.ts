@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common'
+import { Injectable } from '@nestjs/common'
 import { RecaptchaVerificationRepo } from '../repositories/recaptcha-verification.repo'
 
 export interface RecaptchaAnalytics {
@@ -19,8 +19,6 @@ export interface RecaptchaAnalytics {
 
 @Injectable()
 export class RecaptchaAnalyticsService {
-  private readonly logger = new Logger(RecaptchaAnalyticsService.name)
-
   constructor(private readonly verificationRepo: RecaptchaVerificationRepo) {}
 
   async getAnalytics(workspaceId: string, hoursBack: number = 24): Promise<RecaptchaAnalytics> {
