@@ -26,7 +26,7 @@ import { IPlugin, togglePlugin } from "../services/plugin-service";
 interface Props {
   plugins: IPlugin[];
   loading: boolean;
-  onRefresh: () => Promise<void>;
+  onRefresh: (options?: { silent?: boolean }) => Promise<void>;
   onConfigClick: (pluginId: string, options?: { enableAfterSave?: boolean }) => void;
 }
 
@@ -55,7 +55,7 @@ export function PluginList({
     setToggling(plugin.id);
     try {
       await togglePlugin(plugin.id, enabled);
-      await onRefresh();
+      await onRefresh({ silent: true });
       notifications.show({
         message: t("Plugin toggled successfully"),
         color: "green",

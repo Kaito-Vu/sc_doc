@@ -23,12 +23,14 @@ import {
 
 interface Props {
   pluginId: string;
+  enableAfterSave?: boolean;
   onClose: () => void;
   onSave: () => void;
 }
 
 export function PluginConfigModal({
   pluginId,
+  enableAfterSave = false,
   onClose,
   onSave,
 }: Readonly<Props>) {
@@ -71,10 +73,15 @@ export function PluginConfigModal({
       setSaving(true);
       setError(null);
 
-      await updatePluginConfig(pluginId, { config });
+      await updatePluginConfig(pluginId, {
+        config,
+        ...(enableAfterSave ? { enabled: true } : {}),
+      });
 
       notifications.show({
-        message: t("Plugin configuration saved"),
+        message: enableAfterSave
+          ? t("Plugin configured and enabled")
+          : t("Plugin configuration saved"),
         color: "green",
       });
       onSave();
