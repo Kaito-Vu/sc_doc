@@ -37,16 +37,19 @@ export function PluginConfigModal({ pluginId, onClose, onSave }: Readonly<Props>
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const form = useForm({
-    initialValues: {} as Record<string, any>,
-    validate: validateForm,
+  const form = useForm<Record<string, any>>({
+    initialValues: {},
+    validate: (values) => validateForm(values, plugin),
   });
 
-  function validateForm(values: Record<string, any>) {
+  function validateForm(
+    values: Record<string, any>,
+    pluginData: IPluginDetail | null,
+  ): Record<string, string> {
     const errors: Record<string, string> = {};
-    if (!plugin?.configSchema) return errors;
+    if (!pluginData?.configSchema) return errors;
 
-    const properties = plugin.configSchema.properties || {};
+    const properties = pluginData.configSchema.properties || {};
     for (const [key, schemaProp] of Object.entries(properties)) {
       const prop = schemaProp as any;
       if (prop.required && !values[key]) {
