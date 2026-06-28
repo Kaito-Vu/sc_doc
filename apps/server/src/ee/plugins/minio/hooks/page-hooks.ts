@@ -1,4 +1,4 @@
-import { Injectable, Logger, Optional } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { AttachmentService } from '../services/attachment.service';
 
 export enum CoreHooks {
@@ -7,28 +7,20 @@ export enum CoreHooks {
 
 @Injectable()
 export class MinioPageHooksHandler {
-  private logger = new Logger(MinioPageHooksHandler.name);
+  private readonly logger = new Logger(MinioPageHooksHandler.name);
   private hookRegistry: any = null;
 
-  constructor(private attachmentService: AttachmentService) {}
+  constructor(private readonly attachmentService: AttachmentService) {}
 
   registerHooks(): void {
-    // Note: HookRegistry is available globally from PluginsModule
-    // We'll attempt to register hooks when called, but won't fail if unavailable
-    // This allows the plugin to work even without hook integration initially
+    const { getHookRegistry } = require('../../../core/plugins/plugin-hooks');
+    this.hookRegistry = getHookRegistry();
 
-    try {
-      const { getHookRegistry } = require('../../../core/plugins/plugin-hooks');
-      this.hookRegistry = getHookRegistry();
-
-      if (this.hookRegistry) {
-        this.hookRegistry.on(CoreHooks.AFTER_PAGE_DELETE, this.handlePageDelete.bind(this));
-        this.logger.log('Page deletion hooks registered');
-      }
-    } catch (error) {
-      // Hooks may not be fully initialized yet, log warning but don't fail
-      this.logger.warn('Could not register page deletion hooks - they may be registered later');
-    }
+    this.hookRegistry.on(
+      CoreHooks.AFTER_PAGE_DELETE,
+      this.handlePageDelete.bind(this),
+    );
+    this.logger.log('Page deletion hooks registered');
   }
 
   private async handlePageDelete(context: any): Promise<void> {
@@ -47,7 +39,8 @@ export class MinioPageHooksHandler {
       // For now, attachments are just marked as orphaned and cleaned up by GC job
 
     } catch (error) {
-      const errorMsg = error instanceof Error ? error instanceof Error ? error.message : String(error) : String(error);
+      const errorMsg =
+        error instanceof Error ? error.message : String(error);
       this.logger.error(`Failed to handle page delete: ${errorMsg}`);
       // Don't throw - let hook chain continue
     }
