@@ -27,19 +27,19 @@ export interface IPluginConfig {
 
 export async function getPlugins(): Promise<IPlugin[]> {
   const res: any = await api.get("/plugins");
-  return res.data;
+  return res.data?.data || [];
 }
 
 export async function getPlugin(pluginId: string): Promise<IPluginDetail> {
   const res: any = await api.get(`/plugins/${pluginId}`);
-  return res.data;
+  return res.data?.data || {};
 }
 
 export async function getPluginConfig(
   pluginId: string,
 ): Promise<IPluginConfig> {
   const res: any = await api.get(`/plugins/${pluginId}/config`);
-  return res.data;
+  return res.data?.data || {};
 }
 
 export async function updatePluginConfig(
@@ -47,7 +47,7 @@ export async function updatePluginConfig(
   payload: { config?: Record<string, any>; enabled?: boolean },
 ): Promise<IPluginConfig> {
   const res: any = await api.put(`/plugins/${pluginId}/config`, payload);
-  return res.data;
+  return res.data?.data || {};
 }
 
 export async function togglePlugin(
@@ -55,5 +55,5 @@ export async function togglePlugin(
   enabled: boolean,
 ): Promise<{ success: boolean; enabled: boolean }> {
   const res: any = await api.post(`/plugins/${pluginId}/toggle`, { enabled });
-  return res.data;
+  return res.data?.data || { success: false, enabled };
 }
