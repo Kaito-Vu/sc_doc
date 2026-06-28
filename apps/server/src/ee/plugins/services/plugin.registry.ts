@@ -11,6 +11,10 @@ export interface PluginMetadata {
   configSchema?: Record<string, any>
   hooks?: string[]
   configRequired?: boolean
+  // When set to 'security', the generic Plugins page should not offer a
+  // "Configure" menu for this plugin — it ships its own settings block on
+  // the Security page instead (see RecaptchaSettings.tsx).
+  configLocation?: 'plugin' | 'security'
 }
 
 @Injectable()
@@ -117,6 +121,8 @@ export class PluginRegistry {
         typeof rawConfig.configRequired === 'boolean'
           ? rawConfig.configRequired
           : undefined,
+      configLocation:
+        rawConfig.configLocation === 'security' ? 'security' : undefined,
     }
   }
 

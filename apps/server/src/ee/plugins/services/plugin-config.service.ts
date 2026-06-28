@@ -57,13 +57,13 @@ export class PluginConfigService {
 
     return {
       id: config.id,
-      workspaceId: config.workspace_id,
-      pluginId: config.plugin_id,
+      workspaceId: config.workspaceId,
+      pluginId: config.pluginId,
       enabled: config.enabled,
       config: config.config || {},
       version: config.version,
-      createdAt: config.created_at,
-      updatedAt: config.updated_at,
+      createdAt: config.createdAt,
+      updatedAt: config.updatedAt,
     }
   }
 
@@ -111,12 +111,12 @@ export class PluginConfigService {
 
     return {
       id: result.id,
-      workspaceId: result.workspace_id,
-      pluginId: result.plugin_id,
+      workspaceId: result.workspaceId,
+      pluginId: result.pluginId,
       enabled: result.enabled,
       config: result.config || {},
       version: result.version,
-      updatedAt: result.updated_at,
+      updatedAt: result.updatedAt,
     }
   }
 
@@ -144,12 +144,19 @@ export class PluginConfigService {
 
     if (existing) {
       const existingConfig = existing.config || {}
+      // Defense in depth: a client that still sends back the
+      // "***REDACTED***" placeholder for an untouched secret field
+      // (e.g. an older cached bundle) must not be allowed to clobber the
+      // real stored secret with that literal string.
       const nextConfig = updates.config
         ? {
             ...existingConfig,
             ...Object.fromEntries(
               Object.entries(updates.config).filter(
-                ([, value]) => value !== undefined && value !== '',
+                ([, value]) =>
+                  value !== undefined &&
+                  value !== '' &&
+                  value !== '***REDACTED***',
               ),
             ),
           }
@@ -161,7 +168,7 @@ export class PluginConfigService {
           enabled: updates.enabled ?? existing.enabled,
           config: nextConfig,
           updated_at: new Date(),
-          updated_by: userId || existing.updated_by,
+          updated_by: userId || existing.updatedBy,
           version: existing.version + 1,
         })
         .where('id', '=', existing.id)
@@ -268,13 +275,13 @@ export class PluginConfigService {
 
     return configs.map((cfg) => ({
       id: cfg.id,
-      workspaceId: cfg.workspace_id,
-      pluginId: cfg.plugin_id,
+      workspaceId: cfg.workspaceId,
+      pluginId: cfg.pluginId,
       enabled: cfg.enabled,
       config: cfg.config || {},
       version: cfg.version,
-      createdAt: cfg.created_at,
-      updatedAt: cfg.updated_at,
+      createdAt: cfg.createdAt,
+      updatedAt: cfg.updatedAt,
     }))
   }
 

@@ -43,17 +43,17 @@ export class RecaptchaVerificationRepo {
 
     return {
       id: result.id,
-      workspaceId: result.workspace_id,
+      workspaceId: result.workspaceId,
       token: result.token,
       score: result.score,
       action: result.action,
       decision: result.decision,
-      decisionReason: result.decision_reason,
-      userId: result.user_id,
-      ipAddress: result.ip_address,
-      userAgent: result.user_agent,
-      challengeTs: result.challenge_ts,
-      createdAt: result.created_at
+      decisionReason: result.decisionReason,
+      userId: result.userId,
+      ipAddress: result.ipAddress,
+      userAgent: result.userAgent,
+      challengeTs: result.challengeTs,
+      createdAt: result.createdAt
     }
   }
 
@@ -71,17 +71,17 @@ export class RecaptchaVerificationRepo {
 
     return results.map((row) => ({
       id: row.id,
-      workspaceId: row.workspace_id,
+      workspaceId: row.workspaceId,
       token: row.token,
       score: row.score,
       action: row.action,
       decision: row.decision,
-      decisionReason: row.decision_reason,
-      userId: row.user_id,
-      ipAddress: row.ip_address,
-      userAgent: row.user_agent,
-      challengeTs: row.challenge_ts,
-      createdAt: row.created_at
+      decisionReason: row.decisionReason,
+      userId: row.userId,
+      ipAddress: row.ipAddress,
+      userAgent: row.userAgent,
+      challengeTs: row.challengeTs,
+      createdAt: row.createdAt
     }))
   }
 
@@ -98,10 +98,10 @@ export class RecaptchaVerificationRepo {
       .selectFrom('recaptcha_verifications')
       .select([
         sql<number>`COUNT(*)`.as('total'),
-        sql<number>`COUNT(CASE WHEN decision = 'allow' THEN 1 END)`.as('allow_count'),
-        sql<number>`COUNT(CASE WHEN decision = 'challenge' THEN 1 END)`.as('challenge_count'),
-        sql<number>`COUNT(CASE WHEN decision = 'block' THEN 1 END)`.as('block_count'),
-        sql<number>`AVG(score)`.as('avg_score')
+        sql<number>`COUNT(CASE WHEN decision = 'allow' THEN 1 END)`.as('allowCount'),
+        sql<number>`COUNT(CASE WHEN decision = 'challenge' THEN 1 END)`.as('challengeCount'),
+        sql<number>`COUNT(CASE WHEN decision = 'block' THEN 1 END)`.as('blockCount'),
+        sql<number>`AVG(score)`.as('avgScore')
       ])
       .where('workspace_id', '=', workspaceId)
       .where('created_at', '>=', cutoffTime)
@@ -109,10 +109,10 @@ export class RecaptchaVerificationRepo {
 
     return {
       totalCount: Number(result?.total || 0),
-      allowCount: Number(result?.allow_count || 0),
-      challengeCount: Number(result?.challenge_count || 0),
-      blockCount: Number(result?.block_count || 0),
-      averageScore: Number(result?.avg_score || 0)
+      allowCount: Number(result?.allowCount || 0),
+      challengeCount: Number(result?.challengeCount || 0),
+      blockCount: Number(result?.blockCount || 0),
+      averageScore: Number(result?.avgScore || 0)
     }
   }
 

@@ -107,7 +107,8 @@ export function PluginList({
       {plugins.map((plugin) => {
         const PluginIcon = getPluginIcon(plugin.id);
         const isToggling = toggling === plugin.id;
-        const hasConfig = !!plugin.configSchema;
+        const hasConfig =
+          !!plugin.configSchema && plugin.configLocation !== "security";
 
         return (
           <Card
@@ -190,6 +191,16 @@ export function PluginList({
                   onClick={() => onConfigClick?.(plugin.id)}
                 >
                   {t("Needs configuration")}
+                </Badge>
+              </div>
+            )}
+
+            {plugin.enabled &&
+              !plugin.configured &&
+              plugin.configLocation === "security" && (
+              <div style={{ marginTop: "auto", paddingTop: "12px" }}>
+                <Badge size="sm" variant="dot" color="yellow">
+                  {t("Needs configuration — see Security settings")}
                 </Badge>
               </div>
             )}

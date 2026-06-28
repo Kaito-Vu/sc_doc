@@ -11,6 +11,7 @@ export interface IPlugin {
   hooks: string[];
   configSchema?: Record<string, any>;
   configRequired?: boolean;
+  configLocation?: "plugin" | "security";
 }
 
 export interface IPluginDetail extends IPlugin {

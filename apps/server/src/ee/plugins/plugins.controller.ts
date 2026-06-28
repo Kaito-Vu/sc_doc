@@ -26,6 +26,26 @@ export class PluginsController {
     private readonly registry: PluginRegistry,
   ) {}
 
+  // Public (unauthenticated) endpoint: the login/signup pages need the
+  // reCAPTCHA site key and per-action enablement before a session exists.
+  // Must be declared before ':pluginId/config' so the static "recaptcha"
+  // segment isn't swallowed by that param route. Never returns secretKey.
+  @Get('recaptcha/config')
+  async getRecaptchaPublicConfig(@AuthWorkspace() workspace: Workspace) {
+    const config = await this.configService.getConfig(
+      workspace.id,
+      'recaptcha',
+    )
+
+    return {
+      enabled: Boolean(config.enabled),
+      config: {
+        siteKey: config.config?.siteKey,
+        actions: config.config?.actions,
+      },
+    }
+  }
+
   @UseGuards(JwtAuthGuard)
   @Get()
   async listPlugins(
@@ -35,7 +55,6 @@ export class PluginsController {
     try {
       const plugins = this.registry.getAllPlugins()
       const configs = await this.configService.listConfigs(workspace.id)
-
       const configMap = new Map(configs.map((c) => [c.pluginId, c]))
 
       const enriched = plugins.map((plugin) => {
@@ -56,6 +75,7 @@ export class PluginsController {
           hooks: plugin.hooks || [],
           configSchema: plugin.configSchema,
           configRequired: plugin.configRequired,
+          configLocation: plugin.configLocation,
         }
       })
 

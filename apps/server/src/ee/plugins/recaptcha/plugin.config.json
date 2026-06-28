@@ -11,5 +11,6 @@
     "auth:beforeSignup"
   ],
   "configRequired": false,
+  "configLocation": "security",
   "configSchemaFile": "./plugin-config.schema.json"
 }
