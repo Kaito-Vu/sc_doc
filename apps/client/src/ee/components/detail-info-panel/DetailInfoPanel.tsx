@@ -112,7 +112,9 @@ const DetailInfoPanelComponent: React.FC<DetailInfoPanelProps> = ({ pageId, onCl
   const fullWidthMutation = useMutation({
     mutationFn: (value: boolean) => updatePageSettings(pageId, { isFullWidth: value }),
     onSuccess: () => {
+      // Invalidate both page settings and user queries to reflect changes
       queryClient.invalidateQueries({ queryKey: ['page-settings', pageId] });
+      queryClient.invalidateQueries({ queryKey: ['user'] });
     },
     onError: (error) => {
       console.error('Error updating full width setting:', error);

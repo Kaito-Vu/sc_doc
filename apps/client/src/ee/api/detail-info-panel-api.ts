@@ -47,28 +47,37 @@ export const getPageSettings = async (pageId: string): Promise<PageSettings> => 
 };
 
 /**
- * Update page settings
+ * Update page settings (Full-width is stored as user preference)
  */
 export const updatePageSettings = async (
   pageId: string,
   settings: Partial<PageSettings>
 ): Promise<PageSettings> => {
   try {
-    const response = await fetch(`${API_BASE}/pages/update`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        pageId,
-        isFullWidth: settings.isFullWidth,
-        isProtected: settings.isProtected,
-      }),
-    });
-    if (!response.ok) {
-      throw new Error(`Failed to update page settings: ${response.statusText}`);
+    // Full-width is stored in user preferences
+    if (settings.isFullWidth !== undefined) {
+      const response = await fetch(`${API_BASE}/users/update`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          settings: {
+            preferences: {
+              fullPageWidth: settings.isFullWidth,
+            },
+          },
+        }),
+      });
+      if (!response.ok) {
+        throw new Error(`Failed to update page settings: ${response.statusText}`);
+      }
+      return response.json();
     }
-    return response.json();
+
+    // Protection and other page-specific settings would go to /api/pages/:id endpoint
+    // For now, only full-width is implemented
+    return settings as PageSettings;
   } catch (error) {
     console.error('Error updating page settings:', error);
     throw error;
