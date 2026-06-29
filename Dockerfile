@@ -68,16 +68,27 @@ COPY --from=builder /app/.npmrc /app/.npmrc
 # Copy patches
 COPY --from=builder /app/patches /app/patches
 
-RUN chown -R node:node /app
+# Install prod deps as root, then drop the global pnpm install entirely.
+# pnpm is only needed to materialize node_modules during the build; the
+# running container starts the already-built server directly via `node`,
+# so keeping pnpm (and whatever it bundles internally, e.g. picomatch)
+# in the shipped image is unnecessary attack surface.
+RUN --mount=type=cache,id=pnpm-store,target=/pnpm-store,uid=1000,gid=1000 \
+  pnpm install --frozen-lockfile --prod --store-dir=/pnpm-store \
+  && mkdir -p /app/data/storage \
+  && npm uninstall -g pnpm \
+  # npm itself (bundled in the base image) vendors its own picomatch copy
+  # with a known CVE; npm is never invoked at runtime by this app, so drop
+  # the vulnerable bundled module rather than wait on an upstream Node fix.
+  && rm -rf /usr/local/lib/node_modules/npm/node_modules/picomatch \
+  && chown -R node:node /app
 
 USER node
 
-RUN --mount=type=cache,id=pnpm-store,target=/pnpm-store,uid=1000,gid=1000 \
-  pnpm install --frozen-lockfile --prod --store-dir=/pnpm-store \
-  && mkdir -p /app/data/storage
+ENV NODE_ENV=production
 
 VOLUME ["/app/data/storage"]
 
 EXPOSE 3000
 
-CMD ["pnpm", "start"]
+CMD ["node", "apps/server/dist/main"]
