@@ -108,6 +108,7 @@ export function FullEditor({
         creator={creator}
         contributors={contributors}
         readOnly={!editable}
+        pageId={pageId}
       />
       <MemoizedPageEditor
         pageId={pageId}
@@ -124,11 +125,13 @@ type PageBylineProps = {
   creator?: PageUser;
   contributors?: IContributor[];
   readOnly?: boolean;
+  pageId: string;
 };
 
-function PageByline({ creator, contributors, readOnly }: PageBylineProps) {
+function PageByline({ creator, contributors, readOnly, pageId }: PageBylineProps) {
   const { t } = useTranslation();
   const detailsTriggerProps = useAsideTriggerProps("details");
+  const detailInfoTriggerProps = useAsideTriggerProps("detail-info");
 
   const otherContributors = (contributors ?? []).filter(
     (c) => c.id !== creator?.id,
@@ -209,6 +212,17 @@ function PageByline({ creator, contributors, readOnly }: PageBylineProps) {
           color="gray"
           aria-label={t("Details")}
           {...detailsTriggerProps}
+        >
+          <IconInfoCircle size={20} stroke={1.5} />
+        </ActionIcon>
+      </Tooltip>
+
+      <Tooltip label={t("Detail Info")} withArrow openDelay={250}>
+        <ActionIcon
+          variant="subtle"
+          color="gray"
+          aria-label={t("Detail Info")}
+          {...detailInfoTriggerProps}
         >
           <IconInfoCircle size={20} stroke={1.5} />
         </ActionIcon>
