@@ -91,4 +91,13 @@ VOLUME ["/app/data/storage"]
 
 EXPOSE 3000
 
-CMD ["node", "apps/server/dist/main"]
+# LOCAL_STORAGE_PATH (apps/server/src/common/helpers/constants.ts) is
+# computed as path.resolve(process.cwd(), '..', '..', 'data/storage') —
+# i.e. it assumes the process starts with CWD = apps/server (two levels
+# below /app), which is what `pnpm --filter ./apps/server run start:prod`
+# used to give us for free. Running `node` directly from /app instead
+# resolves storage to /data/storage, missing the declared volume entirely
+# and breaking file uploads. Switch CWD to apps/server to match.
+WORKDIR /app/apps/server
+
+CMD ["node", "dist/main"]
