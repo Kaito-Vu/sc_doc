@@ -3,7 +3,6 @@ import {
   ActionIcon,
   Avatar,
   Button,
-  ScrollArea,
   Switch,
   Tooltip,
 } from '@mantine/core';
@@ -25,12 +24,13 @@ import {
   IconTrash,
   IconUser,
   IconUsers,
-  IconX,
 } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import { useAtom } from 'jotai';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useParams } from 'react-router-dom';
 import { usePageQuery } from '@/features/page/queries/page-query';
+import { extractPageSlugId } from '@/lib';
 import { userAtom } from '@/features/user/atoms/current-user-atom';
 import { usePageStats } from '@/ee/hooks/usePageStats';
 import { usePageSettings } from '@/ee/hooks/usePageSettings';
@@ -49,11 +49,13 @@ import {
   updatePageSettings,
 } from '@/ee/api/detail-info-panel-api';
 
-const DetailInfoPanelComponent: React.FC<DetailInfoPanelProps> = ({ pageId, onClose }) => {
+const DetailInfoPanelComponent: React.FC<DetailInfoPanelProps> = (props) => {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [, setHistoryOpen] = useAtom(historyAtoms);
   const [user] = useAtom(userAtom);
+  const { pageSlug } = useParams();
+  const pageId = props.pageId ?? extractPageSlugId(pageSlug);
   const { data: page } = usePageQuery({ pageId });
   const { data: pageStats } = usePageStats(pageId);
   const { data: pageSettings } = usePageSettings(pageId);
@@ -179,26 +181,6 @@ const DetailInfoPanelComponent: React.FC<DetailInfoPanelProps> = ({ pageId, onCl
 
   return (
     <div className={classes.root}>
-      {/* Fixed header */}
-      <div className={classes.panelHeader}>
-        <span className={classes.panelHeaderTitle}>{t('Detail Info')}</span>
-        {onClose && (
-          <Tooltip label={t('Close')} withArrow>
-            <ActionIcon
-              variant="subtle"
-              color="gray"
-              size="sm"
-              onClick={onClose}
-              aria-label={t('Close panel')}
-            >
-              <IconX size={14} />
-            </ActionIcon>
-          </Tooltip>
-        )}
-      </div>
-
-      <ScrollArea className={classes.scrollBody} scrollbarSize={4} type="hover">
-
         {/* Owner Card */}
         <div className={classes.ownerCard}>
           <Avatar
@@ -402,8 +384,6 @@ const DetailInfoPanelComponent: React.FC<DetailInfoPanelProps> = ({ pageId, onCl
             {t('Trash')}
           </Button>
         </div>
-
-      </ScrollArea>
 
       {/* Modals */}
       <HistoryModal pageId={pageId} pageTitle={page?.title} />

@@ -11,17 +11,13 @@ import { useTranslation } from "react-i18next";
 import React from "react";
 import { EmptyState } from "@/components/ui/empty-state.tsx";
 import { IconAlertTriangle, IconFileOff } from "@tabler/icons-react";
-import { Button, Transition } from "@mantine/core";
+import { Button } from "@mantine/core";
 import { Link } from "react-router-dom";
 import { ErrorBoundary } from "react-error-boundary";
 import { BaseView } from "@/ee/base/components/base-view";
 import { useHasFeature } from "@/ee/hooks/use-feature";
 import { Feature } from "@/ee/features";
 import { getPageTitle } from "@/features/page/page.utils";
-import { DetailInfoPanel } from "@/ee/components/detail-info-panel";
-import { useAsideTriggerProps } from "@/hooks/use-toggle-aside";
-import { asideStateAtom } from "@/components/layouts/global/hooks/atoms/sidebar-atom";
-import { useAtom } from "jotai";
 const MemoizedFullEditor = React.memo(FullEditor);
 const MemoizedTitleEditor = React.memo(TitleEditor);
 const MemoizedPageHeader = React.memo(PageHeader);
@@ -53,8 +49,6 @@ export default function Page() {
 
 function PageContent({ pageSlug }: { pageSlug: string | undefined }) {
   const { t } = useTranslation();
-  const [asideState, setAsideState] = useAtom(asideStateAtom);
-  const detailPanelTriggerProps = useAsideTriggerProps("detail-info");
 
   const {
     data: page,
@@ -65,7 +59,6 @@ function PageContent({ pageSlug }: { pageSlug: string | undefined }) {
   const { data: space } = useGetSpaceBySlugQuery(page?.space?.slug);
 
   const hasBases = useHasFeature(Feature.BASES);
-  const hasDetailPanel = useHasFeature(Feature.DETAIL_INFO_PANEL);
   const canEdit = !page?.deletedAt && (page?.permissions?.canEdit ?? false);
   const canComment =
     canEdit ||
@@ -171,18 +164,7 @@ function PageContent({ pageSlug }: { pageSlug: string | undefined }) {
         </Helmet>
 
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'auto' }}>
-          <MemoizedPageHeader
-            readOnly={!canEdit}
-            onToggleDetailPanel={() => {
-              // Toggle detail info panel via aside state
-              if (asideState.tab === "detail-info") {
-                setAsideState({ tab: "detail-info", isAsideOpen: !asideState.isAsideOpen });
-              } else {
-                setAsideState({ tab: "detail-info", isAsideOpen: true });
-              }
-            }}
-            showDetailPanel={asideState.tab === "detail-info" && asideState.isAsideOpen}
-          />
+          <MemoizedPageHeader readOnly={!canEdit} />
 
           <MemoizedFullEditor
             key={page.id}
@@ -198,23 +180,6 @@ function PageContent({ pageSlug }: { pageSlug: string | undefined }) {
           />
           <MemoizedHistoryModal pageId={page.id} />
         </div>
-
-        {/* Detail Info Panel - shared aside space */}
-        <Transition
-          mounted={hasDetailPanel && asideState.tab === "detail-info" && asideState.isAsideOpen}
-          transition="slide-left"
-          duration={300}
-          timingFunction="cubic-bezier(0.4, 0, 0.2, 1)"
-        >
-          {(styles) => (
-            <div style={styles}>
-              <DetailInfoPanel
-                pageId={page.id}
-                onClose={() => setAsideState({ tab: "detail-info", isAsideOpen: false })}
-              />
-            </div>
-          )}
-        </Transition>
       </div>
     )
   );

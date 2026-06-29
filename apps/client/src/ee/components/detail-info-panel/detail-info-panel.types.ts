@@ -3,7 +3,7 @@ import type { IPage, IContributor } from '@/features/page/types/page.types';
 import type { ISpace } from '@/features/space/types/space.types';
 
 export interface DetailInfoPanelProps {
-  pageId: string;
+  pageId?: string;
   onClose?: () => void;
 }
 
