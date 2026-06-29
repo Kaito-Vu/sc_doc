@@ -54,12 +54,16 @@ export const updatePageSettings = async (
   settings: Partial<PageSettings>
 ): Promise<PageSettings> => {
   try {
-    const response = await fetch(`${API_BASE}/pages/${pageId}/settings`, {
-      method: 'PUT',
+    const response = await fetch(`${API_BASE}/pages/update`, {
+      method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(settings),
+      body: JSON.stringify({
+        pageId,
+        isFullWidth: settings.isFullWidth,
+        isProtected: settings.isProtected,
+      }),
     });
     if (!response.ok) {
       throw new Error(`Failed to update page settings: ${response.statusText}`);

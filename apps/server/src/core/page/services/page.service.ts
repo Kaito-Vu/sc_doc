@@ -224,16 +224,23 @@ export class PageService {
     contributors.add(user.id);
     const contributorIds = Array.from(contributors);
 
-    await this.pageRepo.updatePage(
-      {
-        title: updatePageDto.title,
-        icon: updatePageDto.icon,
-        lastUpdatedById: user.id,
-        updatedAt: new Date(),
-        contributorIds: contributorIds,
-      },
-      page.id,
-    );
+    const updateData: any = {
+      title: updatePageDto.title,
+      icon: updatePageDto.icon,
+      lastUpdatedById: user.id,
+      updatedAt: new Date(),
+      contributorIds: contributorIds,
+    };
+
+    if (updatePageDto.isFullWidth !== undefined) {
+      updateData.isFullWidth = updatePageDto.isFullWidth;
+    }
+
+    if (updatePageDto.isProtected !== undefined) {
+      updateData.isProtected = updatePageDto.isProtected;
+    }
+
+    await this.pageRepo.updatePage(updateData, page.id);
 
     this.generalQueue
       .add(QueueJob.ADD_PAGE_WATCHERS, {
