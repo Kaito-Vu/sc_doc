@@ -45,6 +45,7 @@ import {
   archivePage,
   restorePage,
   deletePage,
+  updatePageSettings,
 } from '@/ee/api/detail-info-panel-api';
 
 const DetailInfoPanelComponent: React.FC<DetailInfoPanelProps> = ({ pageId, onClose }) => {
@@ -104,6 +105,32 @@ const DetailInfoPanelComponent: React.FC<DetailInfoPanelProps> = ({ pageId, onCl
     },
     onError: (error) => {
       console.error('Error deleting page:', error);
+    },
+  });
+
+  // Full width mutation
+  const fullWidthMutation = useMutation({
+    mutationFn: (value: boolean) => updatePageSettings(pageId, { isFullWidth: value }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['page-settings', pageId] });
+    },
+    onError: (error) => {
+      console.error('Error updating full width setting:', error);
+      // Revert state on error
+      setFullWidth(!fullWidth);
+    },
+  });
+
+  // Protection mutation
+  const protectionMutation = useMutation({
+    mutationFn: (value: boolean) => updatePageSettings(pageId, { isProtected: value }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['page-settings', pageId] });
+    },
+    onError: (error) => {
+      console.error('Error updating protection setting:', error);
+      // Revert state on error
+      setIsProtected(!isProtected);
     },
   });
 
@@ -260,8 +287,13 @@ const DetailInfoPanelComponent: React.FC<DetailInfoPanelProps> = ({ pageId, onCl
           <span className={classes.toggleLabel}>{t('Full-width')}</span>
           <Switch
             checked={fullWidth}
-            onChange={(e) => setFullWidth(e.currentTarget.checked)}
+            onChange={(e) => {
+              const newValue = e.currentTarget.checked;
+              setFullWidth(newValue);
+              fullWidthMutation.mutate(newValue);
+            }}
             size="xs"
+            disabled={fullWidthMutation.isPending}
             aria-label="Toggle full-width"
           />
         </div>
@@ -276,9 +308,14 @@ const DetailInfoPanelComponent: React.FC<DetailInfoPanelProps> = ({ pageId, onCl
           </span>
           <Switch
             checked={isProtected}
-            onChange={(e) => setIsProtected(e.currentTarget.checked)}
+            onChange={(e) => {
+              const newValue = e.currentTarget.checked;
+              setIsProtected(newValue);
+              protectionMutation.mutate(newValue);
+            }}
             size="xs"
             color="blue"
+            disabled={protectionMutation.isPending}
             aria-label="Toggle page protection"
           />
         </div>
