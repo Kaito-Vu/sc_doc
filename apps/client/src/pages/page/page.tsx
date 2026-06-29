@@ -50,7 +50,7 @@ export default function Page() {
 
 function PageContent({ pageSlug }: { pageSlug: string | undefined }) {
   const { t } = useTranslation();
-  const [showDetailPanel, setShowDetailPanel] = React.useState(true);
+  const [showDetailPanel, setShowDetailPanel] = React.useState(false);
 
   const {
     data: page,
