@@ -80,6 +80,7 @@ export default function Aside() {
               style={{ height: "85vh" }}
               scrollbarSize={5}
               type="scroll"
+              offsetScrollbars
             >
               <div style={{ paddingBottom: "200px" }}>{component}</div>
             </ScrollArea>
