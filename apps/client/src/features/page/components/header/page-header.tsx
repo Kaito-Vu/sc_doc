@@ -1,7 +1,7 @@
 import classes from "./page-header.module.css";
 import PageHeaderMenu from "@/features/page/components/header/page-header-menu.tsx";
 import { Group, ActionIcon, Tooltip } from "@mantine/core";
-import { IconSidebar } from "@tabler/icons-react";
+import { IconLayoutSidebarRight } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
 import Breadcrumb from "@/features/page/components/breadcrumbs/breadcrumb.tsx";
 import { useHasFeature } from "@/ee/hooks/use-feature";
@@ -32,7 +32,7 @@ export default function PageHeader({ readOnly, onToggleDetailPanel, showDetailPa
                 data-active={showDetailPanel}
                 aria-label={showDetailPanel ? t("Hide details") : t("Show details")}
               >
-                <IconSidebar size={18} />
+                <IconLayoutSidebarRight size={18} />
               </ActionIcon>
             </Tooltip>
           )}

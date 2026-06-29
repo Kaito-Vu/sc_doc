@@ -67,7 +67,6 @@ export const DETAIL_INFO_PANEL_I18N_KEYS = {
 
   // Danger zone section
   'detail_panel.danger_zone': 'DANGER ZONE',
-  'detail_panel.archive': 'Archive',
   'detail_panel.restore': 'Restore',
   'detail_panel.archive_action': 'Archive',
   'detail_panel.archive_desc': 'Move page to archive',
