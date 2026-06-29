@@ -53,7 +53,6 @@ export interface FullEditorProps {
   creator?: PageUser;
   contributors?: IContributor[];
   canComment?: boolean;
-  isFullWidth?: boolean;
 }
 
 export function FullEditor({
@@ -66,12 +65,9 @@ export function FullEditor({
   creator,
   contributors,
   canComment,
-  isFullWidth,
 }: FullEditorProps) {
   const [user] = useAtom(userAtom);
-  const userFullPageWidth = user.settings?.preferences?.fullPageWidth;
-  // Page setting takes precedence over user preference
-  const fullPageWidth = isFullWidth !== undefined ? isFullWidth : userFullPageWidth;
+  const fullPageWidth = user.settings?.preferences?.fullPageWidth;
   const editorToolbarEnabled =
     user.settings?.preferences?.editorToolbar ?? false;
   const [currentPageEditMode, setCurrentPageEditMode] = useAtom(

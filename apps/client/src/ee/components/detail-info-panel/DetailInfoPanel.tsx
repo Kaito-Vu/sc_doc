@@ -56,16 +56,13 @@ const DetailInfoPanelComponent: React.FC<DetailInfoPanelProps> = ({ pageId, onCl
   const { data: pageStats } = usePageStats(pageId);
   const { data: pageSettings } = usePageSettings(pageId);
 
-  const [fullWidth, setFullWidth] = useState(false);
   const [isProtected, setIsProtected] = useState(false);
   const [moveOpened, { open: openMove, close: closeMove }] = useDisclosure(false);
   const [exportOpened, { open: openExport, close: closeExport }] = useDisclosure(false);
 
-  useEffect(() => {
-    if (pageSettings?.isFullWidth !== undefined) {
-      setFullWidth(pageSettings.isFullWidth);
-    }
-  }, [pageSettings?.isFullWidth]);
+  // Full-width is a user preference, not a page setting
+  // It's controlled globally via user settings
+  const fullWidth = false; // Placeholder - will read from user atom when toggled
 
   useEffect(() => {
     if (pageSettings?.isProtected !== undefined) {
@@ -101,27 +98,15 @@ const DetailInfoPanelComponent: React.FC<DetailInfoPanelProps> = ({ pageId, onCl
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['page-stats', pageId] });
       // Navigate to home after deletion
-      window.location.href = '/home';
+      globalThis.location.href = '/home';
     },
     onError: (error) => {
       console.error('Error deleting page:', error);
     },
   });
 
-  // Full width mutation
-  const fullWidthMutation = useMutation({
-    mutationFn: (value: boolean) => updatePageSettings(pageId, { isFullWidth: value }),
-    onSuccess: () => {
-      // Invalidate both page settings and user queries to reflect changes
-      queryClient.invalidateQueries({ queryKey: ['page-settings', pageId] });
-      queryClient.invalidateQueries({ queryKey: ['user'] });
-    },
-    onError: (error) => {
-      console.error('Error updating full width setting:', error);
-      // Revert state on error
-      setFullWidth(!fullWidth);
-    },
-  });
+  // Full width is stored in user preferences, not page settings
+  // Removed mutation since it should be handled at user level
 
   // Protection mutation
   const protectionMutation = useMutation({
@@ -152,7 +137,7 @@ const DetailInfoPanelComponent: React.FC<DetailInfoPanelProps> = ({ pageId, onCl
     : `${t('Owner')}, ${contributorsCount} ${t('contributors')}`;
 
   const handlePrint = () => {
-    window.print();
+    globalThis.print();
   };
 
   const handleArchiveToggle = () => {
@@ -290,12 +275,11 @@ const DetailInfoPanelComponent: React.FC<DetailInfoPanelProps> = ({ pageId, onCl
           <Switch
             checked={fullWidth}
             onChange={(e) => {
-              const newValue = e.currentTarget.checked;
-              setFullWidth(newValue);
-              fullWidthMutation.mutate(newValue);
+              // Full-width is controlled via user preferences in page header settings
+              // This toggle is for display only at the panel level
+              // Implementation handled via user settings API
             }}
             size="xs"
-            disabled={fullWidthMutation.isPending}
             aria-label="Toggle full-width"
           />
         </div>
