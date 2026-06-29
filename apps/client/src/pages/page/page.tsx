@@ -19,6 +19,9 @@ import { useHasFeature } from "@/ee/hooks/use-feature";
 import { Feature } from "@/ee/features";
 import { getPageTitle } from "@/features/page/page.utils";
 import { DetailInfoPanel } from "@/ee/components/detail-info-panel";
+import { useAsideTriggerProps } from "@/hooks/use-toggle-aside";
+import { asideStateAtom } from "@/components/layouts/global/hooks/atoms/sidebar-atom";
+import { useAtom } from "jotai";
 const MemoizedFullEditor = React.memo(FullEditor);
 const MemoizedTitleEditor = React.memo(TitleEditor);
 const MemoizedPageHeader = React.memo(PageHeader);
@@ -50,7 +53,8 @@ export default function Page() {
 
 function PageContent({ pageSlug }: { pageSlug: string | undefined }) {
   const { t } = useTranslation();
-  const [showDetailPanel, setShowDetailPanel] = React.useState(false);
+  const [asideState, setAsideState] = useAtom(asideStateAtom);
+  const detailPanelTriggerProps = useAsideTriggerProps("detail-info");
 
   const {
     data: page,
@@ -169,8 +173,15 @@ function PageContent({ pageSlug }: { pageSlug: string | undefined }) {
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'auto' }}>
           <MemoizedPageHeader
             readOnly={!canEdit}
-            onToggleDetailPanel={() => setShowDetailPanel(!showDetailPanel)}
-            showDetailPanel={showDetailPanel}
+            onToggleDetailPanel={() => {
+              // Toggle detail info panel via aside state
+              if (asideState.tab === "detail-info") {
+                setAsideState({ tab: "detail-info", isAsideOpen: !asideState.isAsideOpen });
+              } else {
+                setAsideState({ tab: "detail-info", isAsideOpen: true });
+              }
+            }}
+            showDetailPanel={asideState.tab === "detail-info" && asideState.isAsideOpen}
           />
 
           <MemoizedFullEditor
@@ -188,9 +199,9 @@ function PageContent({ pageSlug }: { pageSlug: string | undefined }) {
           <MemoizedHistoryModal pageId={page.id} />
         </div>
 
-        {/* Detail Info Panel */}
+        {/* Detail Info Panel - shared aside space */}
         <Transition
-          mounted={hasDetailPanel && showDetailPanel}
+          mounted={hasDetailPanel && asideState.tab === "detail-info" && asideState.isAsideOpen}
           transition="slide-left"
           duration={300}
           timingFunction="cubic-bezier(0.4, 0, 0.2, 1)"
@@ -199,7 +210,7 @@ function PageContent({ pageSlug }: { pageSlug: string | undefined }) {
             <div style={styles}>
               <DetailInfoPanel
                 pageId={page.id}
-                onClose={() => setShowDetailPanel(false)}
+                onClose={() => setAsideState({ tab: "detail-info", isAsideOpen: false })}
               />
             </div>
           )}
