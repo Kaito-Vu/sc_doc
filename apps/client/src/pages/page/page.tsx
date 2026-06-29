@@ -11,7 +11,7 @@ import { useTranslation } from "react-i18next";
 import React from "react";
 import { EmptyState } from "@/components/ui/empty-state.tsx";
 import { IconAlertTriangle, IconFileOff } from "@tabler/icons-react";
-import { Button } from "@mantine/core";
+import { Button, Transition } from "@mantine/core";
 import { Link } from "react-router-dom";
 import { ErrorBoundary } from "react-error-boundary";
 import { BaseView } from "@/ee/base/components/base-view";
@@ -189,12 +189,21 @@ function PageContent({ pageSlug }: { pageSlug: string | undefined }) {
         </div>
 
         {/* Detail Info Panel */}
-        {hasDetailPanel && showDetailPanel && (
-          <DetailInfoPanel
-            pageId={page.id}
-            onClose={() => setShowDetailPanel(false)}
-          />
-        )}
+        <Transition
+          mounted={hasDetailPanel && showDetailPanel}
+          transition="slide-left"
+          duration={300}
+          timingFunction="cubic-bezier(0.4, 0, 0.2, 1)"
+        >
+          {(styles) => (
+            <div style={styles}>
+              <DetailInfoPanel
+                pageId={page.id}
+                onClose={() => setShowDetailPanel(false)}
+              />
+            </div>
+          )}
+        </Transition>
       </div>
     )
   );
