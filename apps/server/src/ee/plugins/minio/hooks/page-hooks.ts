@@ -1,29 +1,34 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { AttachmentService } from '../services/attachment.service';
+import {
+  getHookRegistry,
+  HookContext,
+  HookRegistry,
+} from '../../../../core/plugins/plugin-hooks';
 
-export enum CoreHooks {
-  AFTER_PAGE_DELETE = 'page:afterDelete',
-}
+// Not part of the core CoreHooks enum (apps/server/src/core/plugins/plugin-hooks.ts)
+// yet — no code currently emits this event, so registering on it is a no-op
+// until an `afterDelete` emission is added to the page deletion flow.
+const PAGE_AFTER_DELETE_HOOK = 'page:afterDelete';
 
 @Injectable()
 export class MinioPageHooksHandler {
   private readonly logger = new Logger(MinioPageHooksHandler.name);
-  private hookRegistry: any = null;
+  private hookRegistry: HookRegistry | null = null;
 
   constructor(private readonly attachmentService: AttachmentService) {}
 
   registerHooks(): void {
-    const { getHookRegistry } = require('../../../core/plugins/plugin-hooks');
     this.hookRegistry = getHookRegistry();
 
     this.hookRegistry.on(
-      CoreHooks.AFTER_PAGE_DELETE,
+      PAGE_AFTER_DELETE_HOOK,
       this.handlePageDelete.bind(this),
     );
     this.logger.log('Page deletion hooks registered');
   }
 
-  private async handlePageDelete(context: any): Promise<void> {
+  private async handlePageDelete(context: HookContext): Promise<void> {
     try {
       const { pageId, workspaceId } = context;
 
