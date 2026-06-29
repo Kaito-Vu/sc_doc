@@ -10,9 +10,8 @@ import {
 import { useTranslation } from 'react-i18next';
 import { useMutation } from '@tanstack/react-query';
 import type { SectionProps } from '../detail-info-panel.types';
-import { exportPage, movePage } from '../api/detail-info-panel-api';
+import { exportPage, movePage } from '@/ee/api/detail-info-panel-api';
 import commonClasses from './common.module.css';
-import classes from './ActionsSection.module.css';
 
 const ActionsSectionComponent: React.FC<SectionProps> = ({ page, pageId }) => {
   const { t } = useTranslation();
@@ -40,7 +39,7 @@ const ActionsSectionComponent: React.FC<SectionProps> = ({ page, pageId }) => {
     onSuccess: (data) => {
       setOpenDialog(null);
       // Trigger download
-      window.open(data.downloadUrl, '_blank');
+      globalThis.open(data.downloadUrl, '_blank');
       console.log('Page exported successfully');
     },
     onError: (error) => {
@@ -50,7 +49,7 @@ const ActionsSectionComponent: React.FC<SectionProps> = ({ page, pageId }) => {
 
   const handleHistoryClick = () => {
     // Dispatch custom event to trigger history modal in main page
-    window.dispatchEvent(
+    globalThis.dispatchEvent(
       new CustomEvent('detail-panel-action', {
         detail: { action: 'history', pageId },
       })
@@ -59,7 +58,7 @@ const ActionsSectionComponent: React.FC<SectionProps> = ({ page, pageId }) => {
 
   const handlePrintClick = () => {
     // Open print dialog
-    window.print();
+    globalThis.print();
   };
 
   const actions = [
@@ -133,7 +132,7 @@ const ActionsSectionComponent: React.FC<SectionProps> = ({ page, pageId }) => {
               { value: 'space-3', label: t('Archive') },
             ]}
             value={targetSpace}
-            onChange={setTargetSpace}
+            onChange={(value) => setTargetSpace(typeof value === 'string' ? value : null)}
           />
 
           <Group justify="flex-end">

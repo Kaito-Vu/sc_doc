@@ -1,5 +1,3 @@
-composes: action from './common.module.css';
-
 .actions {
   display: flex;
   flex-direction: column;

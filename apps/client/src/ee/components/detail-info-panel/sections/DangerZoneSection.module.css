@@ -1,5 +1,3 @@
-composes: dangerZone from './common.module.css';
-
 .dangerAction {
   display: flex;
   justify-content: space-between;

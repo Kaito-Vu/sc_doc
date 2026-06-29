@@ -1,5 +1,3 @@
-composes: section from './common.module.css';
-
 .statItem {
   display: flex;
   justify-content: space-between;

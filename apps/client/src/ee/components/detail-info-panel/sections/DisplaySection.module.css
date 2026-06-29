@@ -1,5 +1,3 @@
-composes: section from './common.module.css';
-
 .setting {
   display: flex;
   justify-content: space-between;

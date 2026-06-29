@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { Stack, Button, Group, Text, Modal, Checkbox, Alert } from '@mantine/core';
-import { IconArchive, IconTrash, IconAlertTriangle } from '@tabler/icons-react';
+import { IconAlertTriangle } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { SectionProps } from '../detail-info-panel.types';
-import { archivePage, deletePage, restorePage } from '../api/detail-info-panel-api';
+import { archivePage, deletePage, restorePage } from '@/ee/api/detail-info-panel-api';
 import commonClasses from './common.module.css';
 import classes from './DangerZoneSection.module.css';
 
@@ -37,7 +37,7 @@ const DangerZoneSectionComponent: React.FC<SectionProps> = ({ page, pageId }) =>
       setConfirmed(false);
       queryClient.invalidateQueries({ queryKey: ['page-stats', pageId] });
       // Navigate away after deletion
-      window.location.href = '/home';
+      globalThis.location.href = '/home';
     },
     onError: (error) => {
       console.error('Error deleting page:', error);
@@ -56,6 +56,14 @@ const DangerZoneSectionComponent: React.FC<SectionProps> = ({ page, pageId }) =>
     },
   });
 
+  const handleArchiveAction = () => {
+    if (page.isArchived) {
+      restoreMutation.mutate();
+      return;
+    }
+    setOpenModal('archive');
+  };
+
   const handleArchive = () => {
     if (confirmed) {
       archiveMutation.mutate();
@@ -70,7 +78,7 @@ const DangerZoneSectionComponent: React.FC<SectionProps> = ({ page, pageId }) =>
 
   return (
     <>
-      <Stack gap="sm" className={classes.dangerZone}>
+      <Stack gap="sm" className={commonClasses.dangerZone}>
         <div className={commonClasses.title}>{t('DANGER ZONE')}</div>
 
         <div className={classes.dangerAction}>
@@ -86,11 +94,11 @@ const DangerZoneSectionComponent: React.FC<SectionProps> = ({ page, pageId }) =>
             size="xs"
             variant="light"
             color="yellow"
-            onClick={() => setOpenModal('archive')}
+            onClick={handleArchiveAction}
             className={classes.dangerButton}
-            disabled={page.isArchived}
+            loading={page.isArchived && restoreMutation.isPending}
           >
-            {t('Archive')}
+            {page.isArchived ? t('Restore') : t('Archive')}
           </Button>
         </div>
 
