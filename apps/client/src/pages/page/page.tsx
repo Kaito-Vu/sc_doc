@@ -19,6 +19,7 @@ import { useHasFeature } from "@/ee/hooks/use-feature";
 import { Feature } from "@/ee/features";
 import { getPageTitle } from "@/features/page/page.utils";
 import { DetailInfoPanel } from "@/ee/components/detail-info-panel";
+import { usePageSettings } from "@/ee/hooks/usePageSettings";
 const MemoizedFullEditor = React.memo(FullEditor);
 const MemoizedTitleEditor = React.memo(TitleEditor);
 const MemoizedPageHeader = React.memo(PageHeader);
@@ -59,6 +60,7 @@ function PageContent({ pageSlug }: { pageSlug: string | undefined }) {
     error,
   } = usePageQuery({ pageId: extractPageSlugId(pageSlug) });
   const { data: space } = useGetSpaceBySlugQuery(page?.space?.slug);
+  const { data: pageSettings } = usePageSettings(extractPageSlugId(pageSlug));
 
   const hasBases = useHasFeature(Feature.BASES);
   const hasDetailPanel = useHasFeature(Feature.DETAIL_INFO_PANEL);
@@ -184,6 +186,7 @@ function PageContent({ pageSlug }: { pageSlug: string | undefined }) {
             creator={page.creator}
             contributors={page.contributors}
             canComment={canComment}
+            isFullWidth={pageSettings?.isFullWidth}
           />
           <MemoizedHistoryModal pageId={page.id} />
         </div>
