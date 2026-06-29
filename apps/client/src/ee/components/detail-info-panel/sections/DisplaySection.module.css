@@ -1,0 +1,27 @@
+composes: section from './common.module.css';
+
+.setting {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 0;
+}
+
+.settingLabel {
+  font-size: 13px;
+  color: var(--mantine-color-gray-9);
+}
+
+.settingLabel:global([data-color-scheme='dark']) {
+  color: var(--mantine-color-gray-0);
+}
+
+.description {
+  font-size: 11px;
+  color: var(--mantine-color-gray-6);
+  margin-top: 0.25rem;
+}
+
+.description:global([data-color-scheme='dark']) {
+  color: var(--mantine-color-gray-4);
+}

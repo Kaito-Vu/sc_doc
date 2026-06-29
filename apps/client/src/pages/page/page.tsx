@@ -18,6 +18,7 @@ import { BaseView } from "@/ee/base/components/base-view";
 import { useHasFeature } from "@/ee/hooks/use-feature";
 import { Feature } from "@/ee/features";
 import { getPageTitle } from "@/features/page/page.utils";
+import { DetailInfoPanel } from "@/ee/components/detail-info-panel";
 const MemoizedFullEditor = React.memo(FullEditor);
 const MemoizedTitleEditor = React.memo(TitleEditor);
 const MemoizedPageHeader = React.memo(PageHeader);
@@ -49,6 +50,7 @@ export default function Page() {
 
 function PageContent({ pageSlug }: { pageSlug: string | undefined }) {
   const { t } = useTranslation();
+  const [showDetailPanel, setShowDetailPanel] = React.useState(true);
 
   const {
     data: page,
@@ -59,6 +61,7 @@ function PageContent({ pageSlug }: { pageSlug: string | undefined }) {
   const { data: space } = useGetSpaceBySlugQuery(page?.space?.slug);
 
   const hasBases = useHasFeature(Feature.BASES);
+  const hasDetailPanel = useHasFeature(Feature.DETAIL_INFO_PANEL);
   const canEdit = !page?.deletedAt && (page?.permissions?.canEdit ?? false);
   const canComment =
     canEdit ||
@@ -158,26 +161,36 @@ function PageContent({ pageSlug }: { pageSlug: string | undefined }) {
 
   return (
     page && (
-      <div>
+      <div style={{ display: 'flex', height: '100%', overflow: 'hidden' }}>
         <Helmet>
           <title>{`${page?.icon || ""}  ${getPageTitle(page?.title, page?.isBase, t)}`}</title>
         </Helmet>
 
-        <MemoizedPageHeader readOnly={!canEdit} />
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'auto' }}>
+          <MemoizedPageHeader readOnly={!canEdit} />
 
-        <MemoizedFullEditor
-          key={page.id}
-          pageId={page.id}
-          title={page.title}
-          content={page.content}
-          slugId={page.slugId}
-          spaceSlug={page?.space?.slug}
-          editable={canEdit}
-          creator={page.creator}
-          contributors={page.contributors}
-          canComment={canComment}
-        />
-        <MemoizedHistoryModal pageId={page.id} />
+          <MemoizedFullEditor
+            key={page.id}
+            pageId={page.id}
+            title={page.title}
+            content={page.content}
+            slugId={page.slugId}
+            spaceSlug={page?.space?.slug}
+            editable={canEdit}
+            creator={page.creator}
+            contributors={page.contributors}
+            canComment={canComment}
+          />
+          <MemoizedHistoryModal pageId={page.id} />
+        </div>
+
+        {/* Detail Info Panel */}
+        {hasDetailPanel && showDetailPanel && (
+          <DetailInfoPanel
+            pageId={page.id}
+            onClose={() => setShowDetailPanel(false)}
+          />
+        )}
       </div>
     )
   );

@@ -1,0 +1,148 @@
+/* Common section styles */
+
+.title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--mantine-color-gray-6);
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.5rem;
+}
+
+.title:global([data-color-scheme='dark']) {
+  color: var(--mantine-color-gray-4);
+}
+
+.divider {
+  height: 1px;
+  background-color: var(--mantine-color-gray-2);
+  margin: 0.75rem 0;
+}
+
+.divider:global([data-color-scheme='dark']) {
+  background-color: var(--mantine-color-dark-5);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--mantine-color-gray-7);
+}
+
+.label:global([data-color-scheme='dark']) {
+  color: var(--mantine-color-gray-3);
+}
+
+.value {
+  font-size: 13px;
+  color: var(--mantine-color-gray-9);
+}
+
+.value:global([data-color-scheme='dark']) {
+  color: var(--mantine-color-gray-0);
+}
+
+.stat {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0;
+  border-radius: 4px;
+  transition: background-color 150ms;
+}
+
+.stat:hover {
+  background-color: var(--mantine-color-gray-1);
+}
+
+.stat:global([data-color-scheme='dark']):hover {
+  background-color: var(--mantine-color-dark-5);
+}
+
+.action {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 150ms;
+}
+
+.action:hover {
+  background-color: var(--mantine-color-gray-1);
+}
+
+.action:global([data-color-scheme='dark']):hover {
+  background-color: var(--mantine-color-dark-5);
+}
+
+.actionDisabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.dangerZone {
+  border-top: 2px solid var(--mantine-color-red-2);
+  border-bottom: 2px solid var(--mantine-color-red-2);
+  padding: 1rem 0;
+  margin: 1rem 0;
+  background-color: var(--mantine-color-red-0);
+}
+
+.dangerZone:global([data-color-scheme='dark']) {
+  border-top-color: var(--mantine-color-red-8);
+  border-bottom-color: var(--mantine-color-red-8);
+  background-color: rgba(250, 82, 82, 0.1);
+}
+
+.dangerActionButton {
+  min-height: 32px;
+  font-size: 12px;
+}
+
+/* Loading skeleton */
+.skeleton {
+  height: 16px;
+  background: linear-gradient(
+    90deg,
+    var(--mantine-color-gray-2) 25%,
+    var(--mantine-color-gray-1) 50%,
+    var(--mantine-color-gray-2) 75%
+  );
+  background-size: 200% 100%;
+  animation: loading 1.5s infinite;
+  border-radius: 4px;
+}
+
+.skeleton:global([data-color-scheme='dark']) {
+  background: linear-gradient(
+    90deg,
+    var(--mantine-color-dark-5) 25%,
+    var(--mantine-color-dark-4) 50%,
+    var(--mantine-color-dark-5) 75%
+  );
+}
+
+@keyframes loading {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
