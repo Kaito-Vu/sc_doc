@@ -7,6 +7,7 @@ import {
   Switch,
   Tooltip,
 } from '@mantine/core';
+import { useDisclosure } from '@mantine/hooks';
 import {
   IconArrowRight,
   IconCalendar,
@@ -16,6 +17,7 @@ import {
   IconEye,
   IconHistory,
   IconArchive,
+  IconArchiveOff,
   IconLock,
   IconLockOpen,
   IconPrinter,
@@ -26,6 +28,8 @@ import {
   IconX,
 } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
+import { useAtom } from 'jotai';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { usePageQuery } from '@/features/page/queries/page-query';
 import { usePageStats } from '@/ee/hooks/usePageStats';
 import { usePageSettings } from '@/ee/hooks/usePageSettings';
@@ -33,15 +37,28 @@ import type { DetailInfoPanelProps } from './detail-info-panel.types';
 import classes from './DetailInfoPanel.module.css';
 import { useTimeAgo } from '@/hooks/use-time-ago';
 import { formattedDate } from '@/lib/time';
+import { historyAtoms } from '@/features/page-history/atoms/history-atoms';
+import MovePageModal from '@/features/page/components/move-page-modal';
+import ExportModal from '@/components/common/export-modal';
+import HistoryModal from '@/features/page-history/components/history-modal';
+import {
+  archivePage,
+  restorePage,
+  deletePage,
+} from '@/ee/api/detail-info-panel-api';
 
 const DetailInfoPanelComponent: React.FC<DetailInfoPanelProps> = ({ pageId, onClose }) => {
   const { t } = useTranslation();
+  const queryClient = useQueryClient();
+  const [, setHistoryOpen] = useAtom(historyAtoms);
   const { data: page } = usePageQuery({ pageId });
   const { data: pageStats } = usePageStats(pageId);
   const { data: pageSettings } = usePageSettings(pageId);
 
   const [fullWidth, setFullWidth] = useState(false);
   const [isProtected, setIsProtected] = useState(false);
+  const [moveOpened, { open: openMove, close: closeMove }] = useDisclosure(false);
+  const [exportOpened, { open: openExport, close: closeExport }] = useDisclosure(false);
 
   useEffect(() => {
     if (pageSettings?.isFullWidth !== undefined) {
@@ -55,6 +72,41 @@ const DetailInfoPanelComponent: React.FC<DetailInfoPanelProps> = ({ pageId, onCl
     }
   }, [pageSettings?.isProtected]);
 
+  // Archive mutation
+  const archiveMutation = useMutation({
+    mutationFn: () => archivePage(pageId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['page-stats', pageId] });
+    },
+    onError: (error) => {
+      console.error('Error archiving page:', error);
+    },
+  });
+
+  // Restore mutation
+  const restoreMutation = useMutation({
+    mutationFn: () => restorePage(pageId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['page-stats', pageId] });
+    },
+    onError: (error) => {
+      console.error('Error restoring page:', error);
+    },
+  });
+
+  // Delete mutation
+  const deleteMutation = useMutation({
+    mutationFn: () => deletePage(pageId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['page-stats', pageId] });
+      // Navigate to home after deletion
+      window.location.href = '/home';
+    },
+    onError: (error) => {
+      console.error('Error deleting page:', error);
+    },
+  });
+
   const updatedAgo = useTimeAgo(page?.updatedAt);
 
   if (!page) return null;
@@ -64,10 +116,29 @@ const DetailInfoPanelComponent: React.FC<DetailInfoPanelProps> = ({ pageId, onCl
   const contributorsCount = page?.contributors?.length ?? 0;
   const viewCount = pageStats?.viewCount ?? 0;
   const editCount = pageStats?.editCount ?? 0;
+  const isArchived = page?.deletedAt !== null && page?.deletedAt !== undefined;
 
   const contributorLabel = contributorsCount === 0
     ? t('Owner, no contributors')
     : `${t('Owner')}, ${contributorsCount} ${t('contributors')}`;
+
+  const handlePrint = () => {
+    window.print();
+  };
+
+  const handleArchiveToggle = () => {
+    if (isArchived) {
+      restoreMutation.mutate();
+    } else {
+      archiveMutation.mutate();
+    }
+  };
+
+  const handleTrash = () => {
+    if (confirm(t('Are you sure you want to move this page to trash?'))) {
+      deleteMutation.mutate();
+    }
+  };
 
   return (
     <div className={classes.root}>
@@ -221,6 +292,7 @@ const DetailInfoPanelComponent: React.FC<DetailInfoPanelProps> = ({ pageId, onCl
             leftSection={<IconArrowRight size={13} />}
             className={classes.actionBtn}
             fullWidth
+            onClick={openMove}
           >
             {t('Move')}
           </Button>
@@ -230,6 +302,7 @@ const DetailInfoPanelComponent: React.FC<DetailInfoPanelProps> = ({ pageId, onCl
             leftSection={<IconHistory size={13} />}
             className={classes.actionBtn}
             fullWidth
+            onClick={() => setHistoryOpen(true)}
           >
             {t('History')}
           </Button>
@@ -239,6 +312,7 @@ const DetailInfoPanelComponent: React.FC<DetailInfoPanelProps> = ({ pageId, onCl
             leftSection={<IconDownload size={13} />}
             className={classes.actionBtn}
             fullWidth
+            onClick={openExport}
           >
             {t('Export')}
           </Button>
@@ -248,6 +322,7 @@ const DetailInfoPanelComponent: React.FC<DetailInfoPanelProps> = ({ pageId, onCl
             leftSection={<IconPrinter size={13} />}
             className={classes.actionBtn}
             fullWidth
+            onClick={handlePrint}
           >
             {t('Print')}
           </Button>
@@ -259,13 +334,15 @@ const DetailInfoPanelComponent: React.FC<DetailInfoPanelProps> = ({ pageId, onCl
         <div className={classes.dangerGrid}>
           <Button
             variant="light"
-            color="yellow"
+            color={isArchived ? 'blue' : 'yellow'}
             size="xs"
-            leftSection={<IconArchive size={13} />}
+            leftSection={isArchived ? <IconArchiveOff size={13} /> : <IconArchive size={13} />}
             className={classes.actionBtn}
             fullWidth
+            onClick={handleArchiveToggle}
+            loading={archiveMutation.isPending || restoreMutation.isPending}
           >
-            {t('Archive')}
+            {isArchived ? t('Restore') : t('Archive')}
           </Button>
           <Button
             variant="light"
@@ -274,12 +351,30 @@ const DetailInfoPanelComponent: React.FC<DetailInfoPanelProps> = ({ pageId, onCl
             leftSection={<IconTrash size={13} />}
             className={classes.actionBtn}
             fullWidth
+            onClick={handleTrash}
+            loading={deleteMutation.isPending}
           >
             {t('Trash')}
           </Button>
         </div>
 
       </ScrollArea>
+
+      {/* Modals */}
+      <HistoryModal pageId={pageId} pageTitle={page?.title} />
+      <MovePageModal
+        open={moveOpened}
+        onClose={closeMove}
+        pageId={pageId}
+        slugId={page.slugId}
+        currentSpaceSlug={page?.space?.slug ?? ''}
+      />
+      <ExportModal
+        id={pageId}
+        type="page"
+        open={exportOpened}
+        onClose={closeExport}
+      />
     </div>
   );
 };
