@@ -1,17 +1,46 @@
+# syntax=docker/dockerfile:1.7
 FROM node:22-slim AS base
 LABEL org.opencontainers.image.source="https://github.com/docmost/docmost"
 
-RUN npm install -g pnpm@10.4.0
+RUN npm install -g pnpm@10.34.4
 
-FROM base AS builder
+# ---------------------------------------------------------------------------
+# deps: install dependencies for the whole workspace.
+# Only manifest files (package.json/lockfile/patches) are copied here, so
+# this stage's cache is invalidated ONLY when a dependency actually changes —
+# editing application source code never busts it.
+# ---------------------------------------------------------------------------
+FROM base AS deps
 
 WORKDIR /app
 
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
+COPY patches ./patches
+COPY apps/server/package.json ./apps/server/package.json
+COPY apps/client/package.json ./apps/client/package.json
+COPY packages/editor-ext/package.json ./packages/editor-ext/package.json
+COPY packages/base-formula/package.json ./packages/base-formula/package.json
+
+RUN --mount=type=cache,id=pnpm-store,target=/pnpm-store,uid=1000,gid=1000 \
+  pnpm install --frozen-lockfile --store-dir=/pnpm-store
+
+# ---------------------------------------------------------------------------
+# builder: bring in the full source and build.
+# Extends `deps`, so node_modules from the cached install above is reused as
+# long as no manifest changed; only the COPY + build steps re-run on a
+# source-only change.
+# ---------------------------------------------------------------------------
+FROM deps AS builder
+
 COPY . .
 
-RUN pnpm install --frozen-lockfile
+RUN --mount=type=cache,id=pnpm-store,target=/pnpm-store,uid=1000,gid=1000 \
+  pnpm install --frozen-lockfile --store-dir=/pnpm-store
 RUN pnpm build
 
+# ---------------------------------------------------------------------------
+# installer: production runtime image.
+# ---------------------------------------------------------------------------
 FROM base AS installer
 
 RUN apt-get update \
@@ -43,9 +72,9 @@ RUN chown -R node:node /app
 
 USER node
 
-RUN pnpm install --frozen-lockfile --prod
-
-RUN mkdir -p /app/data/storage
+RUN --mount=type=cache,id=pnpm-store,target=/pnpm-store,uid=1000,gid=1000 \
+  pnpm install --frozen-lockfile --prod --store-dir=/pnpm-store \
+  && mkdir -p /app/data/storage
 
 VOLUME ["/app/data/storage"]
 
