@@ -81,27 +81,29 @@ const DangerZoneSectionComponent: React.FC<SectionProps> = ({ page, pageId }) =>
       <Stack gap="sm" className={commonClasses.dangerZone}>
         <div className={commonClasses.title}>{t('DANGER ZONE')}</div>
 
+        {/* Archive Action */}
         <div className={classes.dangerAction}>
           <div>
             <Text className={classes.dangerActionTitle}>
-              {t('Archive')}
+              {page?.isArchived ? t('Restore') : t('Archive')}
             </Text>
             <Text className={classes.dangerActionDescription}>
-              {t('Move page to archive')}
+              {page?.isArchived ? t('Restore page from archive') : t('Move page to archive')}
             </Text>
           </div>
           <Button
             size="xs"
             variant="light"
-            color="yellow"
+            color={page?.isArchived ? 'blue' : 'yellow'}
             onClick={handleArchiveAction}
             className={classes.dangerButton}
-            loading={page.isArchived && restoreMutation.isPending}
+            loading={archiveMutation.isPending || restoreMutation.isPending}
           >
-            {page.isArchived ? t('Restore') : t('Archive')}
+            {page?.isArchived ? t('Restore') : t('Archive')}
           </Button>
         </div>
 
+        {/* Trash Action */}
         <div className={classes.dangerAction}>
           <div>
             <Text className={classes.dangerActionTitle}>
@@ -117,6 +119,7 @@ const DangerZoneSectionComponent: React.FC<SectionProps> = ({ page, pageId }) =>
             color="red"
             onClick={() => setOpenModal('delete')}
             className={classes.dangerButton}
+            loading={deleteMutation.isPending}
           >
             {t('Trash')}
           </Button>

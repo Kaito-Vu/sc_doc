@@ -167,7 +167,11 @@ function PageContent({ pageSlug }: { pageSlug: string | undefined }) {
         </Helmet>
 
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'auto' }}>
-          <MemoizedPageHeader readOnly={!canEdit} />
+          <MemoizedPageHeader
+            readOnly={!canEdit}
+            onToggleDetailPanel={() => setShowDetailPanel(!showDetailPanel)}
+            showDetailPanel={showDetailPanel}
+          />
 
           <MemoizedFullEditor
             key={page.id}

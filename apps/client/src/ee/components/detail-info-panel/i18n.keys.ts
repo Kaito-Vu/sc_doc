@@ -4,7 +4,9 @@
  */
 
 export const DETAIL_INFO_PANEL_I18N_KEYS = {
-  // Panel header
+  // Panel header & toggle
+  'detail_panel.show_details': 'Show details',
+  'detail_panel.hide_details': 'Hide details',
   'detail_panel.collapse': 'Collapse',
   'detail_panel.expand': 'Expand',
   'detail_panel.close': 'Close',
@@ -65,8 +67,11 @@ export const DETAIL_INFO_PANEL_I18N_KEYS = {
 
   // Danger zone section
   'detail_panel.danger_zone': 'DANGER ZONE',
+  'detail_panel.archive': 'Archive',
+  'detail_panel.restore': 'Restore',
   'detail_panel.archive_action': 'Archive',
   'detail_panel.archive_desc': 'Move page to archive',
+  'detail_panel.restore_desc': 'Restore page from archive',
   'detail_panel.trash_action': 'Trash',
   'detail_panel.trash_desc': 'Move page to trash',
 
