@@ -7,6 +7,7 @@ import {
   IconEyeOff,
   IconFileExport,
   IconHistory,
+  IconInfoCircle,
   IconLink,
   IconList,
   IconMarkdown,
@@ -58,6 +59,8 @@ import {
   useWatchPageMutation,
   useUnwatchPageMutation,
 } from "@/features/page/queries/watcher-query";
+import { useHasFeature } from "@/ee/hooks/use-feature";
+import { Feature } from "@/ee/features";
 
 interface PageHeaderMenuProps {
   readOnly?: boolean;
@@ -66,6 +69,8 @@ export default function PageHeaderMenu({ readOnly }: PageHeaderMenuProps) {
   const { t } = useTranslation();
   const commentsTriggerProps = useAsideTriggerProps("comments");
   const tocTriggerProps = useAsideTriggerProps("toc");
+  const detailInfoTriggerProps = useAsideTriggerProps("detail-info");
+  const hasDetailInfoPanel = useHasFeature(Feature.DETAIL_INFO_PANEL);
   const { pageSlug } = useParams();
   const { data: page } = usePageQuery({
     pageId: extractPageSlugId(pageSlug),
@@ -125,6 +130,19 @@ export default function PageHeaderMenu({ readOnly }: PageHeaderMenuProps) {
             {...tocTriggerProps}
           >
             <IconList size={20} stroke={2} />
+          </ActionIcon>
+        </Tooltip>
+      )}
+
+      {hasDetailInfoPanel && !page?.isBase && (
+        <Tooltip label={t("Detail Info")} openDelay={250} withArrow>
+          <ActionIcon
+            variant="subtle"
+            color="dark"
+            aria-label={t("Detail Info")}
+            {...detailInfoTriggerProps}
+          >
+            <IconInfoCircle size={20} stroke={2} />
           </ActionIcon>
         </Tooltip>
       )}

@@ -11,6 +11,7 @@ import { pageEditorAtom } from "@/features/editor/atoms/editor-atoms.ts";
 import AsideChatPanel from "@/ee/ai-chat/components/aside-chat-panel";
 import { PageDetailsAside } from "@/features/page-details/components/page-details-aside.tsx";
 import { ASIDE_PANEL_ID } from "@/hooks/use-toggle-aside.tsx";
+import { DetailInfoPanel } from "@/ee/components/detail-info-panel";
 
 export default function Aside() {
   const [{ tab, isAsideOpen }, setAsideState] = useAtom(asideStateAtom);
@@ -42,6 +43,10 @@ export default function Aside() {
     case "details":
       component = <PageDetailsAside />;
       title = "Details";
+      break;
+    case "detail-info":
+      component = <DetailInfoPanel />;
+      title = "Detail Info";
       break;
     default:
       component = null;
@@ -75,6 +80,7 @@ export default function Aside() {
               style={{ height: "85vh" }}
               scrollbarSize={5}
               type="scroll"
+              offsetScrollbars
             >
               <div style={{ paddingBottom: "200px" }}>{component}</div>
             </ScrollArea>

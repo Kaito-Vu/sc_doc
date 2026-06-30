@@ -2,42 +2,11 @@
    Detail Info Panel — Confluence-style flat design
    ───────────────────────────────────────────────────────── */
 
-/* Root shell */
+/* Root shell - renders as content inside the shared Aside panel
+   (Aside.tsx already provides the outer Box, title, close button and ScrollArea) */
 .root {
   display: flex;
   flex-direction: column;
-  height: 100%;
-  width: 360px;
-  background-color: light-dark(#ffffff, var(--mantine-color-dark-7));
-  border-left: 1px solid light-dark(#edf2f7, var(--mantine-color-dark-5));
-  animation: slideInRight 300ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
-  overflow: hidden;
-}
-
-/* Panel header bar */
-.panelHeader {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 10px 16px;
-  border-bottom: 1px solid light-dark(#edf2f7, var(--mantine-color-dark-5));
-  flex-shrink: 0;
-  background-color: light-dark(#f7fafc, var(--mantine-color-dark-6));
-}
-
-.panelHeaderTitle {
-  font-size: 13px;
-  font-weight: 600;
-  color: light-dark(var(--mantine-color-gray-7), var(--mantine-color-dark-2));
-  margin: 0;
-}
-
-/* Scrollable body */
-.scrollBody {
-  flex: 1 1 auto;
-  padding: 0 16px 24px;
-  animation: fadeIn 400ms cubic-bezier(0.4, 0, 0.2, 1) 100ms forwards;
-  opacity: 0;
 }
 
 /* Owner Card (top hero) */
@@ -229,51 +198,3 @@
   margin-top: 6px;
 }
 
-/* Animations */
-@keyframes slideInRight {
-  from {
-    transform: translateX(100%);
-    opacity: 0;
-  }
-  to {
-    transform: translateX(0);
-    opacity: 1;
-  }
-}
-
-@keyframes slideOutRight {
-  from {
-    transform: translateX(0);
-    opacity: 1;
-  }
-  to {
-    transform: translateX(100%);
-    opacity: 0;
-  }
-}
-
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-/* Responsive */
-@media (max-width: 768px) {
-  .root {
-    width: 320px;
-  }
-}
-
-@media (max-width: 480px) {
-  .root {
-    width: 100%;
-    position: fixed;
-    right: 0;
-    top: 0;
-    bottom: 0;
-  }
-}

@@ -1,9 +1,11 @@
 # Fork-Safe Plugin Architecture
 
-**Document**: Strategy để tối thiểu hóa xung đột khi upgrade upstream  
-**Version**: 1.0  
-**Status**: Recommended Architecture  
+**Document**: Strategy để tối thiểu hóa xung đột khi upgrade upstream
+**Version**: 1.1 — updated với live audit thực tế (xem [Live Hook Inventory](#live-hook-inventory-source-of-truth))
+**Status**: Implemented & Audited
 **Risk Level**: LOW (when implemented correctly)
+
+> **Trước khi thêm plugin/EE feature mới**: đọc [Checklist: Adding a New Plugin or EE Feature](#checklist-adding-a-new-plugin-or-ee-feature) và [Live Hook Inventory](#live-hook-inventory-source-of-truth) trước. Đây là phần quan trọng nhất của tài liệu — phần lý thuyết phía dưới giải thích *tại sao*, hai phần đó là *làm thế nào*.
 
 ---
 
@@ -43,16 +45,23 @@ Merge Effort: 4-6 hours per upgrade
 
 ```
 Core changes needed:
-├── apps/server/src/plugins.ts              [NEW - 1 hook file]
-├── apps/server/src/core/auth/auth.service.ts [MODIFIED - 3 lines]
-└── apps/server/src/core/auth/auth.controller.ts [MODIFIED - 3 lines]
+├── apps/server/src/core/plugins/plugin-hooks.ts   [NEW - 1 contract file, ~60 lines]
+├── apps/server/src/core/plugins/run-hook.ts        [NEW - 1 thin helper, ~13 lines]
+├── apps/server/src/core/auth/auth.controller.ts    [MODIFIED - 6 hook call sites]
+├── apps/server/src/core/share/share.controller.ts  [MODIFIED - 1 hook call site]
+├── apps/server/src/core/workspace/controllers/workspace.controller.ts [MODIFIED - 1 hook call site]
+└── apps/server/src/core/auth/dto/*.dto.ts          [MODIFIED - 1 optional field each, 4 files]
 
 EE changes:
-└── apps/server/src/ee/plugins/             [NEW - 25 files]
+└── apps/server/src/ee/plugins/, apps/server/src/ee/mfa/   [all plugin logic]
 
-Conflict Risk: VERY LOW (minimal core changes)
+Conflict Risk: VERY LOW (every core change above is a 1-3 line hook
+call or a single optional DTO field — see "Live Hook Inventory" below
+for the exact, currently-accurate list)
 Merge Effort: 15-30 minutes per upgrade
 ```
+
+> Cập nhật so với v1.0: danh sách trên là kết quả audit thực tế của codebase (2026-06-29), không phải kế hoạch ban đầu. Mọi hook mới thêm vào trong tương lai phải được thêm vào bảng ["Live Hook Inventory"](#live-hook-inventory-source-of-truth) — đó là nguồn sự thật duy nhất, tài liệu narrative phía trên có thể lỗi thời.
 
 ---
 
@@ -179,6 +188,102 @@ async signup(@Body() data: SignupRequest) {
 ❌ KHÔNG thêm `plugin_definitions`, `plugin_configurations` vào core migrations
 
 ✅ Tất cả database tables nằm trong EE migration folder
+
+---
+
+## Live Hook Inventory (Source of Truth)
+
+**Đây là bảng quan trọng nhất của tài liệu.** Audit thực tế toàn bộ codebase (2026-06-29) — không phải kế hoạch, là sự thật hiện tại. Trước khi thêm hook mới hoặc plugin mới, kiểm tra bảng này trước.
+
+### CoreHooks đã khai báo (`apps/server/src/core/plugins/plugin-hooks.ts`)
+
+| Hook | Emit ở đâu (core) | Listen ở đâu (ee) | Trạng thái |
+|---|---|---|---|
+| `BEFORE_LOGIN` | `auth.controller.ts:74` | `recaptcha.module.ts` | ✅ Hoạt động |
+| `AFTER_LOGIN` | `auth.controller.ts:125` | — | ⚠️ Emit nhưng chưa có listener nào (chưa có ai cần, không phải bug) |
+| `BEFORE_SIGNUP` | `auth.controller.ts:145` | `recaptcha.module.ts` | ✅ Hoạt động |
+| `AFTER_SIGNUP` | `auth.controller.ts:152` | — | ⚠️ Emit nhưng chưa có listener |
+| `BEFORE_FORGOT_PASSWORD` | `auth.controller.ts:188` | `recaptcha.module.ts` | ✅ Hoạt động |
+| `BEFORE_PASSWORD_RESET` | `auth.controller.ts:215` | `recaptcha.module.ts` | ✅ Hoạt động |
+| `BEFORE_VERIFY_TOKEN` | — | — | ❌ Khai báo nhưng chưa emit/listen ở đâu |
+| `BEFORE_MFA_VERIFY` | `ee/mfa/mfa.controller.ts:107` | `recaptcha.module.ts` | ✅ Hoạt động (emit từ EE, không phải core) |
+| `BEFORE_MFA_ENABLE` | — | — | ❌ Khai báo nhưng chưa emit/listen |
+| `BEFORE_MFA_DISABLE` | — | — | ❌ Khai báo nhưng chưa emit/listen |
+| `BEFORE_INVITE_CREATE` | `workspace.controller.ts:256` | `recaptcha.module.ts` | ✅ Hoạt động |
+| `BEFORE_INVITE_ACCEPT` | — | — | ❌ Khai báo nhưng chưa emit/listen |
+| `BEFORE_SHARE_GET_INFO` | `share.controller.ts:86` | `recaptcha.module.ts` | ✅ Hoạt động |
+| `BEFORE_PAGE_CREATE` | — | — | ❌ Khai báo nhưng chưa emit/listen |
+| `AFTER_PAGE_CREATE` | — | — | ❌ Khai báo nhưng chưa emit/listen |
+| `BEFORE_PAGE_DELETE` | — | — | ❌ Khai báo nhưng chưa emit/listen |
+
+### ⚠️ Known Gaps: Listener "mồ côi" (registered nhưng KHÔNG BAO GIỜ fire)
+
+Các hook listener sau **register thành công** (không lỗi) nhưng **không bao giờ chạy** vì không có code nào emit event tương ứng. Đây không phải bug crash — chỉ là dead code im lặng, dễ khiến người sau tưởng nhầm là feature đang hoạt động:
+
+| Listener đăng ký ở | Event string | Vấn đề |
+|---|---|---|
+| `ee/plugins/minio/hooks/page-hooks.ts` | `'page:afterDelete'` | Không tồn tại trong `CoreHooks` enum (gần nhất là `BEFORE_PAGE_DELETE`, khác event). Không nơi nào emit. |
+| `ee/plugins/azure-ad/azure-ad.module.ts:49` | `'auth:oidcLogin'` | String tự do, không trong enum. Không nơi nào emit. |
+| `ee/plugins/azure-ad/azure-ad.module.ts:53` | `'azure-ad:validateTenant'` | String tự do, không trong enum. `AzureAdService.validateTenant()` được gọi trực tiếp (method call thường), không qua hook system. |
+
+**Hành động đề xuất** (không nằm trong scope hiện tại, chỉ ghi nhận để theo dõi): khi có ai cần page-delete cleanup hoặc OIDC/tenant-validation hook thật, hoặc (a) thêm emit point tương ứng vào core đúng theo checklist dưới, hoặc (b) xóa listener mồ côi nếu không còn cần.
+
+### Cách giữ bảng này luôn đúng
+
+Mỗi khi PR thêm/sửa hook, **PR đó phải tự cập nhật bảng trên trong cùng commit.** Review checklist nên có dòng: "Đã cập nhật Live Hook Inventory chưa?"
+
+---
+
+## Checklist: Adding a New Plugin or EE Feature
+
+Làm theo đúng thứ tự, dừng lại nếu bước nào yêu cầu sửa core nhiều hơn mô tả.
+
+### Bước 1 — Plugin chỉ cần hook đã có sẵn? → Không chạm core
+
+Nếu hook bạn cần đã có trong bảng "Live Hook Inventory" ở trạng thái ✅ hoặc ⚠️ (đã emit), bạn **chỉ cần viết code trong `ee/plugins/<tên-plugin>/`** và `.on()` vào hook đó. Không sửa file core nào cả. Đây là trường hợp tốt nhất, áp dụng cho ít nhất 80% plugin mới (auth, signup, password, share, invite, MFA verify).
+
+```
+apps/server/src/ee/plugins/<plugin-name>/
+├── <plugin-name>.module.ts        # implements OnModuleInit, gọi hookRegistry.on(...)
+├── services/
+├── controllers/                    # nếu plugin cần API riêng
+├── repositories/                   # nếu plugin cần bảng DB riêng
+└── migrations/                     # SQL riêng của plugin, KHÔNG đụng core/database/migrations
+```
+
+Đăng ký module trong `ee/ee.module.ts` (file này đã có sẵn pattern try-catch ở `app.module.ts`, không cần sửa `app.module.ts`).
+
+### Bước 2 — Cần một event mới mà core chưa emit? → Thêm đúng 2 nơi, không hơn
+
+Nếu event cần thiết KHÔNG có trong bảng (hoặc có nhưng ở trạng thái ❌ chưa emit), làm đúng các bước sau, **không làm gì khác**:
+
+1. **Thêm 1 dòng vào enum** `apps/server/src/core/plugins/plugin-hooks.ts`:
+   ```typescript
+   export enum CoreHooks {
+     // ... existing
+     YOUR_NEW_HOOK = 'domain:yourNewHook',  // tên rõ nghĩa, namespace theo domain (auth:, page:, share:...)
+   }
+   ```
+2. **Thêm 1 lệnh gọi `runHook(...)`** vào đúng 1 điểm trong controller/service core liên quan — **1-3 dòng**, bọc trong code flow hiện có, KHÔNG viết logic nghiệp vụ mới ở đây:
+   ```typescript
+   import { runHook } from '../plugins/run-hook'; // hoặc đường dẫn tương ứng độ sâu file
+   import { CoreHooks } from '../plugins/plugin-hooks';
+
+   const context = await runHook(CoreHooks.YOUR_NEW_HOOK, { /* dữ liệu cần truyền cho plugin */ });
+   ```
+3. **Cập nhật bảng "Live Hook Inventory"** ở trên trong CÙNG commit — ghi rõ emit ở đâu.
+4. Logic xử lý thật (verify, validate, side-effect...) viết 100% trong `ee/plugins/<plugin-name>/`, lắng nghe qua `.on(CoreHooks.YOUR_NEW_HOOK, handler)`.
+
+**Nếu bước 2 cần sửa core nhiều hơn 1 enum line + 1-3 dòng gọi hook ở 1 chỗ → dừng lại, đây là dấu hiệu thiết kế sai, quay lại xem có cách nào đưa logic vào EE thay vì core.**
+
+### Bước 3 — Trước khi tạo PR: tự kiểm tra
+
+- [ ] Không có file mới nào nằm ngoài `ee/` hoặc `core/plugins/plugin-hooks.ts` + `core/plugins/run-hook.ts`
+- [ ] Mỗi file core bị sửa chỉ có 1-3 dòng thay đổi liên quan tới hook (không thêm business logic)
+- [ ] Không có bảng/migration mới nào trong `apps/server/src/database/migrations/` (phải nằm trong `ee/plugins/<plugin>/migrations/`)
+- [ ] Đã `.on()` đúng event string/enum value thật — chạy app, kiểm tra log thấy listener thật sự được gọi (không chỉ "registered" mà còn phải fire), tránh lặp lại lỗi "listener mồ côi" ở mục Known Gaps
+- [ ] Đã cập nhật bảng "Live Hook Inventory" nếu có hook mới hoặc đổi trạng thái hook cũ
+- [ ] Chạy `git diff --stat` so với base: số file core thay đổi phải ≤ 5, mỗi file ≤ 5 dòng thay đổi (nếu vượt, giải trình rõ lý do trong PR description)
 
 ---
 
@@ -727,27 +832,12 @@ npm run dev
 
 ### When Adding New Hooks
 
-1. **Add to plugin-hooks.ts (Core)**
-   ```typescript
-   export enum CoreHooks {
-     // ... existing hooks
-     NEW_HOOK = 'new:hook'  // ADD HERE
-   }
-   ```
+> Quy trình đầy đủ + checklist: xem [Checklist: Adding a New Plugin or EE Feature](#checklist-adding-a-new-plugin-or-ee-feature). Tóm tắt 3 bước:
 
-2. **Add hook call in core (Minimal)**
-   ```typescript
-   // In appropriate controller/service
-   await hookRegistry.emit(CoreHooks.NEW_HOOK, context)
-   ```
-
-3. **Implement in EE plugins**
-   ```typescript
-   // In plugin service
-   hookRegistry.on(CoreHooks.NEW_HOOK, (context) => {
-     // Plugin logic
-   })
-   ```
+1. **Add to plugin-hooks.ts (Core)** — 1 dòng enum
+2. **Add hook call in core (Minimal)** — dùng helper `runHook()` (xem `core/plugins/run-hook.ts`), không gọi `hookRegistry.emit()` trực tiếp ở core để tránh phải import `getHookRegistry` ở nhiều nơi
+3. **Implement in EE plugins** — `.on()` lắng nghe, đồng thời **xác nhận chạy thử thật** để tránh tạo thêm "listener mồ côi" (xem [Known Gaps](#️-known-gaps-listener-mồ-côi-registered-nhưng-không-bao-giờ-fire) — đã có 3 trường hợp này rồi, đừng tạo thêm)
+4. **Cập nhật [Live Hook Inventory](#live-hook-inventory-source-of-truth)** trong cùng commit — bước này bắt buộc, không tùy chọn
 
 ### When Updating Hooks
 
