@@ -18,43 +18,102 @@
   }
 
   & :global(.history-diff-added) {
-    background: light-dark(#e1f3f2, #01654a) !important;
-    color: light-dark(#007b69, #cafff7) !important;
+    background: light-dark(
+      rgba(46, 160, 67, 0.18),
+      rgba(63, 185, 80, 0.22)
+    ) !important;
+    color: light-dark(#116329, #7ee787) !important;
+    box-shadow: inset rem(3px) 0 0 0
+      light-dark(var(--mantine-color-green-7), var(--mantine-color-green-5));
+    padding: 0 rem(3px) 0 rem(6px);
     -webkit-box-decoration-break: clone;
     box-decoration-break: clone;
   }
 
   & :global(.history-diff-removed-side) {
     text-decoration: line-through;
-    color: light-dark(var(--mantine-color-red-7), var(--mantine-color-red-4));
-    background: light-dark(var(--mantine-color-red-0), rgba(255, 0, 0, 0.1));
-    border-radius: rem(2px);
+    color: light-dark(#82071e, #ffa198);
+    background: light-dark(
+      rgba(248, 81, 73, 0.18),
+      rgba(248, 81, 73, 0.22)
+    );
+    box-shadow: inset rem(3px) 0 0 0
+      light-dark(var(--mantine-color-red-7), var(--mantine-color-red-5));
+    padding: 0 rem(3px) 0 rem(6px);
     -webkit-box-decoration-break: clone;
     box-decoration-break: clone;
   }
 
   & :global(.history-diff-deleted) {
     text-decoration: line-through;
-    color: light-dark(var(--mantine-color-red-7), var(--mantine-color-red-4));
-    background: light-dark(var(--mantine-color-red-0), rgba(255, 0, 0, 0.1));
-    border-radius: rem(2px);
-    padding: 0 rem(2px);
+    color: light-dark(#82071e, #ffa198);
+    background: light-dark(
+      rgba(248, 81, 73, 0.18),
+      rgba(248, 81, 73, 0.22)
+    );
+    box-shadow: inset rem(3px) 0 0 0
+      light-dark(var(--mantine-color-red-7), var(--mantine-color-red-5));
+    padding: 0 rem(3px) 0 rem(6px);
   }
 
   & :global(.history-diff-node-added) {
     outline: rem(2px) solid
-      light-dark(var(--mantine-color-teal-5), var(--mantine-color-teal-7));
+      light-dark(var(--mantine-color-green-6), var(--mantine-color-green-5));
     outline-offset: rem(2px);
     border-radius: rem(4px);
+    box-shadow: inset 0 0 0 9999px
+      light-dark(rgba(46, 160, 67, 0.08), rgba(63, 185, 80, 0.1));
   }
 
   & :global(.history-diff-node-deleted) {
-    opacity: 0.5;
+    opacity: 0.6;
     outline: rem(2px) dashed
-      light-dark(var(--mantine-color-red-4), var(--mantine-color-red-6));
+      light-dark(var(--mantine-color-red-6), var(--mantine-color-red-5));
     outline-offset: rem(4px);
     border-radius: rem(4px);
+    box-shadow: inset 0 0 0 9999px
+      light-dark(rgba(248, 81, 73, 0.08), rgba(248, 81, 73, 0.1));
   }
+}
+
+.diffLegend {
+  display: flex;
+  align-items: center;
+  gap: rem(14px);
+}
+
+.diffLegendDot {
+  display: inline-block;
+  width: rem(10px);
+  height: rem(10px);
+  border-radius: rem(2px);
+  margin-right: rem(4px);
+}
+
+.diffLegendAdded {
+  background: light-dark(
+    var(--mantine-color-green-6),
+    var(--mantine-color-green-5)
+  );
+}
+
+.diffLegendRemoved {
+  background: light-dark(var(--mantine-color-red-6), var(--mantine-color-red-5));
+}
+
+.sideBySidePane {
+  flex: 1;
+  min-width: 0;
+}
+
+.sideBySideHeader {
+  display: flex;
+  align-items: center;
+  gap: rem(8px);
+  padding-bottom: rem(8px);
+  margin-bottom: rem(8px);
+  border-bottom: rem(1px) solid
+    light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-4));
 }
 
 .active {
