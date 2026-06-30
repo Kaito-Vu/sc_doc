@@ -201,8 +201,10 @@ function HistoryList({ pageId }: Props) {
     [setCompareSelection],
   );
 
-  const handleConfirmCompare = useCallback(() => {
-    if (compareSelection.length !== 2) return;
+  // auto-apply the comparison the instant exactly 2 revisions are selected —
+  // stays on the Compare tab so the user can keep adjusting their picks
+  useEffect(() => {
+    if (!compareMode || compareSelection.length !== 2) return;
     const [a, b] = compareSelection;
     const itemA = displayItemsById.get(a);
     const itemB = displayItemsById.get(b);
@@ -218,15 +220,12 @@ function HistoryList({ pageId }: Props) {
     setActiveHistoryId(newerId);
     setActiveHistoryPrevId(olderId);
     setViewOnly(false);
-    setCompareMode(false);
-    setCompareSelection([]);
   }, [
+    compareMode,
     compareSelection,
     displayItemsById,
     setActiveHistoryId,
     setActiveHistoryPrevId,
-    setCompareMode,
-    setCompareSelection,
     setViewOnly,
   ]);
 
@@ -295,7 +294,10 @@ function HistoryList({ pageId }: Props) {
 
       {compareMode && (
         <Text size="xs" c="dimmed" px="xs" mb="xs">
-          {t("Select 2 revisions to compare")} ({compareSelection.length}/2)
+          {compareSelection.length === 2
+            ? t("Comparing the 2 selected revisions")
+            : t("Select 2 revisions to compare")}{" "}
+          ({compareSelection.length}/2)
         </Text>
       )}
 
@@ -341,15 +343,17 @@ function HistoryList({ pageId }: Props) {
       {compareMode ? (
         <Group p="xs" wrap="nowrap">
           <Button variant="default" size="compact-md" onClick={handleCancelCompare}>
-            {t("Cancel")}
+            {t("Exit compare mode")}
           </Button>
-          <Button
-            size="compact-md"
-            disabled={compareSelection.length !== 2}
-            onClick={handleConfirmCompare}
-          >
-            {t("Compare")}
-          </Button>
+          {compareSelection.length === 2 && (
+            <Button
+              variant="subtle"
+              size="compact-md"
+              onClick={() => setCompareSelection([])}
+            >
+              {t("Pick again")}
+            </Button>
+          )}
         </Group>
       ) : (
         canRestore && (

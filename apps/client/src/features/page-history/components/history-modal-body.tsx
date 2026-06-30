@@ -77,18 +77,36 @@ export default function HistoryModalBody({ pageId }: Props) {
 
       <div style={{ position: "relative", flex: 1 }}>
         {isComparing && (
-          <Text
-            size="xs"
-            c="dimmed"
+          <Group
+            justify="space-between"
+            wrap="nowrap"
             px="xl"
             pt="sm"
             style={{ position: "sticky", top: 0, zIndex: 1 }}
           >
-            {t("Comparing")}{" "}
-            <b>{revisionLabel(activeHistoryPrevId, t, prevData)}</b>
-            {" → "}
-            <b>{revisionLabel(activeHistoryId, t, activeData)}</b>
-          </Text>
+            <Text size="xs" c="dimmed">
+              {t("Comparing")}{" "}
+              <b>{revisionLabel(activeHistoryPrevId, t, prevData)}</b>
+              {" → "}
+              <b>{revisionLabel(activeHistoryId, t, activeData)}</b>
+            </Text>
+            {highlightChanges && (
+              <Group className={classes.diffLegend} wrap="nowrap">
+                <Text size="xs" c="dimmed">
+                  <span
+                    className={`${classes.diffLegendDot} ${classes.diffLegendAdded}`}
+                  />
+                  {t("Added")}
+                </Text>
+                <Text size="xs" c="dimmed">
+                  <span
+                    className={`${classes.diffLegendDot} ${classes.diffLegendRemoved}`}
+                  />
+                  {t("Removed")}
+                </Text>
+              </Group>
+            )}
+          </Group>
         )}
         <ScrollArea
           h={650}

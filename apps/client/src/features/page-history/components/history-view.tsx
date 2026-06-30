@@ -5,10 +5,24 @@ import { useAtomValue } from "jotai";
 import {
   activeHistoryIdAtom,
   activeHistoryPrevIdAtom,
+  CURRENT_VERSION_ID,
   diffViewModeAtom,
   viewOnlyModeAtom,
 } from "@/features/page-history/atoms/history-atoms";
 import { useHistoryItemContent } from "@/features/page-history/hooks";
+import { formattedDate } from "@/lib/time";
+import { IPageHistory } from "@/features/page-history/types/page.types";
+
+function revisionLabel(
+  t: (key: string) => string,
+  data?: Pick<IPageHistory, "createdAt" | "contentHash" | "isCurrent">,
+) {
+  if (!data) return "";
+  if (data.isCurrent) return t("Current version");
+  return `${formattedDate(new Date(data.createdAt))}${
+    data.contentHash ? ` (#${data.contentHash})` : ""
+  }`;
+}
 
 function HistoryView() {
   const { t } = useTranslation();
@@ -43,9 +57,17 @@ function HistoryView() {
       <div>
         <HistoryEditorSideBySide
           content={data.content}
-          title={data.title}
           previousContent={prevData.content}
-          previousTitle={prevData.title}
+          rightLabel={revisionLabel(t, {
+            createdAt: data.createdAt,
+            contentHash: data.contentHash,
+            isCurrent: historyId === CURRENT_VERSION_ID,
+          })}
+          leftLabel={revisionLabel(t, {
+            createdAt: prevData.createdAt,
+            contentHash: prevData.contentHash,
+            isCurrent: prevHistoryId === CURRENT_VERSION_ID,
+          })}
         />
       </div>
     );

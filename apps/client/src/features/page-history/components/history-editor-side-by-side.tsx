@@ -2,23 +2,26 @@ import "@/features/editor/styles/index.css";
 import { useEffect } from "react";
 import { EditorContent, useEditor } from "@tiptap/react";
 import { mainExtensions } from "@/features/editor/extensions/extensions";
-import { Title, Group, Divider } from "@mantine/core";
+import { Badge, Group, Divider, Text } from "@mantine/core";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
 import historyClasses from "./css/history.module.css";
 import { recreateTransform } from "@docmost/editor-ext";
 import { Node } from "@tiptap/pm/model";
 import { ChangeSet, simplifyChanges } from "@tiptap/pm/changeset";
 import { useAtom } from "jotai";
+import { useTranslation } from "react-i18next";
 import {
   diffCountsAtom,
   highlightChangesAtom,
 } from "@/features/page-history/atoms/history-atoms";
 
 export interface HistoryEditorSideBySideProps {
-  title: string;
-  previousTitle?: string;
   content: any;
   previousContent: any;
+  /** human-readable label for the new/right side, e.g. "Jun 27, 11:27AM (#efcbb05d)" or "Current version" */
+  rightLabel: string;
+  /** human-readable label for the old/left side */
+  leftLabel: string;
 }
 
 // Renders the same diff as HistoryEditor, but as two read-only panes instead
@@ -27,11 +30,12 @@ export interface HistoryEditorSideBySideProps {
 // highlighted in place. Reuses the same recreateTransform()/ChangeSet diff
 // computation as the inline view — only how the changes are decorated differs.
 export function HistoryEditorSideBySide({
-  title,
-  previousTitle,
   content,
   previousContent,
+  rightLabel,
+  leftLabel,
 }: Readonly<HistoryEditorSideBySideProps>) {
+  const { t } = useTranslation();
   const [highlightChanges] = useAtom(highlightChangesAtom);
   const [, setDiffCounts] = useAtom(diffCountsAtom);
 
@@ -130,8 +134,8 @@ export function HistoryEditorSideBySide({
       },
     });
   }, [
-    title,
-    previousTitle,
+    rightLabel,
+    leftLabel,
     content,
     previousContent,
     leftEditor,
@@ -142,8 +146,15 @@ export function HistoryEditorSideBySide({
 
   return (
     <Group align="flex-start" wrap="nowrap" gap="md" style={{ width: "100%" }}>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <Title order={2}>{previousTitle ?? title}</Title>
+      <div className={historyClasses.sideBySidePane}>
+        <div className={historyClasses.sideBySideHeader}>
+          <Badge color="red" variant="filled" size="sm" radius="sm">
+            {t("OLD")}
+          </Badge>
+          <Text size="sm" fw={500} truncate>
+            {leftLabel}
+          </Text>
+        </div>
         {leftEditor && (
           <EditorContent
             editor={leftEditor}
@@ -152,8 +163,15 @@ export function HistoryEditorSideBySide({
         )}
       </div>
       <Divider orientation="vertical" />
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <Title order={2}>{title}</Title>
+      <div className={historyClasses.sideBySidePane}>
+        <div className={historyClasses.sideBySideHeader}>
+          <Badge color="green" variant="filled" size="sm" radius="sm">
+            {t("NEW")}
+          </Badge>
+          <Text size="sm" fw={500} truncate>
+            {rightLabel}
+          </Text>
+        </div>
         {rightEditor && (
           <EditorContent
             editor={rightEditor}
