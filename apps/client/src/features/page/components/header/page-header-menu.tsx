@@ -1,4 +1,12 @@
-import { ActionIcon, Group, Menu, Text, ThemeIcon, Tooltip } from "@mantine/core";
+import {
+  ActionIcon,
+  Badge,
+  Group,
+  Menu,
+  Text,
+  ThemeIcon,
+  Tooltip,
+} from "@mantine/core";
 import {
   IconArrowRight,
   IconArrowsHorizontal,
@@ -22,6 +30,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { useAsideTriggerProps } from "@/hooks/use-toggle-aside.tsx";
 import { useAtom, useAtomValue } from "jotai";
 import { historyAtoms } from "@/features/page-history/atoms/history-atoms.ts";
+import { useLatestPageHistoryHash } from "@/features/page-history/queries/page-history-query";
 import { useDisclosure, useHotkeys } from "@mantine/hooks";
 import { useClipboard } from "@/hooks/use-clipboard";
 import { useParams } from "react-router-dom";
@@ -76,6 +85,8 @@ export default function PageHeaderMenu({ readOnly }: PageHeaderMenuProps) {
     pageId: extractPageSlugId(pageSlug),
   });
   const isDeleted = !!page?.deletedAt;
+  const [, setHistoryModalOpen] = useAtom(historyAtoms);
+  const { data: latestHash } = useLatestPageHistoryHash(page?.id ?? "");
 
   useHotkeys(
     [
@@ -109,6 +120,27 @@ export default function PageHeaderMenu({ readOnly }: PageHeaderMenuProps) {
       {!readOnly && !page?.isBase && <PageEditModeToggle size="xs" />}
 
       <PageShareModal readOnly={readOnly} />
+
+      {!page?.isBase && latestHash && (
+        <Tooltip
+          label={t("Latest revision #{{hash}} — click to view history", {
+            hash: latestHash,
+          })}
+          openDelay={250}
+          withArrow
+        >
+          <Badge
+            variant="outline"
+            color="red"
+            size="sm"
+            radius="sm"
+            style={{ fontFamily: "monospace", cursor: "pointer" }}
+            onClick={() => setHistoryModalOpen(true)}
+          >
+            {latestHash}
+          </Badge>
+        </Tooltip>
+      )}
 
       <Tooltip label={t("Comments")} openDelay={250} withArrow>
         <ActionIcon

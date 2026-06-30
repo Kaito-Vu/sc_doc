@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectKysely } from 'nestjs-kysely';
+import { computePageHistoryContentHash } from '../../../common/helpers/page-history-hash';
 import { KyselyDB, KyselyTransaction } from '../../types/kysely.types';
 import { dbOrTx } from '../../utils';
 import {
@@ -17,7 +18,7 @@ import { DB } from '@docmost/db/types/db';
 export class PageHistoryRepo {
   constructor(@InjectKysely() private readonly db: KyselyDB) {}
 
-  private baseFields: Array<keyof PageHistory> = [
+  private readonly baseFields: Array<keyof PageHistory> = [
     'id',
     'pageId',
     'slugId',
@@ -29,6 +30,7 @@ export class PageHistoryRepo {
     'spaceId',
     'workspaceId',
     'createdAt',
+    'contentHash',
   ];
 
   async findById(
@@ -57,7 +59,12 @@ export class PageHistoryRepo {
     const db = dbOrTx(this.db, trx);
     return db
       .insertInto('pageHistory')
-      .values(insertablePageHistory)
+      .values({
+        ...insertablePageHistory,
+        contentHash:
+          insertablePageHistory.contentHash ??
+          computePageHistoryContentHash(insertablePageHistory.content),
+      })
       .returningAll()
       .executeTakeFirst();
   }
@@ -65,8 +72,8 @@ export class PageHistoryRepo {
   async saveHistory(
     page: Page,
     opts?: { contributorIds?: string[]; trx?: KyselyTransaction },
-  ): Promise<void> {
-    await this.insertPageHistory(
+  ): Promise<PageHistory> {
+    return this.insertPageHistory(
       {
         pageId: page.id,
         slugId: page.slugId,

@@ -13,10 +13,12 @@ export interface IPageHistory {
   icon: string;
   coverPhoto: string;
   version: number;
+  contentHash?: string;
   lastUpdatedById: string;
   workspaceId: string;
   createdAt: string;
   updatedAt: string;
   lastUpdatedBy: IPageHistoryUser;
   contributors?: IPageHistoryUser[];
+  isCurrent?: boolean;
 }

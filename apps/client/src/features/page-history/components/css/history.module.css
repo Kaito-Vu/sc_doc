@@ -24,6 +24,15 @@
     box-decoration-break: clone;
   }
 
+  & :global(.history-diff-removed-side) {
+    text-decoration: line-through;
+    color: light-dark(var(--mantine-color-red-7), var(--mantine-color-red-4));
+    background: light-dark(var(--mantine-color-red-0), rgba(255, 0, 0, 0.1));
+    border-radius: rem(2px);
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
+  }
+
   & :global(.history-diff-deleted) {
     text-decoration: line-through;
     color: light-dark(var(--mantine-color-red-7), var(--mantine-color-red-4));
@@ -53,6 +62,90 @@
     var(--mantine-color-gray-2),
     var(--mantine-color-dark-8)
   );
+}
+
+.selected {
+  background-color: light-dark(
+    var(--mantine-color-blue-0),
+    var(--mantine-color-dark-6)
+  );
+  outline: rem(1.5px) solid var(--mantine-color-blue-5);
+  outline-offset: rem(-1.5px);
+}
+
+.dateGroupLabel {
+  font-size: rem(11px);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: light-dark(var(--mantine-color-gray-6), var(--mantine-color-dark-2));
+  padding: rem(10px) rem(12px) rem(4px);
+}
+
+.timelineRow {
+  display: flex;
+  align-items: flex-start;
+  gap: rem(10px);
+  width: 100%;
+  padding: rem(8px) rem(12px);
+  text-align: left;
+  border-radius: var(--mantine-radius-sm);
+  color: light-dark(var(--mantine-color-black), var(--mantine-color-dark-0));
+
+  @mixin hover {
+    background-color: light-dark(
+      var(--mantine-color-gray-1),
+      var(--mantine-color-dark-7)
+    );
+  }
+}
+
+.timelineRail {
+  position: relative;
+  width: rem(10px);
+  align-self: stretch;
+  display: flex;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.timelineRail::before {
+  content: "";
+  position: absolute;
+  top: rem(4px);
+  bottom: rem(-16px);
+  width: rem(1.5px);
+  background: light-dark(
+    var(--mantine-color-gray-3),
+    var(--mantine-color-dark-4)
+  );
+}
+
+.timelineRow:last-child .timelineRail::before {
+  display: none;
+}
+
+.timelineDot {
+  position: relative;
+  z-index: 1;
+  margin-top: rem(4px);
+  width: rem(9px);
+  height: rem(9px);
+  border-radius: 50%;
+  background: light-dark(
+    var(--mantine-color-gray-4),
+    var(--mantine-color-dark-3)
+  );
+  border: rem(2px) solid light-dark(white, var(--mantine-color-dark-7));
+}
+
+.timelineDotActive {
+  background: var(--mantine-color-blue-6);
+}
+
+.timelineContent {
+  flex: 1;
+  min-width: 0;
 }
 
 .sidebar {

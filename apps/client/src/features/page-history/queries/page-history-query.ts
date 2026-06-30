@@ -14,6 +14,13 @@ import { IPagination } from "@/lib/types.ts";
 import { queryClient } from "@/main";
 
 const HISTORY_STALE_TIME = 60 * 60 * 1000;
+const LATEST_HASH_REFETCH_MS = 30 * 1000;
+
+export function invalidatePageHistoryCache(pageId: string) {
+  if (!pageId) return;
+  queryClient.invalidateQueries({ queryKey: ["page-history-latest-hash", pageId] });
+  queryClient.invalidateQueries({ queryKey: ["page-history-list", pageId] });
+}
 
 export function prefetchPageHistory(historyId: string) {
   return queryClient.prefetchQuery({
@@ -44,5 +51,23 @@ export function usePageHistoryQuery(
     queryFn: () => getPageHistoryById(historyId),
     enabled: !!historyId,
     staleTime: HISTORY_STALE_TIME,
+  });
+}
+
+// lightweight lookup used for the header hash chip — fetches only the most
+// recent revision (limit 1), no content payload
+export function useLatestPageHistoryHash(
+  pageId: string,
+): UseQueryResult<string | null, Error> {
+  return useQuery({
+    queryKey: ["page-history-latest-hash", pageId],
+    queryFn: async () => {
+      const res = await getPageHistoryList(pageId, undefined, 1);
+      return res.items?.[0]?.contentHash ?? null;
+    },
+    enabled: !!pageId,
+    staleTime: 30 * 1000,
+    refetchInterval: LATEST_HASH_REFETCH_MS,
+    refetchOnWindowFocus: true,
   });
 }

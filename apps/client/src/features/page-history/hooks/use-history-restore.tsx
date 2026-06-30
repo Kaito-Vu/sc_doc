@@ -1,5 +1,5 @@
-import { useAtom, useAtomValue, useSetAtom } from "jotai";
-import { useCallback } from "react";
+import { useAtomValue, useSetAtom } from "jotai";
+import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Text } from "@mantine/core";
 import { modals } from "@mantine/modals";
@@ -9,11 +9,9 @@ import {
   activeHistoryIdAtom,
   historyAtoms,
 } from "@/features/page-history/atoms/history-atoms";
-import { usePageHistoryQuery } from "@/features/page-history/queries/page-history-query";
-import {
-  pageEditorAtom,
-  titleEditorAtom,
-} from "@/features/editor/atoms/editor-atoms";
+import { restorePageHistory } from "@/features/page-history/services/page-history-service";
+import { invalidatePageHistoryCache } from "@/features/page-history/queries/page-history-query";
+import { extractPageSlugId } from "@/lib";
 import { useSpaceAbility } from "@/features/space/permissions/use-space-ability";
 import { useSpaceQuery } from "@/features/space/queries/space-query";
 import {
@@ -25,13 +23,11 @@ export function useHistoryRestore() {
   const { t } = useTranslation();
 
   const activeHistoryId = useAtomValue(activeHistoryIdAtom);
-  const { data: activeHistoryData } = usePageHistoryQuery(activeHistoryId);
-
-  const mainEditor = useAtomValue(pageEditorAtom);
-  const mainEditorTitle = useAtomValue(titleEditorAtom);
   const setHistoryModalOpen = useSetAtom(historyAtoms);
+  const [isRestoring, setIsRestoring] = useState(false);
 
-  const { spaceSlug } = useParams();
+  const { spaceSlug, pageSlug } = useParams();
+  const pageId = extractPageSlugId(pageSlug);
   const { data: space } = useSpaceQuery(spaceSlug);
   const spaceAbility = useSpaceAbility(space?.membership?.permissions);
 
@@ -40,32 +36,26 @@ export function useHistoryRestore() {
     SpaceCaslSubject.Page,
   );
 
-  const handleRestore = useCallback(() => {
-    if (!activeHistoryData) return;
-    if (
-      !mainEditor ||
-      mainEditor.isDestroyed ||
-      !mainEditorTitle ||
-      mainEditorTitle.isDestroyed
-    ) {
-      return;
+  const handleRestore = useCallback(async () => {
+    if (!activeHistoryId) return;
+
+    setIsRestoring(true);
+    try {
+      // server-side restore: it snapshots the current live content before
+      // overwriting it, so no unsaved/very-recent edits can be lost
+      await restorePageHistory(activeHistoryId);
+      invalidatePageHistoryCache(pageId);
+      setHistoryModalOpen(false);
+      notifications.show({ message: t("Successfully restored") });
+    } catch (err: any) {
+      notifications.show({
+        color: "red",
+        message: err?.response?.data?.message ?? t("Failed to restore version"),
+      });
+    } finally {
+      setIsRestoring(false);
     }
-
-    mainEditorTitle
-      .chain()
-      .clearContent()
-      .setContent(activeHistoryData.title, { emitUpdate: true })
-      .run();
-
-    mainEditor
-      .chain()
-      .clearContent()
-      .setContent(activeHistoryData.content)
-      .run();
-
-    setHistoryModalOpen(false);
-    notifications.show({ message: t("Successfully restored") });
-  }, [activeHistoryData, mainEditor, mainEditorTitle, setHistoryModalOpen, t]);
+  }, [activeHistoryId, pageId, setHistoryModalOpen, t]);
 
   const confirmRestore = useCallback(() => {
     modals.openConfirmModal({
@@ -82,5 +72,5 @@ export function useHistoryRestore() {
     });
   }, [t, handleRestore]);
 
-  return { canRestore, confirmRestore };
+  return { canRestore, confirmRestore, isRestoring };
 }

@@ -1,0 +1,166 @@
+import "@/features/editor/styles/index.css";
+import { useEffect } from "react";
+import { EditorContent, useEditor } from "@tiptap/react";
+import { mainExtensions } from "@/features/editor/extensions/extensions";
+import { Title, Group, Divider } from "@mantine/core";
+import { Decoration, DecorationSet } from "@tiptap/pm/view";
+import historyClasses from "./css/history.module.css";
+import { recreateTransform } from "@docmost/editor-ext";
+import { Node } from "@tiptap/pm/model";
+import { ChangeSet, simplifyChanges } from "@tiptap/pm/changeset";
+import { useAtom } from "jotai";
+import {
+  diffCountsAtom,
+  highlightChangesAtom,
+} from "@/features/page-history/atoms/history-atoms";
+
+export interface HistoryEditorSideBySideProps {
+  title: string;
+  previousTitle?: string;
+  content: any;
+  previousContent: any;
+}
+
+// Renders the same diff as HistoryEditor, but as two read-only panes instead
+// of one merged document: the left pane is the old revision with deletions
+// highlighted in place, the right pane is the new revision with additions
+// highlighted in place. Reuses the same recreateTransform()/ChangeSet diff
+// computation as the inline view — only how the changes are decorated differs.
+export function HistoryEditorSideBySide({
+  title,
+  previousTitle,
+  content,
+  previousContent,
+}: Readonly<HistoryEditorSideBySideProps>) {
+  const [highlightChanges] = useAtom(highlightChangesAtom);
+  const [, setDiffCounts] = useAtom(diffCountsAtom);
+
+  const leftEditor = useEditor({ extensions: mainExtensions, editable: false });
+  const rightEditor = useEditor({ extensions: mainExtensions, editable: false });
+
+  useEffect(() => {
+    if (
+      !leftEditor ||
+      leftEditor.isDestroyed ||
+      !rightEditor ||
+      rightEditor.isDestroyed ||
+      !content ||
+      !previousContent
+    ) {
+      return;
+    }
+
+    let leftDecorationSet = DecorationSet.empty;
+    let rightDecorationSet = DecorationSet.empty;
+    let addedCount = 0;
+    let deletedCount = 0;
+
+    try {
+      const schema = leftEditor.schema;
+      const oldContent = Node.fromJSON(schema, previousContent);
+      const newContent = Node.fromJSON(schema, content);
+
+      const tr = recreateTransform(oldContent, newContent, {
+        complexSteps: false,
+        wordDiffs: true,
+        simplifyDiff: true,
+      });
+
+      const changeSet = ChangeSet.create(oldContent).addSteps(
+        tr.doc,
+        tr.mapping.maps,
+        [],
+      );
+      const changes = simplifyChanges(changeSet.changes, newContent);
+
+      leftEditor.commands.setContent(previousContent);
+      rightEditor.commands.setContent(content);
+
+      const leftDecorations: Decoration[] = [];
+      const rightDecorations: Decoration[] = [];
+      let changeIndex = 0;
+
+      for (const change of changes) {
+        if (change.toB > change.fromB) {
+          changeIndex++;
+          rightDecorations.push(
+            Decoration.inline(change.fromB, change.toB, {
+              class: "history-diff-added",
+              "data-diff-index": String(changeIndex),
+            }),
+          );
+          addedCount += 1;
+        }
+        if (change.toA > change.fromA) {
+          changeIndex++;
+          leftDecorations.push(
+            Decoration.inline(change.fromA, change.toA, {
+              class: "history-diff-removed-side",
+              "data-diff-index": String(changeIndex),
+            }),
+          );
+          deletedCount += 1;
+        }
+      }
+
+      leftDecorationSet = DecorationSet.create(oldContent, leftDecorations);
+      rightDecorationSet = DecorationSet.create(newContent, rightDecorations);
+    } catch (e) {
+      console.error("Side-by-side history diff failed:", e);
+      leftEditor.commands.setContent(previousContent);
+      rightEditor.commands.setContent(content);
+    }
+
+    const total = addedCount + deletedCount;
+    // @ts-ignore
+    setDiffCounts({ added: addedCount, deleted: deletedCount, total });
+
+    leftEditor.setOptions({
+      editorProps: {
+        ...leftEditor.options.editorProps,
+        decorations: () =>
+          highlightChanges ? leftDecorationSet : DecorationSet.empty,
+      },
+    });
+    rightEditor.setOptions({
+      editorProps: {
+        ...rightEditor.options.editorProps,
+        decorations: () =>
+          highlightChanges ? rightDecorationSet : DecorationSet.empty,
+      },
+    });
+  }, [
+    title,
+    previousTitle,
+    content,
+    previousContent,
+    leftEditor,
+    rightEditor,
+    highlightChanges,
+    setDiffCounts,
+  ]);
+
+  return (
+    <Group align="flex-start" wrap="nowrap" gap="md" style={{ width: "100%" }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <Title order={2}>{previousTitle ?? title}</Title>
+        {leftEditor && (
+          <EditorContent
+            editor={leftEditor}
+            className={historyClasses.historyEditor}
+          />
+        )}
+      </div>
+      <Divider orientation="vertical" />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <Title order={2}>{title}</Title>
+        {rightEditor && (
+          <EditorContent
+            editor={rightEditor}
+            className={historyClasses.historyEditor}
+          />
+        )}
+      </div>
+    </Group>
+  );
+}
