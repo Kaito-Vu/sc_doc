@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectKysely } from 'nestjs-kysely';
-import { createHash } from 'node:crypto';
+import { computePageHistoryContentHash } from '../../../common/helpers/page-history-hash';
 import { KyselyDB, KyselyTransaction } from '../../types/kysely.types';
 import { dbOrTx } from '../../utils';
 import {
@@ -18,7 +18,7 @@ import { DB } from '@docmost/db/types/db';
 export class PageHistoryRepo {
   constructor(@InjectKysely() private readonly db: KyselyDB) {}
 
-  private baseFields: Array<keyof PageHistory> = [
+  private readonly baseFields: Array<keyof PageHistory> = [
     'id',
     'pageId',
     'slugId',
@@ -63,7 +63,7 @@ export class PageHistoryRepo {
         ...insertablePageHistory,
         contentHash:
           insertablePageHistory.contentHash ??
-          this.computeContentHash(insertablePageHistory.content),
+          computePageHistoryContentHash(insertablePageHistory.content),
       })
       .returningAll()
       .executeTakeFirst();
@@ -88,13 +88,6 @@ export class PageHistoryRepo {
       },
       opts?.trx,
     );
-  }
-
-  private computeContentHash(content: unknown): string {
-    return createHash('sha256')
-      .update(JSON.stringify(content ?? null))
-      .digest('hex')
-      .slice(0, 8);
   }
 
   async findPageHistoryByPageId(pageId: string, pagination: PaginationOptions) {

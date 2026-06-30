@@ -3,7 +3,8 @@ import { useEffect } from "react";
 import {
   activeHistoryIdAtom,
   activeHistoryPrevIdAtom,
-  comparePickModeAtom,
+  compareModeAtom,
+  compareSelectionAtom,
   diffCountsAtom,
   viewOnlyModeAtom,
 } from "@/features/page-history/atoms/history-atoms";
@@ -17,13 +18,15 @@ export function useHistoryReset(pageId: string) {
   const [, setActiveHistoryPrevId] = useAtom(activeHistoryPrevIdAtom);
   const [, setDiffCounts] = useAtom(diffCountsAtom);
   const [, setViewOnly] = useAtom(viewOnlyModeAtom);
-  const [, setComparePickMode] = useAtom(comparePickModeAtom);
+  const [, setCompareMode] = useAtom(compareModeAtom);
+  const [, setCompareSelection] = useAtom(compareSelectionAtom);
 
   useEffect(() => {
     setActiveHistoryId("");
     setActiveHistoryPrevId("");
     setViewOnly(false);
-    setComparePickMode(false);
+    setCompareMode(false);
+    setCompareSelection([]);
     // @ts-ignore
     setDiffCounts(null);
   }, [
@@ -32,6 +35,7 @@ export function useHistoryReset(pageId: string) {
     setActiveHistoryPrevId,
     setDiffCounts,
     setViewOnly,
-    setComparePickMode,
+    setCompareMode,
+    setCompareSelection,
   ]);
 }

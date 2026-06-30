@@ -1,9 +1,11 @@
 import { HistoryEditor } from "@/features/page-history/components/history-editor";
+import { HistoryEditorSideBySide } from "@/features/page-history/components/history-editor-side-by-side";
 import { useTranslation } from "react-i18next";
 import { useAtomValue } from "jotai";
 import {
   activeHistoryIdAtom,
   activeHistoryPrevIdAtom,
+  diffViewModeAtom,
   viewOnlyModeAtom,
 } from "@/features/page-history/atoms/history-atoms";
 import { useHistoryItemContent } from "@/features/page-history/hooks";
@@ -13,6 +15,7 @@ function HistoryView() {
   const historyId = useAtomValue(activeHistoryIdAtom);
   const prevHistoryId = useAtomValue(activeHistoryPrevIdAtom);
   const viewOnly = useAtomValue(viewOnlyModeAtom);
+  const diffViewMode = useAtomValue(diffViewModeAtom);
 
   const {
     data,
@@ -33,14 +36,27 @@ function HistoryView() {
     return <div>{t("Error fetching page data.")}</div>;
   }
 
+  const hasComparison = !viewOnly && !isErrorPrev && !!prevData?.content;
+
+  if (hasComparison && diffViewMode === "side-by-side") {
+    return (
+      <div>
+        <HistoryEditorSideBySide
+          content={data.content}
+          title={data.title}
+          previousContent={prevData.content}
+          previousTitle={prevData.title}
+        />
+      </div>
+    );
+  }
+
   return (
     <div>
       <HistoryEditor
         content={data.content}
         title={data.title}
-        previousContent={
-          !viewOnly && !isErrorPrev ? prevData?.content : undefined
-        }
+        previousContent={hasComparison ? prevData?.content : undefined}
       />
     </div>
   );

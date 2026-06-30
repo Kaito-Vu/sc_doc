@@ -82,6 +82,25 @@ Added `.pickSource` / `.pickTarget` classes for the compare-pick visual states a
 - Shows a sticky "Comparing `<left>` → `<right>`" label above the diff pane whenever two sides are selected (and not in view-only mode), using `useHistoryItemContent` for both sides — reuses the same React Query cache key `HistoryView` already populated, so this adds no extra network requests.
 - `revisionLabel()` formats a revision as its date + `#hash` (or "Current version" for the synthetic row).
 
+### New: `apps/client/src/features/page-history/components/history-editor-side-by-side.tsx`
+`HistoryEditorSideBySide({ title, previousTitle, content, previousContent })` — renders two independent read-only TipTap editor instances side by side (`Group` + `Divider orientation="vertical"`). Runs the identical `recreateTransform()` → `ChangeSet.create().addSteps()` → `simplifyChanges()` pipeline as `HistoryEditor`, but instead of merging both versions into one document with widgets for deleted text, it decorates each side's *own* native content range directly:
+- Left pane (`previousContent`): `Decoration.inline(change.fromA, change.toA, { class: "history-diff-removed-side" })` for deleted ranges.
+- Right pane (`content`): `Decoration.inline(change.fromB, change.toB, { class: "history-diff-added" })` for added ranges (reuses the existing `.history-diff-added` class).
+
+`diffCountsAtom` is populated identically to the inline view, so the existing prev/next change navigation toolbar in `history-modal-body.tsx` works unchanged for both modes.
+
+### `apps/client/src/features/page-history/components/css/history.module.css`
+Added `.history-diff-removed-side` (red background + strikethrough, no widget — applied to the old doc's own text in place, unlike `.history-diff-deleted` which decorates synthetic widget spans injected into the merged inline view).
+
+### `apps/client/src/features/page-history/atoms/history-atoms.ts`
+Added `DiffViewMode = "inline" | "side-by-side"` and `diffViewModeAtom` (default `"inline"`).
+
+### `apps/client/src/features/page-history/components/history-view.tsx`
+Branches on `diffViewModeAtom`: renders `HistoryEditorSideBySide` when mode is `"side-by-side"` AND a comparison is active (`hasComparison`); otherwise falls back to the existing `HistoryEditor` (inline) — side-by-side is meaningless in view-only mode (no second revision to compare), so the fallback also covers that case automatically.
+
+### `apps/client/src/features/page-history/components/history-modal-body.tsx`
+Added a Mantine `SegmentedControl` ("Inline" / "Side by side") next to the existing "Highlight changes" switch, only rendered while `activeHistoryId && activeHistoryPrevId` are both set (i.e. only when a comparison is actually showing) — matches where the switch itself was already gated.
+
 ## Things intentionally left as-is
 
 - `HistoryEditor` / `use-diff-navigation.ts` — zero changes; the diffing algorithm was already pair-agnostic (see [ARCHITECTURE.md](ARCHITECTURE.md#diff-engine--unchanged)).

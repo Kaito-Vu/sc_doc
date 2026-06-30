@@ -3,6 +3,7 @@ import {
   Group,
   Paper,
   ScrollArea,
+  SegmentedControl,
   Switch,
   Text,
 } from "@mantine/core";
@@ -14,6 +15,8 @@ import {
   activeHistoryPrevIdAtom,
   CURRENT_VERSION_ID,
   diffCountsAtom,
+  diffViewModeAtom,
+  DiffViewMode,
   highlightChangesAtom,
   viewOnlyModeAtom,
 } from "@/features/page-history/atoms/history-atoms";
@@ -52,6 +55,7 @@ export default function HistoryModalBody({ pageId }: Props) {
   const activeHistoryPrevId = useAtomValue(activeHistoryPrevIdAtom);
   const viewOnly = useAtomValue(viewOnlyModeAtom);
   const [highlightChanges, setHighlightChanges] = useAtom(highlightChangesAtom);
+  const [diffViewMode, setDiffViewMode] = useAtom(diffViewModeAtom);
   const diffCounts = useAtomValue(diffCountsAtom);
 
   const { data: activeData } = useHistoryItemContent(activeHistoryId);
@@ -111,6 +115,15 @@ export default function HistoryModalBody({ pageId }: Props) {
             }}
           >
             <Group gap="md" wrap="nowrap">
+              <SegmentedControl
+                size="xs"
+                value={diffViewMode}
+                onChange={(value) => setDiffViewMode(value as DiffViewMode)}
+                data={[
+                  { label: t("Inline"), value: "inline" },
+                  { label: t("Side by side"), value: "side-by-side" },
+                ]}
+              />
               <Switch
                 label={t("Highlight changes")}
                 checked={highlightChanges}

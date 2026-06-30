@@ -14,7 +14,9 @@
 - [x] Client: header hash chip — `useLatestPageHistoryHash` (lightweight, `limit: 1`, no content payload) + Badge in `page-header-menu.tsx` next to Share, click opens History modal
 - [x] Client: history list redesigned as a vertical timeline (Notion/Git-style) grouped by calendar day — date group headers, connecting rail + dot per revision (filled blue when active), `CURRENT` badge, hash chip, avatar/contributor row, italic "Add note..." placeholder on the Current row (display-only — no backend persistence for notes was implemented, see Open Questions)
 - [x] Client: `tsc --noEmit` clean
-- [x] GitNexus `detect_changes` vs `main`: 17 files / 38 symbols changed, **risk level: low**, scope confined to `page-history` + the single `page-header-menu.tsx` insertion point
+- [x] Client: side-by-side diff mode — new `HistoryEditorSideBySide` component (two read-only panes: old revision with deletions highlighted in place on the left, new revision with additions highlighted in place on the right), `SegmentedControl` toggle ("Inline" / "Side by side") in `history-modal-body.tsx`, new `diffViewModeAtom`. Reuses the exact same `recreateTransform()`/`ChangeSet` diff computation as the inline view — only the decoration placement differs (no widget-injection trick needed since each side renders its own native document)
+- [x] GitNexus `detect_changes` vs `HEAD` (this session's uncommitted edits only): 4 files / 2 symbols, **risk level: low**, 0 affected processes
+- [x] GitNexus `detect_changes` vs `main` (full cumulative branch diff, includes prior committed work from commit `9ff9b99e`): 42 files, **risk level: high**, 12 affected processes — expected for a full feature branch vs `main`, not a regression introduced this session; re-run this comparison again before the final PR to confirm nothing unexpected crept in
 
 ## Known issue fixed post-implementation
 

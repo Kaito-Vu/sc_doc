@@ -10,6 +10,8 @@ import {
   historyAtoms,
 } from "@/features/page-history/atoms/history-atoms";
 import { restorePageHistory } from "@/features/page-history/services/page-history-service";
+import { invalidatePageHistoryCache } from "@/features/page-history/queries/page-history-query";
+import { extractPageSlugId } from "@/lib";
 import { useSpaceAbility } from "@/features/space/permissions/use-space-ability";
 import { useSpaceQuery } from "@/features/space/queries/space-query";
 import {
@@ -24,7 +26,8 @@ export function useHistoryRestore() {
   const setHistoryModalOpen = useSetAtom(historyAtoms);
   const [isRestoring, setIsRestoring] = useState(false);
 
-  const { spaceSlug } = useParams();
+  const { spaceSlug, pageSlug } = useParams();
+  const pageId = extractPageSlugId(pageSlug);
   const { data: space } = useSpaceQuery(spaceSlug);
   const spaceAbility = useSpaceAbility(space?.membership?.permissions);
 
@@ -41,6 +44,7 @@ export function useHistoryRestore() {
       // server-side restore: it snapshots the current live content before
       // overwriting it, so no unsaved/very-recent edits can be lost
       await restorePageHistory(activeHistoryId);
+      invalidatePageHistoryCache(pageId);
       setHistoryModalOpen(false);
       notifications.show({ message: t("Successfully restored") });
     } catch (err: any) {
@@ -51,7 +55,7 @@ export function useHistoryRestore() {
     } finally {
       setIsRestoring(false);
     }
-  }, [activeHistoryId, setHistoryModalOpen, t]);
+  }, [activeHistoryId, pageId, setHistoryModalOpen, t]);
 
   const confirmRestore = useCallback(() => {
     modals.openConfirmModal({

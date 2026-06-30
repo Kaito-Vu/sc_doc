@@ -7,6 +7,7 @@ import {
   Badge,
   Menu,
   ActionIcon,
+  Checkbox,
 } from "@mantine/core";
 import { CustomAvatar } from "@/components/ui/custom-avatar.tsx";
 import classes from "./css/history.module.css";
@@ -34,9 +35,10 @@ interface HistoryItemProps {
   canRestore?: boolean;
   onView?: (id: string) => void;
   onCompareWithCurrent?: (id: string) => void;
-  onStartComparePick?: (id: string) => void;
-  isPickSource?: boolean;
-  isPickTarget?: boolean;
+  compareMode?: boolean;
+  isSelected?: boolean;
+  selectionDisabled?: boolean;
+  onToggleSelect?: (id: string) => void;
 }
 
 const HistoryItem = memo(function HistoryItem({
@@ -49,15 +51,20 @@ const HistoryItem = memo(function HistoryItem({
   canRestore,
   onView,
   onCompareWithCurrent,
-  onStartComparePick,
-  isPickSource,
-  isPickTarget,
+  compareMode,
+  isSelected,
+  selectionDisabled,
+  onToggleSelect,
 }: HistoryItemProps) {
   const { t } = useTranslation();
 
   const handleClick = useCallback(() => {
+    if (compareMode) {
+      onToggleSelect?.(historyItem.id);
+      return;
+    }
     onSelect(historyItem.id, index);
-  }, [onSelect, historyItem.id, index]);
+  }, [compareMode, onToggleSelect, onSelect, historyItem.id, index]);
 
   const handleMouseEnter = useCallback(() => {
     onHover?.(historyItem.id, index);
@@ -72,18 +79,29 @@ const HistoryItem = memo(function HistoryItem({
       onClick={handleClick}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={onHoverEnd}
+      disabled={compareMode && selectionDisabled && !isSelected}
       className={clsx(classes.timelineRow, {
-        [classes.active]: isActive,
-        [classes.pickSource]: isPickSource,
-        [classes.pickTarget]: isPickTarget,
+        [classes.active]: isActive && !compareMode,
+        [classes.selected]: compareMode && isSelected,
       })}
     >
       <div className={classes.timelineRail}>
-        <span
-          className={clsx(classes.timelineDot, {
-            [classes.timelineDotActive]: isActive,
-          })}
-        />
+        {compareMode ? (
+          <Checkbox
+            checked={!!isSelected}
+            disabled={selectionDisabled && !isSelected}
+            onChange={() => onToggleSelect?.(historyItem.id)}
+            onClick={(e) => e.stopPropagation()}
+            size="xs"
+            style={{ marginTop: 2 }}
+          />
+        ) : (
+          <span
+            className={clsx(classes.timelineDot, {
+              [classes.timelineDotActive]: isActive,
+            })}
+          />
+        )}
       </div>
 
       <div className={classes.timelineContent}>
@@ -110,8 +128,9 @@ const HistoryItem = memo(function HistoryItem({
               </Badge>
             )}
 
-            {!historyItem.isCurrent &&
-              (onView || onCompareWithCurrent || onStartComparePick || canRestore) && (
+            {!compareMode &&
+              !historyItem.isCurrent &&
+              (onView || onCompareWithCurrent || canRestore) && (
                 <Menu position="bottom-end" withinPortal>
                   <Menu.Target>
                     <ActionIcon
@@ -133,13 +152,6 @@ const HistoryItem = memo(function HistoryItem({
                         onClick={() => onCompareWithCurrent(historyItem.id)}
                       >
                         {t("Compare with current")}
-                      </Menu.Item>
-                    )}
-                    {onStartComparePick && (
-                      <Menu.Item
-                        onClick={() => onStartComparePick(historyItem.id)}
-                      >
-                        {t("Compare with...")}
                       </Menu.Item>
                     )}
                   </Menu.Dropdown>

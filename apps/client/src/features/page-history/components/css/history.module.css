@@ -24,6 +24,15 @@
     box-decoration-break: clone;
   }
 
+  & :global(.history-diff-removed-side) {
+    text-decoration: line-through;
+    color: light-dark(var(--mantine-color-red-7), var(--mantine-color-red-4));
+    background: light-dark(var(--mantine-color-red-0), rgba(255, 0, 0, 0.1));
+    border-radius: rem(2px);
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
+  }
+
   & :global(.history-diff-deleted) {
     text-decoration: line-through;
     color: light-dark(var(--mantine-color-red-7), var(--mantine-color-red-4));
@@ -55,18 +64,13 @@
   );
 }
 
-.pickSource {
-  outline: rem(2px) solid var(--mantine-color-blue-5);
-  outline-offset: rem(-2px);
-}
-
-.pickTarget {
-  cursor: pointer;
-
-  @mixin hover {
-    outline: rem(2px) dashed var(--mantine-color-blue-4);
-    outline-offset: rem(-2px);
-  }
+.selected {
+  background-color: light-dark(
+    var(--mantine-color-blue-0),
+    var(--mantine-color-dark-6)
+  );
+  outline: rem(1.5px) solid var(--mantine-color-blue-5);
+  outline-offset: rem(-1.5px);
 }
 
 .dateGroupLabel {
