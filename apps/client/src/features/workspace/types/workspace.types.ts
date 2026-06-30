@@ -5,7 +5,6 @@ export interface IWorkspace {
   name: string;
   description: string;
   logo: string;
-  favicon?: string;
   hostname: string;
   defaultSpaceId: string;
   customDomain: string;

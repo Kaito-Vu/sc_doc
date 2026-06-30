@@ -6,17 +6,17 @@ import { AvatarIconType } from "@/features/attachments/types/attachment.types";
 
 export default function DynamicFavicon() {
   const [workspace] = useAtom(workspaceAtom);
-  const favicon = workspace?.favicon;
+  const logo = workspace?.logo;
 
-  if (!favicon) {
+  if (!logo) {
     return null;
   }
 
-  const faviconUrl = getAvatarUrl(favicon, AvatarIconType.WORKSPACE_ICON);
+  const faviconUrl = getAvatarUrl(logo, AvatarIconType.WORKSPACE_ICON);
 
   return (
     <Helmet>
-      <link rel="icon" type="image/png" href={faviconUrl} />
+      <link rel="icon" href={faviconUrl} />
     </Helmet>
   );
 }

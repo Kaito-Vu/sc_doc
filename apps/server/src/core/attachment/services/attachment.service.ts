@@ -27,8 +27,6 @@ import { InjectQueue } from '@nestjs/bullmq';
 import { QueueJob, QueueName } from '../../../integrations/queue/constants';
 import { Queue } from 'bullmq';
 import { createByteCountingStream } from '../../../common/helpers/utils';
-import { runHook } from '../../plugins/run-hook';
-import { CoreHooks } from '../../plugins/plugin-hooks';
 
 @Injectable()
 export class AttachmentService {
@@ -153,16 +151,6 @@ export class AttachmentService {
     workspaceId: string,
     spaceId?: string,
   ) {
-    type CustomAttachmentUploadContext = {
-      type: AttachmentType;
-      workspaceId: string;
-      spaceId?: string;
-      fileName: string;
-      filePath: string;
-      trx: KyselyTransaction;
-      handled?: boolean;
-    };
-
     const preparedFile: PreparedFile = await prepareFile(filePromise);
     validateFileType(preparedFile.fileExtension, validImageExtensions);
 
@@ -225,15 +213,7 @@ export class AttachmentService {
             trx,
           );
         } else {
-          const result = await runHook<CustomAttachmentUploadContext>(
-            CoreHooks.CUSTOM_ATTACHMENT_UPLOAD,
-            {
-            type, workspaceId, spaceId, fileName: preparedFile.fileName, filePath, trx,
-            },
-          );
-          if (!result?.handled) {
-            throw new BadRequestException(`Image upload aborted.`);
-          }
+          throw new BadRequestException(`Image upload aborted.`);
         }
       });
     } catch (err) {

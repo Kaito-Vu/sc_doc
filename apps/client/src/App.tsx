@@ -1,5 +1,5 @@
 import { Navigate, Route, Routes } from "react-router-dom";
-import { DynamicFavicon } from "@/ee/plugins/workspace-favicon";
+import DynamicFavicon from "@/features/workspace/components/dynamic-favicon";
 import SetupWorkspace from "@/pages/auth/setup-workspace.tsx";
 import LoginPage from "@/pages/auth/login";
 import Home from "@/pages/dashboard/home";

@@ -215,7 +215,6 @@ async signup(@Body() data: SignupRequest) {
 | `BEFORE_PAGE_CREATE` | — | — | ❌ Khai báo nhưng chưa emit/listen |
 | `AFTER_PAGE_CREATE` | — | — | ❌ Khai báo nhưng chưa emit/listen |
 | `BEFORE_PAGE_DELETE` | — | — | ❌ Khai báo nhưng chưa emit/listen |
-| `CUSTOM_ATTACHMENT_UPLOAD` | `attachment.service.ts uploadImage()` | `workspace-favicon.module.ts` | ✅ Hoạt động (favicon upload) |
 
 ### ⚠️ Known Gaps: Listener "mồ côi" (registered nhưng KHÔNG BAO GIỜ fire)
 
