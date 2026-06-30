@@ -211,7 +211,7 @@ export const mainExtensions = [
     includeChildren: true,
     showOnlyWhenEditable: true,
   }),
-  TextAlign.configure({ types: ["heading", "paragraph"] }),
+  TextAlign.configure({ types: ["heading", "paragraph"], defaultAlignment: "justify" }),
   Indent,
   TaskList,
   TaskItem.configure({

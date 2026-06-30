@@ -1,11 +1,12 @@
 import "@/features/editor/styles/index.css";
 import React, { useCallback, useEffect, useState } from "react";
 import { EditorContent, useEditor } from "@tiptap/react";
+import { ActionIcon, Group, Tooltip } from "@mantine/core";
+import { IconPencil } from "@tabler/icons-react";
 import { Document } from "@tiptap/extension-document";
 import { Heading } from "@tiptap/extension-heading";
 import { Text } from "@tiptap/extension-text";
 import { Placeholder } from "@tiptap/extension-placeholder";
-import { useAtomValue } from "jotai";
 import {
   currentPageEditModeAtom,
   pageEditorAtom,
@@ -16,7 +17,7 @@ import {
   useUpdateTitlePageMutation,
 } from "@/features/page/queries/page-query";
 import { useDebouncedCallback, getHotkeyHandler } from "@mantine/hooks";
-import { useAtom } from "jotai";
+import { useAtom, useAtomValue } from "jotai";
 import { useQueryEmit } from "@/features/websocket/use-query-emit.ts";
 import { History } from "@tiptap/extension-history";
 import { buildPageUrl } from "@/features/page/page.utils.ts";
@@ -45,7 +46,7 @@ export function TitleEditor({
   spaceSlug,
   editable,
   isBase,
-}: TitleEditorProps) {
+}: Readonly<TitleEditorProps>) {
   const { t } = useTranslation();
   const { mutateAsync: updateTitlePageMutationAsync } =
     useUpdateTitlePageMutation();
@@ -55,6 +56,7 @@ export function TitleEditor({
   const navigate = useNavigate();
   const [activePageId, setActivePageId] = useState(pageId);
   const currentPageEditMode = useAtomValue(currentPageEditModeAtom);
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
 
   const titleEditor = useEditor({
     extensions: [
@@ -114,8 +116,8 @@ export function TitleEditor({
     navigate(
       {
         pathname: pageSlug,
-        search: window.location.search,
-        hash: window.location.hash,
+        search: globalThis.location.search,
+        hash: globalThis.location.hash,
       },
       { replace: true },
     );
@@ -154,6 +156,7 @@ export function TitleEditor({
 
       localEmitter.emit("message", event);
       emit(event);
+      setIsEditingTitle(false);
     });
   }, [pageId, title, titleEditor]);
 
@@ -186,8 +189,10 @@ export function TitleEditor({
 
   useEffect(() => {
     if (!titleEditor) return;
-    titleEditor.setEditable(editable && currentPageEditMode === PageEditMode.Edit);
-  }, [currentPageEditMode, titleEditor, editable]);
+    titleEditor.setEditable(
+      editable && currentPageEditMode === PageEditMode.Edit && isEditingTitle
+    );
+  }, [currentPageEditMode, titleEditor, editable, isEditingTitle]);
 
   const openSearchDialog = () => {
     const event = new CustomEvent("openFindDialogFromEditor", {});
@@ -250,16 +255,46 @@ export function TitleEditor({
 
   return (
     <div className="page-title">
-      <EditorContent
-        editor={titleEditor}
-        onKeyDown={(event) => {
-          // First handle the search hotkey
-          getHotkeyHandler([["mod+F", openSearchDialog]])(event);
+      {isEditingTitle ? (
+        <EditorContent
+          editor={titleEditor}
+          onKeyDown={(event) => {
+            // First handle the search hotkey
+            getHotkeyHandler([["mod+F", openSearchDialog]])(event);
 
-          // Then handle other key events
-          handleTitleKeyDown(event);
-        }}
-      />
+            // Then handle other key events
+            handleTitleKeyDown(event);
+          }}
+          onBlur={() => setIsEditingTitle(false)}
+        />
+      ) : (
+        <Group gap="xs" wrap="nowrap">
+          <EditorContent
+            editor={titleEditor}
+            onKeyDown={(event) => {
+              // First handle the search hotkey
+              getHotkeyHandler([["mod+F", openSearchDialog]])(event);
+
+              // Then handle other key events
+              handleTitleKeyDown(event);
+            }}
+            style={{ flex: 1 }}
+          />
+          {editable && currentPageEditMode === PageEditMode.Edit && (
+            <Tooltip label={t("Click to edit title")} position="right">
+              <ActionIcon
+                size="sm"
+                variant="subtle"
+                color="gray"
+                onClick={() => setIsEditingTitle(true)}
+                aria-label={t("Edit title")}
+              >
+                <IconPencil size={16} stroke={2} />
+              </ActionIcon>
+            </Tooltip>
+          )}
+        </Group>
+      )}
     </div>
   );
 }

@@ -35,9 +35,7 @@ export interface HookContext {
   [key: string]: any
 }
 
-export interface HookHandler {
-  (context: HookContext): Promise<HookContext>
-}
+export type HookHandler = (context: HookContext) => Promise<HookContext>
 
 export interface HookRegistry {
   on(event: string, handler: HookHandler): void

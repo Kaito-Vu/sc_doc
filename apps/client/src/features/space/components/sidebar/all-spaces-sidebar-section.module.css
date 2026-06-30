@@ -1,0 +1,8 @@
+.header {
+  border-radius: 4px;
+  transition: background-color 150ms ease;
+}
+
+.header:hover {
+  background-color: var(--mantine-color-gray-1);
+}
