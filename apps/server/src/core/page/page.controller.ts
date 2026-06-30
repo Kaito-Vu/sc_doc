@@ -526,6 +526,31 @@ export class PageController {
   }
 
   @HttpCode(HttpStatus.OK)
+  @Post('/history/restore')
+  async restorePageHistory(
+    @Body() dto: PageHistoryIdDto,
+    @AuthUser() user: User,
+  ) {
+    const history = await this.pageHistoryService.findById(dto.historyId);
+    if (!history) {
+      throw new NotFoundException('Page history not found');
+    }
+
+    const page = await this.pageRepo.findById(history.pageId);
+    if (!page) {
+      throw new NotFoundException('Page not found');
+    }
+
+    const ability = await this.spaceAbility.createForUser(user, page.spaceId);
+    if (ability.cannot(SpaceCaslAction.Edit, SpaceCaslSubject.Page)) {
+      throw new ForbiddenException();
+    }
+    await this.pageAccessService.validateCanEdit(page, user);
+
+    return this.pageHistoryService.restore(dto.historyId, user);
+  }
+
+  @HttpCode(HttpStatus.OK)
   @Post('/sidebar-pages')
   async getSidebarPages(
     @Body() dto: SidebarPageDto,

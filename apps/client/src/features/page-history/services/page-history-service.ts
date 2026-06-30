@@ -5,10 +5,12 @@ import { IPagination } from "@/lib/types.ts";
 export async function getPageHistoryList(
   pageId: string,
   cursor?: string,
+  limit?: number,
 ): Promise<IPagination<IPageHistory>> {
   const req = await api.post("/pages/history", {
     pageId,
     cursor,
+    limit,
   });
   return req.data;
 }
@@ -20,4 +22,10 @@ export async function getPageHistoryById(
     historyId,
   });
   return req.data;
+}
+
+export async function restorePageHistory(historyId: string): Promise<void> {
+  await api.post("/pages/history/restore", {
+    historyId,
+  });
 }

@@ -46,3 +46,19 @@ export function usePageHistoryQuery(
     staleTime: HISTORY_STALE_TIME,
   });
 }
+
+// lightweight lookup used for the header hash chip — fetches only the most
+// recent revision (limit 1), no content payload
+export function useLatestPageHistoryHash(
+  pageId: string,
+): UseQueryResult<string | null, Error> {
+  return useQuery({
+    queryKey: ["page-history-latest-hash", pageId],
+    queryFn: async () => {
+      const res = await getPageHistoryList(pageId, undefined, 1);
+      return res.items?.[0]?.contentHash ?? null;
+    },
+    enabled: !!pageId,
+    staleTime: 60 * 1000,
+  });
+}

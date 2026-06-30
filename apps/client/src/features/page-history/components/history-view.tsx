@@ -1,27 +1,29 @@
-import { usePageHistoryQuery } from "@/features/page-history/queries/page-history-query";
 import { HistoryEditor } from "@/features/page-history/components/history-editor";
 import { useTranslation } from "react-i18next";
 import { useAtomValue } from "jotai";
 import {
   activeHistoryIdAtom,
   activeHistoryPrevIdAtom,
+  viewOnlyModeAtom,
 } from "@/features/page-history/atoms/history-atoms";
+import { useHistoryItemContent } from "@/features/page-history/hooks";
 
 function HistoryView() {
   const { t } = useTranslation();
   const historyId = useAtomValue(activeHistoryIdAtom);
   const prevHistoryId = useAtomValue(activeHistoryPrevIdAtom);
+  const viewOnly = useAtomValue(viewOnlyModeAtom);
 
   const {
     data,
     isLoading: isLoadingCurrent,
     isError: isErrorCurrent,
-  } = usePageHistoryQuery(historyId);
+  } = useHistoryItemContent(historyId);
   const {
     data: prevData,
     isLoading: isLoadingPrev,
     isError: isErrorPrev,
-  } = usePageHistoryQuery(prevHistoryId);
+  } = useHistoryItemContent(viewOnly ? "" : prevHistoryId);
 
   if (isLoadingCurrent || isLoadingPrev) {
     return <></>;
@@ -36,7 +38,9 @@ function HistoryView() {
       <HistoryEditor
         content={data.content}
         title={data.title}
-        previousContent={!isErrorPrev ? prevData?.content : undefined}
+        previousContent={
+          !viewOnly && !isErrorPrev ? prevData?.content : undefined
+        }
       />
     </div>
   );

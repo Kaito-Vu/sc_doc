@@ -293,6 +293,7 @@ export interface PageTransclusions {
 
 export interface PageHistory {
   content: Json | null;
+  contentHash: string | null;
   contributorIds: Generated<string[] | null>;
   coverPhoto: string | null;
   createdAt: Generated<Timestamp>;
