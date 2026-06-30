@@ -9,6 +9,7 @@ import { Divider } from "@mantine/core";
 import AllowMemberTemplates from "@/ee/security/components/allow-member-templates.tsx";
 import WorkspaceDefaultPageEditMode from "@/features/workspace/components/settings/components/workspace-default-page-edit-mode.tsx";
 import PersonalSpacesSetting from "@/ee/personal-space/components/personal-spaces-setting.tsx";
+import { WorkspaceFaviconUploader } from "@/ee/plugins/workspace-favicon";
 
 export default function WorkspaceSettings() {
   const { t } = useTranslation();
@@ -19,6 +20,7 @@ export default function WorkspaceSettings() {
       </Helmet>
       <SettingsTitle title={t("General")} />
       <WorkspaceIcon />
+      <WorkspaceFaviconUploader />
       <WorkspaceNameForm />
 
       <Divider my="md" />

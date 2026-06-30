@@ -29,15 +29,17 @@ export enum CoreHooks {
   BEFORE_PAGE_CREATE = 'page:beforeCreate',
   AFTER_PAGE_CREATE = 'page:afterCreate',
   BEFORE_PAGE_DELETE = 'page:beforeDelete',
+
+  // Attachment events
+  CUSTOM_ATTACHMENT_UPLOAD = 'attachment:customUpload',
+  CUSTOM_ATTACHMENT_REMOVE = 'attachment:customRemove',
 }
 
 export interface HookContext {
   [key: string]: any
 }
 
-export interface HookHandler {
-  (context: HookContext): Promise<HookContext>
-}
+export type HookHandler = (context: HookContext) => Promise<HookContext>
 
 export interface HookRegistry {
   on(event: string, handler: HookHandler): void

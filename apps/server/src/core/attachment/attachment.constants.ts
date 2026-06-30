@@ -7,7 +7,9 @@ export enum AttachmentType {
 }
 
 export const validImageExtensions = ['.jpg', '.png', '.jpeg'];
+export const validFaviconExtensions = ['.jpg', '.jpeg', '.png', '.ico'];
 export const MAX_AVATAR_SIZE = '10MB';
+export const MAX_FAVICON_SIZE = '1MB';
 
 export const inlineFileExtensions = [
   '.jpg',

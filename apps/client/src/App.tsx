@@ -1,4 +1,5 @@
 import { Navigate, Route, Routes } from "react-router-dom";
+import { DynamicFavicon } from "@/ee/plugins/workspace-favicon";
 import SetupWorkspace from "@/pages/auth/setup-workspace.tsx";
 import LoginPage from "@/pages/auth/login";
 import Home from "@/pages/dashboard/home";
@@ -54,7 +55,9 @@ export default function App() {
   useTrackOrigin();
 
   return (
-    <Routes>
+    <>
+      <DynamicFavicon />
+      <Routes>
         <Route index element={<Navigate to="/home" />} />
         <Route path={"/login"} element={<LoginPage />} />
         <Route path={"/invites/:invitationId"} element={<InviteSignup />} />
@@ -136,6 +139,7 @@ export default function App() {
         </Route>
 
       <Route path="*" element={<Error404 />} />
-    </Routes>
+      </Routes>
+    </>
   );
 }

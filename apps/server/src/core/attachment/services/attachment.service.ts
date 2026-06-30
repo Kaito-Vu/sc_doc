@@ -4,7 +4,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { Readable } from 'stream';
+import { Readable } from 'node:stream';
 import { StorageService } from '../../../integrations/storage/storage.service';
 import { MultipartFile } from '@fastify/multipart';
 import {
@@ -27,6 +27,8 @@ import { InjectQueue } from '@nestjs/bullmq';
 import { QueueJob, QueueName } from '../../../integrations/queue/constants';
 import { Queue } from 'bullmq';
 import { createByteCountingStream } from '../../../common/helpers/utils';
+import { runHook } from '../../plugins/run-hook';
+import { CoreHooks } from '../../plugins/plugin-hooks';
 
 @Injectable()
 export class AttachmentService {
@@ -38,7 +40,8 @@ export class AttachmentService {
     private readonly workspaceRepo: WorkspaceRepo,
     private readonly spaceRepo: SpaceRepo,
     @InjectKysely() private readonly db: KyselyDB,
-    @InjectQueue(QueueName.ATTACHMENT_QUEUE) private attachmentQueue: Queue,
+    @InjectQueue(QueueName.ATTACHMENT_QUEUE)
+    private readonly attachmentQueue: Queue,
   ) {}
 
   async uploadFile(opts: {
@@ -150,6 +153,16 @@ export class AttachmentService {
     workspaceId: string,
     spaceId?: string,
   ) {
+    type CustomAttachmentUploadContext = {
+      type: AttachmentType;
+      workspaceId: string;
+      spaceId?: string;
+      fileName: string;
+      filePath: string;
+      trx: KyselyTransaction;
+      handled?: boolean;
+    };
+
     const preparedFile: PreparedFile = await prepareFile(filePromise);
     validateFileType(preparedFile.fileExtension, validImageExtensions);
 
@@ -212,12 +225,21 @@ export class AttachmentService {
             trx,
           );
         } else {
-          throw new BadRequestException(`Image upload aborted.`);
+          const result = await runHook<CustomAttachmentUploadContext>(
+            CoreHooks.CUSTOM_ATTACHMENT_UPLOAD,
+            {
+            type, workspaceId, spaceId, fileName: preparedFile.fileName, filePath, trx,
+            },
+          );
+          if (!result?.handled) {
+            throw new BadRequestException(`Image upload aborted.`);
+          }
         }
       });
     } catch (err) {
       // delete uploaded file on db update failure
       await this.deleteRedundantFile(filePath);
+      this.logger.error('uploadImage transaction failed', err);
       throw new BadRequestException('Failed to upload image');
     }
 
@@ -290,93 +312,81 @@ export class AttachmentService {
   }
 
   async handleDeleteAiChatAttachments(aiChatId: string) {
-    try {
-      const attachments = await this.attachmentRepo.findByAiChatId(aiChatId);
-      if (!attachments || attachments.length === 0) {
-        return;
-      }
-
-      await Promise.all(
-        attachments.map(async (attachment) => {
-          try {
-            await this.storageService.delete(attachment.filePath);
-            await this.attachmentRepo.deleteAttachmentById(attachment.id);
-          } catch (err) {
-            this.logger.log(
-              `DeleteAiChatAttachments: failed to delete attachment ${attachment.id}:`,
-              err,
-            );
-          }
-        }),
-      );
-    } catch (err) {
-      throw err;
+    const attachments = await this.attachmentRepo.findByAiChatId(aiChatId);
+    if (!attachments || attachments.length === 0) {
+      return;
     }
+
+    await Promise.all(
+      attachments.map(async (attachment) => {
+        try {
+          await this.storageService.delete(attachment.filePath);
+          await this.attachmentRepo.deleteAttachmentById(attachment.id);
+        } catch (err) {
+          this.logger.log(
+            `DeleteAiChatAttachments: failed to delete attachment ${attachment.id}:`,
+            err,
+          );
+        }
+      }),
+    );
   }
 
   async handleDeleteSpaceAttachments(spaceId: string) {
-    try {
-      const attachments = await this.attachmentRepo.findBySpaceId(spaceId);
-      if (!attachments || attachments.length === 0) {
-        return;
-      }
+    const attachments = await this.attachmentRepo.findBySpaceId(spaceId);
+    if (!attachments || attachments.length === 0) {
+      return;
+    }
 
-      const failedDeletions = [];
+    const failedDeletions = [];
 
-      await Promise.all(
-        attachments.map(async (attachment) => {
-          try {
-            await this.storageService.delete(attachment.filePath);
-            await this.attachmentRepo.deleteAttachmentById(attachment.id);
-          } catch (err) {
-            failedDeletions.push(attachment.id);
-            this.logger.log(
-              `DeleteSpaceAttachments: failed to delete attachment ${attachment.id}:`,
-              err,
-            );
-          }
-        }),
+    await Promise.all(
+      attachments.map(async (attachment) => {
+        try {
+          await this.storageService.delete(attachment.filePath);
+          await this.attachmentRepo.deleteAttachmentById(attachment.id);
+        } catch (err) {
+          failedDeletions.push(attachment.id);
+          this.logger.log(
+            `DeleteSpaceAttachments: failed to delete attachment ${attachment.id}:`,
+            err,
+          );
+        }
+      }),
+    );
+
+    if (failedDeletions.length === attachments.length) {
+      throw new Error(
+        `Failed to delete any attachments for spaceId: ${spaceId}`,
       );
-
-      if (failedDeletions.length === attachments.length) {
-        throw new Error(
-          `Failed to delete any attachments for spaceId: ${spaceId}`,
-        );
-      }
-    } catch (err) {
-      throw err;
     }
   }
 
   async handleDeleteUserAvatars(userId: string) {
-    try {
-      const userAvatars = await this.db
-        .selectFrom('attachments')
-        .select(['id', 'filePath'])
-        .where('creatorId', '=', userId)
-        .where('type', '=', AttachmentType.Avatar)
-        .execute();
+    const userAvatars = await this.db
+      .selectFrom('attachments')
+      .select(['id', 'filePath'])
+      .where('creatorId', '=', userId)
+      .where('type', '=', AttachmentType.Avatar)
+      .execute();
 
-      if (!userAvatars || userAvatars.length === 0) {
-        return;
-      }
-
-      await Promise.all(
-        userAvatars.map(async (attachment) => {
-          try {
-            await this.storageService.delete(attachment.filePath);
-            await this.attachmentRepo.deleteAttachmentById(attachment.id);
-          } catch (err) {
-            this.logger.log(
-              `DeleteUserAvatar: failed to delete user avatar ${attachment.id}:`,
-              err,
-            );
-          }
-        }),
-      );
-    } catch (err) {
-      throw err;
+    if (!userAvatars || userAvatars.length === 0) {
+      return;
     }
+
+    await Promise.all(
+      userAvatars.map(async (attachment) => {
+        try {
+          await this.storageService.delete(attachment.filePath);
+          await this.attachmentRepo.deleteAttachmentById(attachment.id);
+        } catch (err) {
+          this.logger.log(
+            `DeleteUserAvatar: failed to delete user avatar ${attachment.id}:`,
+            err,
+          );
+        }
+      }),
+    );
   }
 
   async handleDeletePageAttachments(pageId: string) {

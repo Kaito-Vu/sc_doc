@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { ScrollArea, Text, Divider, Modal, UnstyledButton, Tooltip } from "@mantine/core";
 import {
   IconHome,
-  IconClock,
   IconStar,
   IconLayoutGrid,
   IconSettings,
@@ -24,6 +23,7 @@ import { AvatarIconType } from "@/features/attachments/types/attachment.types";
 import { useHasFeature } from "@/ee/hooks/use-feature";
 import { Feature } from "@/ee/features";
 import { useUpgradeLabel } from "@/ee/hooks/use-upgrade-label";
+import AllSpacesSidebarSection from "@/features/space/components/sidebar/all-spaces-sidebar-section";
 
 export default function GlobalSidebar() {
   const { t } = useTranslation();
@@ -47,10 +47,15 @@ export default function GlobalSidebar() {
   const { data: favoriteSpacesData, isPending: isFavoritesPending } = useFavoritesQuery("space");
   const favoriteSpaces = favoriteSpacesData?.pages.flatMap((p) => p.items) ?? [];
   const sortedFavoriteSpaces = [...favoriteSpaces]
-    .filter((fav) => fav.space)
+    .filter((fav): fav is typeof fav & { space: NonNullable<typeof fav.space> } => !!fav.space)
     .sort((a, b) => {
-      const cmp = (a.space!.name ?? "").localeCompare(b.space!.name ?? "", undefined, { sensitivity: "base" });
-      return cmp !== 0 ? cmp : a.id.localeCompare(b.id);
+      const cmp = (a.space.name ?? "").localeCompare(b.space.name ?? "", undefined, {
+        sensitivity: "base",
+      });
+      if (cmp === 0) {
+        return a.id.localeCompare(b.id);
+      }
+      return cmp;
     });
   const [inviteOpened, { open: openInvite, close: closeInvite }] =
     useDisclosure(false);
@@ -116,19 +121,19 @@ export default function GlobalSidebar() {
                 <Link
                   key={fav.id}
                   className={classes.spaceItem}
-                  to={getSpaceUrl(fav.space!.slug)}
+                  to={getSpaceUrl(fav.space.slug)}
                   onClick={handleNavClick}
                 >
                   <CustomAvatar
-                    name={fav.space!.name}
-                    avatarUrl={fav.space!.logo}
+                    name={fav.space.name}
+                    avatarUrl={fav.space.logo}
                     type={AvatarIconType.SPACE_ICON}
                     color="initials"
                     variant="filled"
                     size={20}
                   />
                   <Text size="sm" fw={500} lineClamp={1}>
-                    {fav.space!.name}
+                    {fav.space.name}
                   </Text>
                 </Link>
               ))}
@@ -147,6 +152,7 @@ export default function GlobalSidebar() {
           )}
         </div>
 
+        <AllSpacesSidebarSection onNavigate={handleNavClick} />
       </ScrollArea>
 
       <div className={classes.bottomSection}>

@@ -8,10 +8,11 @@ import { PluginsController } from './plugins.controller'
 import { RecaptchaModule } from './recaptcha/recaptcha.module'
 import { AzureAdModule } from './azure-ad/azure-ad.module'
 import { MinioModule } from './minio/minio.module'
+import { WorkspaceFaviconModule } from './workspace-favicon/workspace-favicon.module'
 
 @Global()
 @Module({
-  imports: [RecaptchaModule, AzureAdModule, MinioModule],
+  imports: [RecaptchaModule, AzureAdModule, MinioModule, WorkspaceFaviconModule],
   providers: [PluginRegistry, PluginConfigService, PluginDefinitionService, HookRegistry],
   controllers: [PluginsController],
   exports: [PluginRegistry, PluginConfigService, PluginDefinitionService, HookRegistry],
