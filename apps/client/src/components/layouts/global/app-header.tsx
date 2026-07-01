@@ -84,11 +84,11 @@ export function AppHeader() {
             />
           </Tooltip>
 
-          <Link to="/home" className={classes.brand} aria-label="Docmost">
+          <Link to="/home" className={classes.brand} aria-label={workspace?.name || "SC Doc"}>
             <Box hiddenFrom="sm" className={classes.brandIcon}>
               <img
                 src="/icons/favicon-32x32.png"
-                alt="Docmost"
+                alt={workspace?.name || "SC Doc"}
                 width={22}
                 height={22}
               />
@@ -99,7 +99,7 @@ export function AppHeader() {
               style={{ userSelect: "none" }}
               visibleFrom="sm"
             >
-              Docmost
+              {workspace?.name || "SC Doc"}
             </Text>
           </Link>
 

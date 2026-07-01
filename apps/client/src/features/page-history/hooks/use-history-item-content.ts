@@ -28,12 +28,12 @@ export function useHistoryItemContent(historyId: string) {
       slug: "",
       icon: "",
       coverPhoto: "",
-      version: null as unknown as number,
+      version: 0,
       lastUpdatedById: "",
       workspaceId: "",
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-      lastUpdatedBy: null as unknown as IPageHistory["lastUpdatedBy"],
+      lastUpdatedBy: { id: "", name: "", avatarUrl: "" },
       isCurrent: true,
     };
   }, [isCurrent, mainEditor, mainEditorTitle]);

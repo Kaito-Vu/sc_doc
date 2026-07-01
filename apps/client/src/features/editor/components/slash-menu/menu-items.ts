@@ -6,6 +6,10 @@ import {
   IconH1,
   IconH2,
   IconH3,
+  IconH4,
+  IconH5,
+  IconH6,
+  IconLetterH,
   IconInfoCircle,
   IconLayoutKanban,
   IconList,
@@ -125,6 +129,69 @@ const CommandGroups: SlashMenuGroupedItemsType = {
           .deleteRange(range)
           .setNode("heading", { level: 3 })
           .run();
+      },
+    },
+    {
+      title: "Heading 4",
+      description: "Heading level 4.",
+      searchTerms: ["h4", "heading4"],
+      icon: IconH4,
+      command: ({ editor, range }: CommandProps) => {
+        editor.chain().focus().deleteRange(range).setNode("heading", { level: 4 }).run();
+      },
+    },
+    {
+      title: "Heading 5",
+      description: "Heading level 5.",
+      searchTerms: ["h5", "heading5"],
+      icon: IconH5,
+      command: ({ editor, range }: CommandProps) => {
+        editor.chain().focus().deleteRange(range).setNode("heading", { level: 5 }).run();
+      },
+    },
+    {
+      title: "Heading 6",
+      description: "Heading level 6.",
+      searchTerms: ["h6", "heading6"],
+      icon: IconH6,
+      command: ({ editor, range }: CommandProps) => {
+        editor.chain().focus().deleteRange(range).setNode("heading", { level: 6 }).run();
+      },
+    },
+    {
+      title: "Heading 7",
+      description: "Heading level 7.",
+      searchTerms: ["h7", "heading7"],
+      icon: IconLetterH,
+      command: ({ editor, range }: CommandProps) => {
+        editor.chain().focus().deleteRange(range).setNode("heading", { level: 7 }).run();
+      },
+    },
+    {
+      title: "Heading 8",
+      description: "Heading level 8.",
+      searchTerms: ["h8", "heading8"],
+      icon: IconLetterH,
+      command: ({ editor, range }: CommandProps) => {
+        editor.chain().focus().deleteRange(range).setNode("heading", { level: 8 }).run();
+      },
+    },
+    {
+      title: "Heading 9",
+      description: "Heading level 9.",
+      searchTerms: ["h9", "heading9"],
+      icon: IconLetterH,
+      command: ({ editor, range }: CommandProps) => {
+        editor.chain().focus().deleteRange(range).setNode("heading", { level: 9 }).run();
+      },
+    },
+    {
+      title: "Heading 10",
+      description: "Heading level 10.",
+      searchTerms: ["h10", "heading10"],
+      icon: IconLetterH,
+      command: ({ editor, range }: CommandProps) => {
+        editor.chain().focus().deleteRange(range).setNode("heading", { level: 10 }).run();
       },
     },
     {
@@ -814,17 +881,16 @@ export const getSuggestionItems = ({
         fuzzyMatch(search, translatedTitle) ||
         item.description.toLowerCase().includes(search) ||
         translatedDescription.toLowerCase().includes(search) ||
-        (item.searchTerms &&
-          item.searchTerms.some(
+        item.searchTerms?.some(
             (term: string) =>
               term.includes(search) ||
               i18n.t(term).toLowerCase().includes(search),
-          ))
+          )
       );
     });
 
     if (filteredItems.length) {
-      filteredGroups[group] = filteredItems.sort((a, b) => {
+      const sortedItems = [...filteredItems].sort((a, b) => {
         const aTitle =
           a.title.toLowerCase().includes(search) ||
           i18n.t(a.title).toLowerCase().includes(search)
@@ -837,6 +903,7 @@ export const getSuggestionItems = ({
             : 1;
         return aTitle - bTitle;
       });
+      filteredGroups[group] = sortedItems;
     }
   }
 
