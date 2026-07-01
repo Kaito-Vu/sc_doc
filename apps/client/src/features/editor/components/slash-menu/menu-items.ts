@@ -881,17 +881,16 @@ export const getSuggestionItems = ({
         fuzzyMatch(search, translatedTitle) ||
         item.description.toLowerCase().includes(search) ||
         translatedDescription.toLowerCase().includes(search) ||
-        (item.searchTerms &&
-          item.searchTerms.some(
+        item.searchTerms?.some(
             (term: string) =>
               term.includes(search) ||
               i18n.t(term).toLowerCase().includes(search),
-          ))
+          )
       );
     });
 
     if (filteredItems.length) {
-      filteredGroups[group] = filteredItems.sort((a, b) => {
+      const sortedItems = [...filteredItems].sort((a, b) => {
         const aTitle =
           a.title.toLowerCase().includes(search) ||
           i18n.t(a.title).toLowerCase().includes(search)
@@ -904,6 +903,7 @@ export const getSuggestionItems = ({
             : 1;
         return aTitle - bTitle;
       });
+      filteredGroups[group] = sortedItems;
     }
   }
 
