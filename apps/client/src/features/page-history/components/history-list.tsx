@@ -23,7 +23,10 @@ import {
   Center,
   Tabs,
   Text,
+  Tooltip,
+  ActionIcon,
 } from "@mantine/core";
+import { IconX, IconRefresh } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
 import { useHistoryRestore } from "@/features/page-history/hooks";
 import { IPageHistory } from "@/features/page-history/types/page.types";
@@ -43,7 +46,7 @@ function dateGroupLabel(date: Date) {
 }
 
 interface Props {
-  pageId: string;
+  readonly pageId: string;
 }
 
 function HistoryList({ pageId }: Props) {
@@ -78,12 +81,12 @@ function HistoryList({ pageId }: Props) {
       slug: "",
       icon: "",
       coverPhoto: "",
-      version: null as unknown as number,
+      version: 0,
       lastUpdatedById: "",
       workspaceId: "",
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-      lastUpdatedBy: null as unknown as IPageHistory["lastUpdatedBy"],
+      lastUpdatedBy: { id: "", name: "", avatarUrl: "" },
       isCurrent: true,
     }),
     [pageId, mainEditorTitle],
@@ -341,18 +344,27 @@ function HistoryList({ pageId }: Props) {
       <Divider />
 
       {compareMode ? (
-        <Group p="xs" wrap="nowrap">
-          <Button variant="default" size="compact-md" onClick={handleCancelCompare}>
-            {t("Exit compare mode")}
+        <Group p="xs" justify="space-between" wrap="nowrap">
+          <Button
+            variant="default"
+            size="compact-md"
+            leftSection={<IconX size={13} />}
+            onClick={handleCancelCompare}
+          >
+            {t("Exit compare")}
           </Button>
           {compareSelection.length === 2 && (
-            <Button
-              variant="subtle"
-              size="compact-md"
-              onClick={() => setCompareSelection([])}
-            >
-              {t("Pick again")}
-            </Button>
+            <Tooltip label={t("Re-select versions to compare")} position="top" withArrow>
+              <ActionIcon
+                variant="subtle"
+                color="gray"
+                size="md"
+                aria-label={t("Re-select versions")}
+                onClick={() => setCompareSelection([])}
+              >
+                <IconRefresh size={16} />
+              </ActionIcon>
+            </Tooltip>
           )}
         </Group>
       ) : (
