@@ -1,18 +1,35 @@
 import {
   BadRequestException,
+  Inject,
   Injectable,
   Logger,
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
 import * as client from 'openid-client';
+import { InjectKysely } from 'nestjs-kysely';
 import { AuthProviderRepo } from '../sso/auth-provider.repo';
+import { AuthAccountRepo } from '../sso/auth-account.repo';
 import { UserRepo } from '@docmost/db/repos/user/user.repo';
+import { GroupUserRepo } from '@docmost/db/repos/group/group-user.repo';
+import { KyselyDB } from '@docmost/db/types/kysely.types';
+import { executeTx } from '@docmost/db/utils';
+import { User } from '@docmost/db/types/entity.types';
 import { SessionService } from '../../core/session/session.service';
+import { WorkspaceService } from '../../core/workspace/services/workspace.service';
+import { AttachmentService } from '../../core/attachment/services/attachment.service';
 import { EnvironmentService } from '../../integrations/environment/environment.service';
+import {
+  AUDIT_SERVICE,
+  IAuditService,
+} from '../../integrations/audit/audit.service';
+import { AuditEvent, AuditResource } from '../../common/events/audit-events';
 import { encodeOidcState, decodeOidcState } from './oidc-state.util';
 import { UserRole } from '../../common/helpers/types/permission';
 import { nanoIdGen } from '../../common/helpers';
+
+const AZURE_GRAPH_SCOPE = 'https://graph.microsoft.com/User.Read';
+const AZURE_GRAPH_PHOTO_URL = 'https://graph.microsoft.com/v1.0/me/photo/$value';
 
 @Injectable()
 export class OidcAuthService {
@@ -20,9 +37,15 @@ export class OidcAuthService {
 
   constructor(
     private readonly authProviderRepo: AuthProviderRepo,
+    private readonly authAccountRepo: AuthAccountRepo,
     private readonly userRepo: UserRepo,
+    private readonly groupUserRepo: GroupUserRepo,
     private readonly sessionService: SessionService,
+    private readonly workspaceService: WorkspaceService,
+    private readonly attachmentService: AttachmentService,
     private readonly environmentService: EnvironmentService,
+    @Inject(AUDIT_SERVICE) private readonly auditService: IAuditService,
+    @InjectKysely() private readonly db: KyselyDB,
   ) {}
 
   private buildCallbackUrl(providerId?: string): string {
@@ -32,6 +55,10 @@ export class OidcAuthService {
 
   private isOidcCapable(provider: { type: string } | undefined): boolean {
     return provider?.type === 'oidc' || provider?.type === 'azure-ad';
+  }
+
+  private isAzureProvider(provider: { type: string } | undefined): boolean {
+    return provider?.type === 'azure-ad';
   }
 
   /**
@@ -141,6 +168,13 @@ export class OidcAuthService {
     const codeVerifier = client.randomPKCECodeVerifier();
     const codeChallenge = await client.calculatePKCECodeChallenge(codeVerifier);
 
+    // Azure providers additionally request Graph's User.Read scope so the
+    // resulting access_token can fetch the user's profile photo for avatar
+    // sync (see handleCallback) - generic OIDC providers have no Graph API.
+    const scope = this.isAzureProvider(provider)
+      ? `openid profile email ${AZURE_GRAPH_SCOPE}`
+      : 'openid profile email';
+
     // The redirect_uri shape (singleton vs providerId-scoped) mirrors how
     // this authorization request was reached, not how the provider was
     // resolved - the singleton /callback route always issues a singleton
@@ -148,7 +182,7 @@ export class OidcAuthService {
     const callbackUrl = this.buildCallbackUrl(providerId);
     const authUrl = client.buildAuthorizationUrl(config, {
       redirect_uri: callbackUrl,
-      scope: 'openid profile email',
+      scope,
       state,
       nonce,
       code_challenge: codeChallenge,
@@ -221,10 +255,13 @@ export class OidcAuthService {
     // The email/name claims come from the ID token returned by openid-client's
     // authorizationCodeGrant, which already performs full OIDC validation
     // (signature, issuer, audience, expiry) regardless of the issuer - Entra ID
-    // included. There is no Entra-specific config (tenantId, group sync rules,
-    // etc.) wired up from the AuthProviders row today, so no additional
-    // provider-specific handling is applied here.
+    // included.
     const claims = tokens.claims();
+    const providerUserId = claims?.sub as string | undefined;
+    if (!providerUserId) {
+      throw new BadRequestException('SSO provider did not return a subject claim');
+    }
+
     // Azure AD only guarantees `preferred_username`; the `email` claim is
     // only emitted when the optional claim is configured on the app
     // registration and the user has a verified email on that domain.
@@ -237,26 +274,152 @@ export class OidcAuthService {
       throw new BadRequestException('SSO provider did not return an email claim');
     }
 
-    // Mirrors SsoAuthService.ldapLogin's find-or-provision-by-email flow.
-    let user = await this.userRepo.findByEmail(email, params.workspaceId);
-    if (!user && provider.allowSignup) {
-      user = await this.userRepo.insertUser({
-        email,
-        name: name || email,
-        password: nanoIdGen(16),
-        workspaceId: params.workspaceId,
-        role: UserRole.MEMBER,
-      });
+    const user = await this.resolveUser({
+      email,
+      name,
+      providerUserId,
+      provider,
+      workspaceId: params.workspaceId,
+    });
+
+    if (this.isAzureProvider(provider) && provider.avatarSync) {
+      await this.syncAzureAvatar(user, provider.id, tokens.access_token);
     }
-    if (!user) {
-      throw new UnauthorizedException('User not provisioned');
-    }
+
+    await this.userRepo.updateLastLogin(user.id, params.workspaceId);
+    this.auditService.log({
+      event: AuditEvent.USER_LOGIN,
+      resourceType: AuditResource.USER,
+      resourceId: user.id,
+      metadata: { source: 'sso-oidc', providerId: provider.id },
+    });
 
     const authToken = await this.sessionService.createSessionAndToken(user);
     const redirect = isSafeRedirectPath(decoded.redirect)
       ? decoded.redirect
       : '/';
     return { authToken, redirect };
+  }
+
+  /**
+   * Resolves the login to a user, preferring the authAccounts link (keyed on
+   * the IdP's own subject claim, so it survives the user's email changing at
+   * the provider) and falling back to an email lookup for first-time logins -
+   * mirroring this repo's own signup provisioning steps (addUserToWorkspace +
+   * addUserToDefaultGroup) rather than creating a bare row.
+   */
+  private async resolveUser(params: {
+    email: string;
+    name: string | undefined;
+    providerUserId: string;
+    provider: { id: string; allowSignup: boolean };
+    workspaceId: string;
+  }): Promise<User> {
+    const { email, name, providerUserId, provider, workspaceId } = params;
+
+    return executeTx(this.db, async (trx) => {
+      const linkedAccount = await this.authAccountRepo.findByProviderUserId(
+        provider.id,
+        providerUserId,
+        workspaceId,
+        trx,
+      );
+
+      let user: User | undefined;
+      if (linkedAccount) {
+        user = await this.userRepo.findById(linkedAccount.userId, workspaceId, {
+          trx,
+        });
+      }
+
+      if (!user) {
+        user = await this.userRepo.findByEmail(email, workspaceId, { trx });
+      }
+
+      if (!user) {
+        if (!provider.allowSignup) {
+          throw new UnauthorizedException('User not provisioned');
+        }
+        user = await this.userRepo.insertUser(
+          {
+            email,
+            name: name || email,
+            password: nanoIdGen(16),
+            workspaceId,
+            role: UserRole.MEMBER,
+          },
+          trx,
+        );
+        await this.workspaceService.addUserToWorkspace(
+          user.id,
+          workspaceId,
+          undefined,
+          trx,
+        );
+        await this.groupUserRepo.addUserToDefaultGroup(user.id, workspaceId, trx);
+      }
+
+      await this.authAccountRepo.upsert(
+        {
+          userId: user.id,
+          authProviderId: provider.id,
+          providerUserId,
+          workspaceId,
+        },
+        trx,
+      );
+
+      return user;
+    });
+  }
+
+  /**
+   * Best-effort profile photo sync from Microsoft Graph - must never block
+   * login, so any failure (missing photo, expired token, network error) is
+   * logged and swallowed rather than thrown.
+   */
+  private async syncAzureAvatar(
+    user: User,
+    providerId: string,
+    accessToken: string | undefined,
+  ): Promise<void> {
+    if (!accessToken) {
+      return;
+    }
+    try {
+      const response = await fetch(AZURE_GRAPH_PHOTO_URL, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+        signal: AbortSignal.timeout(10_000),
+      });
+      if (!response.ok) {
+        if (response.status !== 404) {
+          this.logger.warn(
+            `Azure avatar fetch failed with status=${response.status} providerId=${providerId} userId=${user.id}`,
+          );
+        }
+        return;
+      }
+      const mimeType = response.headers.get('content-type')?.toLowerCase();
+      if (!mimeType || !mimeType.startsWith('image/')) {
+        return;
+      }
+      const arrayBuffer = await response.arrayBuffer();
+      if (!arrayBuffer || arrayBuffer.byteLength === 0) {
+        return;
+      }
+      await this.attachmentService.uploadUserAvatarFromBuffer({
+        buffer: Buffer.from(arrayBuffer),
+        mimeType,
+        userId: user.id,
+        workspaceId: user.workspaceId,
+      });
+    } catch (error) {
+      this.logger.warn(
+        `Azure avatar sync errored for providerId=${providerId} userId=${user.id}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
   }
 }
 
