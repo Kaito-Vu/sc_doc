@@ -9,13 +9,26 @@ import { KYSELY_MODULE_CONNECTION_TOKEN } from 'nestjs-kysely';
 import { OidcAuthService, isSafeRedirectPath } from './oidc-auth.service';
 import { AuthProviderRepo } from '../sso/auth-provider.repo';
 import { AuthAccountRepo } from '../sso/auth-account.repo';
+import { SsoService } from '../sso/sso.service';
 import { UserRepo } from '@docmost/db/repos/user/user.repo';
 import { GroupUserRepo } from '@docmost/db/repos/group/group-user.repo';
-import { SessionService } from '../../core/session/session.service';
 import { WorkspaceService } from '../../core/workspace/services/workspace.service';
 import { EnvironmentService } from '../../integrations/environment/environment.service';
+import { AttachmentService } from '../../core/attachment/services/attachment.service';
+import { MfaGateService } from '../mfa/services/mfa-gate.service';
+import { OidcProviderStrategyFactory } from './oidc-provider-strategy.factory';
 import { AUDIT_SERVICE } from '../../integrations/audit/audit.service';
 import { encodeOidcState, decodeOidcState } from './oidc-state.util';
+
+const genericStrategyStub = {
+  flavor: 'generic' as const,
+  getExtraScopes: () => [],
+  normalizeIssuer: (url: URL) => url,
+  fetchAvatar: async () => undefined,
+};
+
+const fakeWorkspace = { id: 'ws1', enforceMfa: false } as any;
+const fakeRes = { setCookie: jest.fn(), clearCookie: jest.fn() } as any;
 
 jest.mock('openid-client', () => {
   const actual = jest.requireActual('openid-client');
@@ -47,9 +60,9 @@ describe('OidcAuthService.buildAuthorizationUrl', () => {
         OidcAuthService,
         { provide: AuthProviderRepo, useValue: authProviderRepo },
         { provide: AuthAccountRepo, useValue: {} },
+        { provide: SsoService, useValue: { decryptSecret: (v: string) => v } },
         { provide: UserRepo, useValue: {} },
         { provide: GroupUserRepo, useValue: {} },
-        { provide: SessionService, useValue: {} },
         { provide: WorkspaceService, useValue: {} },
         {
           provide: EnvironmentService,
@@ -58,6 +71,12 @@ describe('OidcAuthService.buildAuthorizationUrl', () => {
             getAppUrl: () => 'http://localhost:3000',
             isHttps: () => false,
           },
+        },
+        { provide: AttachmentService, useValue: {} },
+        { provide: MfaGateService, useValue: { checkAndChallenge: jest.fn() } },
+        {
+          provide: OidcProviderStrategyFactory,
+          useValue: { create: () => genericStrategyStub },
         },
         { provide: AUDIT_SERVICE, useValue: { log: jest.fn() } },
         { provide: KYSELY_MODULE_CONNECTION_TOKEN(), useValue: fakeDb },
@@ -120,7 +139,7 @@ describe('OidcAuthService.buildAuthorizationUrl', () => {
     expect(client.buildAuthorizationUrl).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({
-        redirect_uri: 'http://localhost:3000/api/sso/oidc/p1/callback',
+        redirect_uri: 'http://localhost:3000/api/sso/oidc/callback',
         scope: 'openid profile email',
       }),
     );
@@ -182,7 +201,7 @@ describe('OidcAuthService.handleCallback', () => {
   };
   let groupUserRepo: { addUserToDefaultGroup: jest.Mock };
   let workspaceService: { addUserToWorkspace: jest.Mock };
-  let sessionService: { createSessionAndToken: jest.Mock };
+  let mfaGateService: { checkAndChallenge: jest.Mock };
   let auditService: { log: jest.Mock };
 
   const provider = {
@@ -212,10 +231,18 @@ describe('OidcAuthService.handleCallback', () => {
     };
     groupUserRepo = { addUserToDefaultGroup: jest.fn().mockResolvedValue(undefined) };
     workspaceService = { addUserToWorkspace: jest.fn().mockResolvedValue(undefined) };
-    sessionService = {
-      createSessionAndToken: jest.fn().mockResolvedValue('session-token'),
-    };
     auditService = { log: jest.fn() };
+    mfaGateService = {
+      checkAndChallenge: jest.fn().mockImplementation(async () => {
+        auditService.log({
+          event: 'user.login',
+          resourceType: 'user',
+          resourceId: user.id,
+          metadata: { method: 'oidc' },
+        });
+        return { requiresMfa: false, authToken: 'session-token' };
+      }),
+    };
     (client.discovery as jest.Mock).mockResolvedValue({});
 
     const moduleRef = await Test.createTestingModule({
@@ -223,9 +250,9 @@ describe('OidcAuthService.handleCallback', () => {
         OidcAuthService,
         { provide: AuthProviderRepo, useValue: authProviderRepo },
         { provide: AuthAccountRepo, useValue: authAccountRepo },
+        { provide: SsoService, useValue: { decryptSecret: (v: string) => v } },
         { provide: UserRepo, useValue: userRepo },
         { provide: GroupUserRepo, useValue: groupUserRepo },
-        { provide: SessionService, useValue: sessionService },
         { provide: WorkspaceService, useValue: workspaceService },
         {
           provide: EnvironmentService,
@@ -234,6 +261,12 @@ describe('OidcAuthService.handleCallback', () => {
             getAppUrl: () => 'http://localhost:3000',
             isHttps: () => false,
           },
+        },
+        { provide: AttachmentService, useValue: {} },
+        { provide: MfaGateService, useValue: mfaGateService },
+        {
+          provide: OidcProviderStrategyFactory,
+          useValue: { create: () => genericStrategyStub },
         },
         { provide: AUDIT_SERVICE, useValue: auditService },
         { provide: KYSELY_MODULE_CONNECTION_TOKEN(), useValue: fakeDb },
@@ -262,6 +295,8 @@ describe('OidcAuthService.handleCallback', () => {
         state: 's2',
         stateCookie: stateCookieFor(),
         workspaceId: 'ws1',
+        workspace: fakeWorkspace,
+        res: fakeRes,
       }),
     ).rejects.toThrow(BadRequestException);
   });
@@ -294,6 +329,8 @@ describe('OidcAuthService.handleCallback', () => {
         state: 's1',
         stateCookie: stateCookieFor(),
         workspaceId: 'ws1',
+        workspace: fakeWorkspace,
+        res: fakeRes,
       }),
     ).rejects.toThrow(BadRequestException);
   });
@@ -314,6 +351,8 @@ describe('OidcAuthService.handleCallback', () => {
       state: 's1',
       stateCookie: stateCookieFor(),
       workspaceId: 'ws1',
+        workspace: fakeWorkspace,
+        res: fakeRes,
     });
 
     expect(authAccountRepo.findByProviderUserId).toHaveBeenCalledWith(
@@ -342,6 +381,8 @@ describe('OidcAuthService.handleCallback', () => {
       state: 's1',
       stateCookie: stateCookieFor(),
       workspaceId: 'ws1',
+        workspace: fakeWorkspace,
+        res: fakeRes,
     });
 
     expect(userRepo.findByEmail).toHaveBeenCalledWith('user@example.com', 'ws1', {
@@ -366,6 +407,8 @@ describe('OidcAuthService.handleCallback', () => {
       state: 's1',
       stateCookie: stateCookieFor(),
       workspaceId: 'ws1',
+        workspace: fakeWorkspace,
+        res: fakeRes,
     });
 
     expect(userRepo.insertUser).toHaveBeenCalledWith(
@@ -398,6 +441,8 @@ describe('OidcAuthService.handleCallback', () => {
         state: 's1',
         stateCookie: stateCookieFor(),
         workspaceId: 'ws1',
+        workspace: fakeWorkspace,
+        res: fakeRes,
       }),
     ).rejects.toThrow(UnauthorizedException);
     expect(userRepo.insertUser).not.toHaveBeenCalled();
@@ -414,6 +459,8 @@ describe('OidcAuthService.handleCallback', () => {
       state: 's1',
       stateCookie: stateCookieFor(),
       workspaceId: 'ws1',
+        workspace: fakeWorkspace,
+        res: fakeRes,
     });
 
     expect(userRepo.updateLastLogin).toHaveBeenCalledWith('u1', 'ws1');
@@ -433,6 +480,8 @@ describe('OidcAuthService.handleCallback', () => {
       state: 's1',
       stateCookie: stateCookieFor(),
       workspaceId: 'ws1',
+        workspace: fakeWorkspace,
+        res: fakeRes,
     });
 
     expect(userRepo.findByEmail).toHaveBeenCalledWith('user@example.com', 'ws1', {
@@ -451,6 +500,8 @@ describe('OidcAuthService.handleCallback', () => {
       state: 's1',
       stateCookie: stateCookieFor(),
       workspaceId: 'ws1',
+        workspace: fakeWorkspace,
+        res: fakeRes,
     });
 
     expect(client.authorizationCodeGrant).toHaveBeenCalledWith(
@@ -476,6 +527,8 @@ describe('OidcAuthService.handleCallback', () => {
       state: 's1',
       stateCookie: stateCookieFor({ redirect: '@evil.com' }),
       workspaceId: 'ws1',
+        workspace: fakeWorkspace,
+        res: fakeRes,
     });
 
     expect(result.redirect).toBe('/');
@@ -492,12 +545,14 @@ describe('OidcAuthService.handleCallback', () => {
       state: 's1',
       stateCookie: stateCookieFor(),
       workspaceId: 'ws1',
+        workspace: fakeWorkspace,
+        res: fakeRes,
     });
 
     const [, currentUrl] = (client.authorizationCodeGrant as jest.Mock).mock
       .calls[0];
     expect((currentUrl as URL).origin + (currentUrl as URL).pathname).toBe(
-      'http://localhost:3000/api/sso/oidc/p1/callback',
+      'http://localhost:3000/api/sso/oidc/callback',
     );
   });
 });

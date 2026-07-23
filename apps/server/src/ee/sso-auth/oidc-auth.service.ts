@@ -36,7 +36,6 @@ export class OidcAuthService {
     private readonly ssoService: SsoService,
     private readonly userRepo: UserRepo,
     private readonly groupUserRepo: GroupUserRepo,
-    private readonly sessionService: SessionService,
     private readonly workspaceService: WorkspaceService,
     private readonly environmentService: EnvironmentService,
     private readonly attachmentService: AttachmentService,

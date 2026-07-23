@@ -8,7 +8,6 @@ import {
 import { FastifyReply } from 'fastify';
 import { AuthProviderRepo } from '../sso/auth-provider.repo';
 import { UserRepo } from '@docmost/db/repos/user/user.repo';
-import { SessionService } from '../../core/session/session.service';
 import { MfaGateService, MfaGateResult } from '../mfa/services/mfa-gate.service';
 import { Workspace } from '@docmost/db/types/entity.types';
 import { Client } from 'ldapts';
@@ -25,7 +24,6 @@ export class SsoAuthService {
   constructor(
     private readonly authProviderRepo: AuthProviderRepo,
     private readonly userRepo: UserRepo,
-    private readonly sessionService: SessionService,
     private readonly mfaGateService: MfaGateService,
     @Inject(AUDIT_SERVICE) private readonly auditService: IAuditService,
   ) {}
