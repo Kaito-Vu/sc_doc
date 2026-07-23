@@ -6,12 +6,11 @@ import { PluginDefinitionService } from './services/plugin-definition.service'
 import { HookRegistry } from './services/hook.registry'
 import { PluginsController } from './plugins.controller'
 import { RecaptchaModule } from './recaptcha/recaptcha.module'
-import { AzureAdModule } from './azure-ad/azure-ad.module'
 import { MinioModule } from './minio/minio.module'
 
 @Global()
 @Module({
-  imports: [RecaptchaModule, AzureAdModule, MinioModule],
+  imports: [RecaptchaModule, MinioModule],
   providers: [PluginRegistry, PluginConfigService, PluginDefinitionService, HookRegistry],
   controllers: [PluginsController],
   exports: [PluginRegistry, PluginConfigService, PluginDefinitionService, HookRegistry],

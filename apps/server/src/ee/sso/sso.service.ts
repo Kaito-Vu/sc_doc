@@ -1,5 +1,6 @@
 import {
   ForbiddenException,
+  Inject,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -12,12 +13,18 @@ import {
   WorkspaceCaslSubject,
 } from '../../core/casl/interfaces/workspace-ability.type';
 import { Workspace } from '@docmost/db/types/entity.types';
+import {
+  AUDIT_SERVICE,
+  IAuditService,
+} from '../../integrations/audit/audit.service';
+import { AuditEvent, AuditResource } from '../../common/events/audit-events';
 
 @Injectable()
 export class SsoService {
   constructor(
     private readonly authProviderRepo: AuthProviderRepo,
     private readonly workspaceAbility: WorkspaceAbilityFactory,
+    @Inject(AUDIT_SERVICE) private readonly auditService: IAuditService,
   ) {}
 
   private assertAdmin(user: User, workspace: Workspace) {
@@ -104,9 +111,18 @@ export class SsoService {
       allowSignup: data.allowSignup ?? false,
       isEnabled: data.isEnabled ?? false,
       groupSync: data.groupSync ?? false,
+      avatarSync: data.avatarSync ?? false,
       creatorId: user.id,
       workspaceId,
     });
+
+    this.auditService.log({
+      event: AuditEvent.SSO_PROVIDER_CREATED,
+      resourceType: AuditResource.SSO_PROVIDER,
+      resourceId: provider.id,
+      metadata: { type: provider.type, name: provider.name },
+    });
+
     return this.mapProvider(provider);
   }
 
@@ -147,8 +163,17 @@ export class SsoService {
         allowSignup: data.allowSignup,
         isEnabled: data.isEnabled,
         groupSync: data.groupSync,
+        avatarSync: data.avatarSync,
       },
     );
+
+    this.auditService.log({
+      event: AuditEvent.SSO_PROVIDER_UPDATED,
+      resourceType: AuditResource.SSO_PROVIDER,
+      resourceId: updated.id,
+      metadata: { type: updated.type, name: updated.name, updatedBy: user.id },
+    });
+
     return this.mapProvider(updated);
   }
 
@@ -167,5 +192,12 @@ export class SsoService {
       throw new NotFoundException('SSO provider not found');
     }
     await this.authProviderRepo.softDelete(providerId, workspaceId);
+
+    this.auditService.log({
+      event: AuditEvent.SSO_PROVIDER_DELETED,
+      resourceType: AuditResource.SSO_PROVIDER,
+      resourceId: existing.id,
+      metadata: { deletedBy: user.id, type: existing.type, name: existing.name },
+    });
   }
 }
