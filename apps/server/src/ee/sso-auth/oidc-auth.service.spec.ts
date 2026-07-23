@@ -141,6 +141,72 @@ describe('OidcAuthService.buildAuthorizationUrl', () => {
     const decoded = decodeOidcState(result.stateCookie, 'test-secret');
     expect(decoded?.singleton).toBeFalsy();
   });
+
+  it('normalizes an Azure federation metadata URL to the issuer base URL before discovery', async () => {
+    authProviderRepo.findEntraProvider.mockResolvedValue({
+      id: 'entra-1',
+      type: 'azure-ad',
+      isEnabled: true,
+      oidcIssuer:
+        'https://login.microsoftonline.com/tenant-id/federationmetadata/2007-06/federationmetadata.xml',
+      oidcClientId: 'cid',
+      oidcClientSecret: 'secret',
+    });
+    (client.discovery as jest.Mock).mockResolvedValue({});
+    (client.buildAuthorizationUrl as jest.Mock).mockReturnValue(
+      new URL('https://login.microsoftonline.com/authorize?x=1'),
+    );
+
+    await service.buildAuthorizationUrl(undefined, 'ws1');
+
+    expect(client.discovery).toHaveBeenCalledWith(
+      new URL('https://login.microsoftonline.com/tenant-id/v2.0'),
+      'cid',
+      'secret',
+    );
+  });
+
+  it('strips a pasted .well-known/openid-configuration suffix before discovery', async () => {
+    authProviderRepo.findEntraProvider.mockResolvedValue({
+      id: 'entra-1',
+      type: 'azure-ad',
+      isEnabled: true,
+      oidcIssuer:
+        'https://login.microsoftonline.com/tenant-id/v2.0/.well-known/openid-configuration',
+      oidcClientId: 'cid',
+      oidcClientSecret: 'secret',
+    });
+    (client.discovery as jest.Mock).mockResolvedValue({});
+    (client.buildAuthorizationUrl as jest.Mock).mockReturnValue(
+      new URL('https://login.microsoftonline.com/authorize?x=1'),
+    );
+
+    await service.buildAuthorizationUrl(undefined, 'ws1');
+
+    expect(client.discovery).toHaveBeenCalledWith(
+      new URL('https://login.microsoftonline.com/tenant-id/v2.0'),
+      'cid',
+      'secret',
+    );
+  });
+
+  it('wraps a discovery failure in a descriptive BadRequestException', async () => {
+    authProviderRepo.findEntraProvider.mockResolvedValue({
+      id: 'entra-1',
+      type: 'azure-ad',
+      isEnabled: true,
+      oidcIssuer: 'https://login.microsoftonline.com/wrong-tenant/v2.0',
+      oidcClientId: 'cid',
+      oidcClientSecret: 'secret',
+    });
+    (client.discovery as jest.Mock).mockRejectedValue(
+      new Error('unexpected HTTP response status code'),
+    );
+
+    await expect(
+      service.buildAuthorizationUrl(undefined, 'ws1'),
+    ).rejects.toThrow(BadRequestException);
+  });
 });
 
 describe('OidcAuthService.handleCallback', () => {
