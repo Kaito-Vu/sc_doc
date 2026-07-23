@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -15,6 +16,8 @@ import { nanoIdGen } from '../../common/helpers';
 
 @Injectable()
 export class OidcAuthService {
+  private readonly logger = new Logger(OidcAuthService.name);
+
   constructor(
     private readonly authProviderRepo: AuthProviderRepo,
     private readonly userRepo: UserRepo,
@@ -29,6 +32,80 @@ export class OidcAuthService {
 
   private isOidcCapable(provider: { type: string } | undefined): boolean {
     return provider?.type === 'oidc' || provider?.type === 'azure-ad';
+  }
+
+  /**
+   * Tolerates the two most common admin mistakes when pasting an Entra ID
+   * issuer: pasting the ADFS/Entra federation metadata URL instead of the
+   * OIDC issuer, or pasting the full `.well-known/openid-configuration`
+   * discovery URL instead of its base. Both are normalized to the issuer
+   * base URL `client.discovery()` expects.
+   */
+  private normalizeIssuerUrl(rawIssuer: string): URL {
+    let parsed: URL;
+    try {
+      parsed = new URL(rawIssuer.trim());
+    } catch {
+      throw new BadRequestException(
+        'Invalid OIDC issuer URL. Expected an issuer base URL such as https://login.microsoftonline.com/<tenant>/v2.0',
+      );
+    }
+
+    const federationTenant = this.extractAzureFederationTenant(parsed);
+    if (federationTenant) {
+      return new URL(
+        `https://login.microsoftonline.com/${encodeURIComponent(federationTenant)}/v2.0`,
+      );
+    }
+    if (parsed.pathname.toLowerCase().includes('/federationmetadata/')) {
+      throw new BadRequestException(
+        'Azure federation metadata URL is not a valid OIDC issuer. Use an issuer base URL such as https://login.microsoftonline.com/<tenant>/v2.0',
+      );
+    }
+
+    const wellKnownSuffix = '/.well-known/openid-configuration';
+    if (parsed.pathname.toLowerCase().endsWith(wellKnownSuffix)) {
+      parsed.pathname = parsed.pathname.slice(0, -wellKnownSuffix.length) || '/';
+    }
+
+    return parsed;
+  }
+
+  private extractAzureFederationTenant(url: URL): string | null {
+    if (!url.pathname.toLowerCase().includes('/federationmetadata/')) {
+      return null;
+    }
+    const host = url.hostname.toLowerCase();
+    if (
+      host !== 'login.microsoftonline.com' &&
+      host !== 'login.windows.net' &&
+      host !== 'sts.windows.net'
+    ) {
+      return null;
+    }
+    const segments = url.pathname.split('/').filter(Boolean);
+    return segments[0] || null;
+  }
+
+  private async discover(
+    provider: { oidcIssuer: string; oidcClientId: string; oidcClientSecret: string },
+  ) {
+    const issuerUrl = this.normalizeIssuerUrl(provider.oidcIssuer);
+    try {
+      return await client.discovery(
+        issuerUrl,
+        provider.oidcClientId,
+        provider.oidcClientSecret,
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(
+        `OIDC discovery failed for issuer=${issuerUrl.toString()}: ${message}`,
+      );
+      throw new BadRequestException(
+        `OIDC discovery failed for issuer ${issuerUrl.toString()}. Verify the issuer is the OIDC issuer base URL (e.g. https://login.microsoftonline.com/<tenant>/v2.0), not a federation metadata or discovery-document URL.`,
+      );
+    }
   }
 
   /**
@@ -57,11 +134,7 @@ export class OidcAuthService {
       throw new BadRequestException('OIDC provider is not fully configured');
     }
 
-    const config = await client.discovery(
-      new URL(provider.oidcIssuer),
-      provider.oidcClientId,
-      provider.oidcClientSecret,
-    );
+    const config = await this.discover(provider);
 
     const state = client.randomState();
     const nonce = client.randomNonce();
@@ -126,11 +199,7 @@ export class OidcAuthService {
       throw new BadRequestException('OIDC provider is not fully configured');
     }
 
-    const config = await client.discovery(
-      new URL(provider.oidcIssuer),
-      provider.oidcClientId,
-      provider.oidcClientSecret,
-    );
+    const config = await this.discover(provider);
 
     // Reconstructs the exact redirect_uri sent in the authorization request
     // (required for the token exchange to match per the OAuth spec) - based
