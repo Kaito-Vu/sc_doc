@@ -10,6 +10,7 @@ export const AuditEvent = {
   USER_CREATED: 'user.created',
   USER_DELETED: 'user.deleted',
   USER_LOGIN: 'user.login',
+  USER_LOGIN_FAILED: 'user.login_failed',
   USER_LOGOUT: 'user.logout',
   USER_ROLE_CHANGED: 'user.role_changed',
   USER_PASSWORD_CHANGED: 'user.password_changed',

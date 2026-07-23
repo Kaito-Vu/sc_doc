@@ -1,15 +1,24 @@
 import {
   BadRequestException,
+  Inject,
   Injectable,
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
+import { FastifyReply } from 'fastify';
 import { AuthProviderRepo } from '../sso/auth-provider.repo';
 import { UserRepo } from '@docmost/db/repos/user/user.repo';
 import { SessionService } from '../../core/session/session.service';
+import { MfaGateService, MfaGateResult } from '../mfa/services/mfa-gate.service';
+import { Workspace } from '@docmost/db/types/entity.types';
 import { Client } from 'ldapts';
 import { UserRole } from '../../common/helpers/types/permission';
 import { nanoIdGen } from '../../common/helpers';
+import {
+  AUDIT_SERVICE,
+  IAuditService,
+} from '../../integrations/audit/audit.service';
+import { AuditEvent, AuditResource } from '../../common/events/audit-events';
 
 @Injectable()
 export class SsoAuthService {
@@ -17,13 +26,17 @@ export class SsoAuthService {
     private readonly authProviderRepo: AuthProviderRepo,
     private readonly userRepo: UserRepo,
     private readonly sessionService: SessionService,
+    private readonly mfaGateService: MfaGateService,
+    @Inject(AUDIT_SERVICE) private readonly auditService: IAuditService,
   ) {}
 
   async ldapLogin(
     providerId: string,
     data: { username: string; password: string },
-    workspaceId: string,
-  ): Promise<string> {
+    workspace: Workspace,
+    res: FastifyReply,
+  ): Promise<MfaGateResult> {
+    const workspaceId = workspace.id;
     const provider = await this.authProviderRepo.findById(
       providerId,
       workspaceId,
@@ -49,10 +62,37 @@ export class SsoAuthService {
         attributes: ['mail', 'cn', 'uid'],
       });
       if (!searchEntries.length) {
+        this.auditService.log({
+          event: AuditEvent.USER_LOGIN_FAILED,
+          resourceType: AuditResource.USER,
+          metadata: {
+            method: 'ldap',
+            providerId: provider.id,
+            providerName: provider.name,
+            failureReason: 'user_not_found',
+            attemptedEmail: data.username,
+          },
+        });
         throw new UnauthorizedException('Invalid credentials');
       }
       const entry = searchEntries[0];
-      await client.bind(entry.dn, data.password);
+
+      try {
+        await client.bind(entry.dn, data.password);
+      } catch (error) {
+        this.auditService.log({
+          event: AuditEvent.USER_LOGIN_FAILED,
+          resourceType: AuditResource.USER,
+          metadata: {
+            method: 'ldap',
+            providerId: provider.id,
+            providerName: provider.name,
+            failureReason: 'bind_failed',
+            attemptedEmail: data.username,
+          },
+        });
+        throw new UnauthorizedException('Invalid credentials');
+      }
 
       const email =
         (entry.mail as string) ||
@@ -71,7 +111,11 @@ export class SsoAuthService {
         throw new UnauthorizedException('User not provisioned');
       }
 
-      return this.sessionService.createSessionAndToken(user);
+      return this.mfaGateService.checkAndChallenge(user, workspace, res, {
+        method: 'ldap',
+        providerId: provider.id,
+        providerName: provider.name,
+      });
     } finally {
       await client.unbind().catch(() => undefined);
     }

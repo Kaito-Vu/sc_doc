@@ -39,6 +39,9 @@ export interface JwtMfaTokenPayload {
   sub: string;
   workspaceId: string;
   type: 'mfa_token';
+  method?: 'local' | 'oidc' | 'ldap' | 'saml';
+  providerId?: string;
+  providerName?: string;
 }
 
 export type JwtApiKeyPayload = {

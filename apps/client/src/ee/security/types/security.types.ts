@@ -9,6 +9,8 @@ export interface IAuthProvider {
   oidcIssuer: string;
   oidcClientId: string;
   oidcClientSecret: string;
+  oidcTenantId?: string;
+  settings?: { oidc?: { provider?: "generic" | "azuread" } };
   ldapUrl: string;
   ldapBindDn: string;
   ldapBindPassword: string;

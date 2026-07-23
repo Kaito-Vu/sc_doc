@@ -8,7 +8,7 @@ export function buildCallbackUrl(opts: {
   const { providerId, type } = opts;
   const domain = getAppUrl();
 
-  if (type === SSO_PROVIDER.GOOGLE) {
+  if (type === SSO_PROVIDER.GOOGLE || type === SSO_PROVIDER.OIDC) {
     return `${domain}/api/sso/${type}/callback`;
   }
 

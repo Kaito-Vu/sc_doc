@@ -179,6 +179,15 @@ export class MfaService {
 
     const errorMessage = 'Email or password does not match';
     if (!user || isUserDisabled(user)) {
+      this.auditService.log({
+        event: AuditEvent.USER_LOGIN_FAILED,
+        resourceType: AuditResource.USER,
+        metadata: {
+          method: 'local',
+          failureReason: !user ? 'user_not_found' : 'account_disabled',
+          attemptedEmail: loginInput.email,
+        },
+      });
       throw new UnauthorizedException(errorMessage);
     }
 
@@ -187,6 +196,15 @@ export class MfaService {
       user.password,
     );
     if (!isPasswordMatch) {
+      this.auditService.log({
+        event: AuditEvent.USER_LOGIN_FAILED,
+        resourceType: AuditResource.USER,
+        metadata: {
+          method: 'local',
+          failureReason: 'invalid_password',
+          attemptedEmail: loginInput.email,
+        },
+      });
       throw new UnauthorizedException(errorMessage);
     }
 
@@ -206,6 +224,7 @@ export class MfaService {
       const mfaToken = await this.tokenService.generateMfaToken(
         user,
         workspace.id,
+        { method: 'local' },
       );
       this.setMfaCookie(res, mfaToken);
 
@@ -218,6 +237,15 @@ export class MfaService {
 
     user.lastLoginAt = new Date();
     await this.userRepo.updateLastLogin(user.id, workspace.id);
+
+    this.auditService.setActorId(user.id);
+    this.auditService.setActorType('user');
+    this.auditService.log({
+      event: AuditEvent.USER_LOGIN,
+      resourceType: AuditResource.USER,
+      resourceId: user.id,
+      metadata: { method: 'local' },
+    });
 
     const authToken = await this.sessionService.createSessionAndToken(user);
     return { authToken };
@@ -279,6 +307,16 @@ export class MfaService {
 
     const valid = await this.verifyCode(mfa, code);
     if (!valid) {
+      this.auditService.log({
+        event: AuditEvent.USER_LOGIN_FAILED,
+        resourceType: AuditResource.USER,
+        metadata: {
+          method: payload.method ?? 'local',
+          providerId: payload.providerId,
+          providerName: payload.providerName,
+          failureReason: 'invalid_mfa_code',
+        },
+      });
       throw new UnauthorizedException('Invalid verification code');
     }
 
@@ -289,11 +327,18 @@ export class MfaService {
     res.clearCookie('mfaToken');
     this.setAuthCookie(res, authToken);
 
+    this.auditService.setActorId(user.id);
+    this.auditService.setActorType('user');
     this.auditService.log({
       event: AuditEvent.USER_LOGIN,
       resourceType: AuditResource.USER,
       resourceId: user.id,
-      metadata: { source: 'mfa' },
+      metadata: {
+        method: payload.method ?? 'local',
+        providerId: payload.providerId,
+        providerName: payload.providerName,
+        mfaUsed: true,
+      },
     });
 
     return { success: true };

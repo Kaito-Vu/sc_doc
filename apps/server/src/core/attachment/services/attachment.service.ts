@@ -291,6 +291,74 @@ export class AttachmentService {
     );
   }
 
+  async uploadUserAvatarFromBuffer(opts: {
+    buffer: Buffer;
+    mimeType: string;
+    userId: string;
+    workspaceId: string;
+  }): Promise<Attachment> {
+    const extensionByMimeType: Record<string, string> = {
+      'image/jpeg': '.jpg',
+      'image/jpg': '.jpg',
+      'image/png': '.png',
+    };
+    const normalizedMimeType = opts.mimeType.toLowerCase().split(';')[0].trim();
+    const fileExtension = extensionByMimeType[normalizedMimeType];
+    if (!fileExtension || !validImageExtensions.includes(fileExtension)) {
+      throw new BadRequestException('Unsupported avatar image type');
+    }
+
+    const preparedFile: PreparedFile = {
+      buffer: opts.buffer,
+      fileName: uuid4() + fileExtension,
+      fileExtension,
+      fileSize: opts.buffer.byteLength,
+      mimeType: normalizedMimeType,
+    };
+
+    const filePath = `${getAttachmentFolderPath(AttachmentType.Avatar, opts.workspaceId)}/${preparedFile.fileName}`;
+    await this.uploadToDrive(filePath, preparedFile.buffer);
+
+    let attachment: Attachment = null;
+    let oldFileName: string = null;
+
+    try {
+      await executeTx(this.db, async (trx) => {
+        attachment = await this.saveAttachment({
+          preparedFile,
+          filePath,
+          type: AttachmentType.Avatar,
+          userId: opts.userId,
+          workspaceId: opts.workspaceId,
+          trx,
+        });
+
+        const user = await this.userRepo.findById(opts.userId, opts.workspaceId, {
+          trx,
+        });
+        oldFileName = user.avatarUrl;
+
+        await this.userRepo.updateUser(
+          { avatarUrl: preparedFile.fileName },
+          opts.userId,
+          opts.workspaceId,
+          trx,
+        );
+      });
+    } catch (err) {
+      await this.deleteRedundantFile(filePath);
+      this.logger.error('uploadUserAvatarFromBuffer transaction failed', err);
+      throw new BadRequestException('Failed to upload image');
+    }
+
+    if (oldFileName && !oldFileName.toLowerCase().startsWith('http')) {
+      const oldFilePath = `${getAttachmentFolderPath(AttachmentType.Avatar, opts.workspaceId)}/${oldFileName}`;
+      await this.deleteRedundantFile(oldFilePath);
+    }
+
+    return attachment;
+  }
+
   async handleDeleteAiChatAttachments(aiChatId: string) {
     const attachments = await this.attachmentRepo.findByAiChatId(aiChatId);
     if (!attachments || attachments.length === 0) {

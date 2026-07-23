@@ -36,12 +36,18 @@ export class SsoAuthController {
     @AuthWorkspace() workspace: Workspace,
     @Res({ passthrough: true }) res: FastifyReply,
   ) {
-    const authToken = await this.ssoAuthService.ldapLogin(
+    const result = await this.ssoAuthService.ldapLogin(
       providerId,
       body,
-      workspace.id,
+      workspace,
+      res,
     );
-    res.setCookie('authToken', authToken, {
+
+    if (result.requiresMfa || !result.authToken) {
+      return { requiresMfa: true };
+    }
+
+    res.setCookie('authToken', result.authToken, {
       httpOnly: true,
       path: '/',
       sameSite: 'lax',
@@ -59,9 +65,8 @@ export class SsoAuthController {
     return this.startOidcLogin(providerId, redirect, workspace, res);
   }
 
-  @Get('oidc/:providerId/callback')
+  @Get('oidc/callback')
   async oidcCallback(
-    @Param('providerId') _providerId: string,
     @Query('code') code: string,
     @Query('state') state: string,
     @AuthWorkspace() workspace: Workspace,
@@ -113,22 +118,30 @@ export class SsoAuthController {
       if (!code || !state || !stateCookie) {
         throw new Error('Missing OIDC callback parameters');
       }
-      const { authToken, redirect } = await this.oidcAuthService.handleCallback({
+      const result = await this.oidcAuthService.handleCallback({
         code,
         state,
         stateCookie,
         workspaceId: workspace.id,
+        workspace,
+        res,
       });
-      res.setCookie('authToken', authToken, {
+      res.clearCookie('oidc_state', { path: '/' });
+
+      if (result.requiresMfa || !result.authToken) {
+        res.redirect(`${appUrl}/login/mfa`);
+        return;
+      }
+
+      res.setCookie('authToken', result.authToken, {
         httpOnly: true,
         sameSite: 'lax',
         path: '/',
         expires: this.environmentService.getCookieExpiresIn(),
         secure: this.environmentService.isHttps(),
       });
-      res.clearCookie('oidc_state', { path: '/' });
       // See the comment in startOidcLogin: do not return the redirect() call.
-      res.redirect(`${appUrl}${redirect ?? '/'}`);
+      res.redirect(`${appUrl}${result.redirect ?? '/'}`);
     } catch (error) {
       this.logger.error(
         `OIDC callback failed: ${error instanceof Error ? error.message : String(error)}`,

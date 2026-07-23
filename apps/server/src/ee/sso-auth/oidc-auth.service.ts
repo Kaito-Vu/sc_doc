@@ -8,24 +8,23 @@ import {
 } from '@nestjs/common';
 import * as client from 'openid-client';
 import { InjectKysely } from 'nestjs-kysely';
+import { FastifyReply } from 'fastify';
 import { AuthProviderRepo } from '../sso/auth-provider.repo';
 import { AuthAccountRepo } from '../sso/auth-account.repo';
+import { SsoService } from '../sso/sso.service';
 import { UserRepo } from '@docmost/db/repos/user/user.repo';
 import { GroupUserRepo } from '@docmost/db/repos/group/group-user.repo';
 import { KyselyDB } from '@docmost/db/types/kysely.types';
 import { executeTx } from '@docmost/db/utils';
-import { User } from '@docmost/db/types/entity.types';
-import { SessionService } from '../../core/session/session.service';
+import { User, Workspace } from '@docmost/db/types/entity.types';
 import { WorkspaceService } from '../../core/workspace/services/workspace.service';
 import { EnvironmentService } from '../../integrations/environment/environment.service';
-import {
-  AUDIT_SERVICE,
-  IAuditService,
-} from '../../integrations/audit/audit.service';
-import { AuditEvent, AuditResource } from '../../common/events/audit-events';
+import { AttachmentService } from '../../core/attachment/services/attachment.service';
+import { MfaGateService } from '../mfa/services/mfa-gate.service';
 import { encodeOidcState, decodeOidcState } from './oidc-state.util';
 import { UserRole } from '../../common/helpers/types/permission';
 import { nanoIdGen } from '../../common/helpers';
+import { OidcProviderStrategyFactory } from './oidc-provider-strategy.factory';
 
 @Injectable()
 export class OidcAuthService {
@@ -34,17 +33,20 @@ export class OidcAuthService {
   constructor(
     private readonly authProviderRepo: AuthProviderRepo,
     private readonly authAccountRepo: AuthAccountRepo,
+    private readonly ssoService: SsoService,
     private readonly userRepo: UserRepo,
     private readonly groupUserRepo: GroupUserRepo,
     private readonly sessionService: SessionService,
     private readonly workspaceService: WorkspaceService,
     private readonly environmentService: EnvironmentService,
-    @Inject(AUDIT_SERVICE) private readonly auditService: IAuditService,
+    private readonly attachmentService: AttachmentService,
+    private readonly mfaGateService: MfaGateService,
+    private readonly strategyFactory: OidcProviderStrategyFactory,
     @InjectKysely() private readonly db: KyselyDB,
   ) {}
 
-  private buildCallbackUrl(providerId: string): string {
-    return `${this.environmentService.getAppUrl()}/api/sso/oidc/${providerId}/callback`;
+  private buildCallbackUrl(): string {
+    return `${this.environmentService.getAppUrl()}/api/sso/oidc/callback`;
   }
 
   private isOidcCapable(provider: { type: string } | undefined): boolean {
@@ -56,7 +58,10 @@ export class OidcAuthService {
    * full `.well-known/openid-configuration` discovery URL instead of the
    * issuer base URL `client.discovery()` expects.
    */
-  private normalizeIssuerUrl(rawIssuer: string): URL {
+  private normalizeIssuerUrl(
+    rawIssuer: string,
+    provider: { settings?: any },
+  ): URL {
     let parsed: URL;
     try {
       parsed = new URL(rawIssuer.trim());
@@ -71,18 +76,25 @@ export class OidcAuthService {
       parsed.pathname = parsed.pathname.slice(0, -wellKnownSuffix.length) || '/';
     }
 
-    return parsed;
+    const strategy = this.strategyFactory.create(provider);
+    return strategy.normalizeIssuer(parsed);
   }
 
   private async discover(
-    provider: { oidcIssuer: string; oidcClientId: string; oidcClientSecret: string },
+    provider: {
+      oidcIssuer: string;
+      oidcClientId: string;
+      oidcClientSecret: string;
+      settings?: any;
+    },
   ) {
-    const issuerUrl = this.normalizeIssuerUrl(provider.oidcIssuer);
+    const issuerUrl = this.normalizeIssuerUrl(provider.oidcIssuer, provider);
+    const clientSecret = this.ssoService.decryptSecret(provider.oidcClientSecret);
     try {
       return await client.discovery(
         issuerUrl,
         provider.oidcClientId,
-        provider.oidcClientSecret,
+        clientSecret,
       );
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -113,16 +125,21 @@ export class OidcAuthService {
     }
 
     const config = await this.discover(provider);
+    const strategy = this.strategyFactory.create(provider);
 
     const state = client.randomState();
     const nonce = client.randomNonce();
     const codeVerifier = client.randomPKCECodeVerifier();
     const codeChallenge = await client.calculatePKCECodeChallenge(codeVerifier);
 
-    const callbackUrl = this.buildCallbackUrl(providerId);
+    const scope = ['openid', 'profile', 'email', ...strategy.getExtraScopes()].join(
+      ' ',
+    );
+
+    const callbackUrl = this.buildCallbackUrl();
     const authUrl = client.buildAuthorizationUrl(config, {
       redirect_uri: callbackUrl,
-      scope: 'openid profile email',
+      scope,
       state,
       nonce,
       code_challenge: codeChallenge,
@@ -148,7 +165,13 @@ export class OidcAuthService {
     state: string;
     stateCookie: string;
     workspaceId: string;
-  }): Promise<{ authToken: string; redirect?: string }> {
+    workspace: Workspace;
+    res: FastifyReply;
+  }): Promise<{
+    requiresMfa: boolean;
+    authToken?: string;
+    redirect?: string;
+  }> {
     const decoded = decodeOidcState(
       params.stateCookie,
       this.environmentService.getAppSecret(),
@@ -173,10 +196,11 @@ export class OidcAuthService {
     }
 
     const config = await this.discover(provider);
+    const strategy = this.strategyFactory.create(provider);
 
     // Reconstructs the exact redirect_uri sent in the authorization request
     // (required for the token exchange to match per the OAuth spec).
-    const callbackUrl = this.buildCallbackUrl(decoded.providerId);
+    const callbackUrl = this.buildCallbackUrl();
     const currentUrl = new URL(callbackUrl);
     currentUrl.searchParams.set('code', params.code);
     currentUrl.searchParams.set('state', params.state);
@@ -201,11 +225,17 @@ export class OidcAuthService {
     const email =
       (claims?.email as string | undefined) ??
       (claims?.preferred_username as string | undefined);
-    const name = (claims?.name as string | undefined) ?? email;
+    const fullName = [claims?.given_name, claims?.family_name]
+      .filter(Boolean)
+      .join(' ');
+    const name =
+      (claims?.name as string | undefined) || fullName || email;
 
     if (!email) {
       throw new BadRequestException('SSO provider did not return an email claim');
     }
+
+    const avatarImage = await strategy.fetchAvatar(tokens);
 
     const user = await this.resolveUser({
       email,
@@ -213,21 +243,27 @@ export class OidcAuthService {
       providerUserId,
       provider,
       workspaceId: params.workspaceId,
+      avatarImage,
     });
 
     await this.userRepo.updateLastLogin(user.id, params.workspaceId);
-    this.auditService.log({
-      event: AuditEvent.USER_LOGIN,
-      resourceType: AuditResource.USER,
-      resourceId: user.id,
-      metadata: { source: 'sso-oidc', providerId: provider.id },
-    });
 
-    const authToken = await this.sessionService.createSessionAndToken(user);
     const redirect = isSafeRedirectPath(decoded.redirect)
       ? decoded.redirect
       : '/';
-    return { authToken, redirect };
+
+    const mfaResult = await this.mfaGateService.checkAndChallenge(
+      user,
+      params.workspace,
+      params.res,
+      {
+        method: 'oidc',
+        providerId: provider.id,
+        providerName: provider.name,
+      },
+    );
+
+    return { ...mfaResult, redirect };
   }
 
   /**
@@ -243,10 +279,12 @@ export class OidcAuthService {
     providerUserId: string;
     provider: { id: string; allowSignup: boolean };
     workspaceId: string;
+    avatarImage?: { buffer: Buffer; mimeType: string };
   }): Promise<User> {
-    const { email, name, providerUserId, provider, workspaceId } = params;
+    const { email, name, providerUserId, provider, workspaceId, avatarImage } =
+      params;
 
-    return executeTx(this.db, async (trx) => {
+    const user = await executeTx(this.db, async (trx) => {
       const linkedAccount = await this.authAccountRepo.findByProviderUserId(
         provider.id,
         providerUserId,
@@ -300,6 +338,21 @@ export class OidcAuthService {
 
       return user;
     });
+
+    if (avatarImage) {
+      try {
+        await this.attachmentService.uploadUserAvatarFromBuffer({
+          buffer: avatarImage.buffer,
+          mimeType: avatarImage.mimeType,
+          userId: user.id,
+          workspaceId,
+        });
+      } catch (error) {
+        this.logger.warn(`Failed to sync avatar from IdP: ${error}`);
+      }
+    }
+
+    return user;
   }
 }
 
