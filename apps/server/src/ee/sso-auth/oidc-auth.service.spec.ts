@@ -312,6 +312,8 @@ describe('OidcAuthService.handleCallback', () => {
         state: 's1',
         stateCookie,
         workspaceId: 'ws1',
+        workspace: fakeWorkspace,
+        res: fakeRes,
       }),
     ).rejects.toThrow(BadRequestException);
     expect(client.authorizationCodeGrant).not.toHaveBeenCalled();

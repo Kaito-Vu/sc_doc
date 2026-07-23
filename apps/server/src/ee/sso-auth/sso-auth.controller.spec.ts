@@ -79,7 +79,7 @@ describe('SsoAuthController.oidcCallback', () => {
     const res: any = { setCookie: jest.fn(), clearCookie: jest.fn(), redirect: jest.fn().mockReturnThis() };
     const req: any = { cookies: {} };
 
-    const result = await controller.oidcCallback('p1', 'code1', 'state1', { id: 'ws1' } as any, res, req);
+    const result = await controller.oidcCallback('code1', 'state1', { id: 'ws1' } as any, res, req);
 
     expect(result).toBeUndefined();
     expect(res.clearCookie).toHaveBeenCalledWith('oidc_state', { path: '/' });
@@ -97,6 +97,7 @@ describe('SsoAuthController.oidcCallback', () => {
           provide: OidcAuthService,
           useValue: {
             handleCallback: jest.fn().mockResolvedValue({
+              requiresMfa: false,
               authToken: 'jwt-token',
               redirect: '/dashboard',
             }),
@@ -117,8 +118,9 @@ describe('SsoAuthController.oidcCallback', () => {
     const oidcAuthService = moduleRef.get(OidcAuthService);
     const res: any = { setCookie: jest.fn(), clearCookie: jest.fn(), redirect: jest.fn().mockReturnThis() };
     const req: any = { cookies: { oidc_state: 'signed-state-cookie' } };
+    const workspace = { id: 'ws1' } as any;
 
-    const result = await controller.oidcCallback('p1', 'code1', 'state1', { id: 'ws1' } as any, res, req);
+    const result = await controller.oidcCallback('code1', 'state1', workspace, res, req);
 
     expect(result).toBeUndefined();
     expect(oidcAuthService.handleCallback).toHaveBeenCalledWith({
@@ -126,6 +128,8 @@ describe('SsoAuthController.oidcCallback', () => {
       state: 'state1',
       stateCookie: 'signed-state-cookie',
       workspaceId: 'ws1',
+      workspace,
+      res,
     });
     expect(res.setCookie).toHaveBeenCalledWith(
       'authToken',

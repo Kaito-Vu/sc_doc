@@ -2,6 +2,7 @@ import { Test } from '@nestjs/testing';
 import { SsoService } from './sso.service';
 import { AuthProviderRepo } from './auth-provider.repo';
 import WorkspaceAbilityFactory from '../../core/casl/abilities/workspace-ability.factory';
+import { EnvironmentService } from '../../integrations/environment/environment.service';
 import { AUDIT_SERVICE } from '../../integrations/audit/audit.service';
 import { AuditEvent, AuditResource } from '../../common/events/audit-events';
 
@@ -37,6 +38,10 @@ describe('SsoService', () => {
           useValue: {
             createForUser: () => ({ cannot: () => false }),
           },
+        },
+        {
+          provide: EnvironmentService,
+          useValue: { getAppSecret: () => 'test-secret' },
         },
         { provide: AUDIT_SERVICE, useValue: auditService },
       ],
