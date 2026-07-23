@@ -11,6 +11,5 @@ import { TokenModule } from '../auth/token.module';
   imports: [StorageModule, UserModule, WorkspaceModule, TokenModule],
   controllers: [AttachmentController],
   providers: [AttachmentService, AttachmentProcessor],
-  exports: [AttachmentService],
 })
 export class AttachmentModule {}

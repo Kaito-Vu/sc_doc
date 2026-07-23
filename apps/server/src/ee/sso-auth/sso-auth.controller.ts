@@ -49,33 +49,6 @@ export class SsoAuthController {
     return {};
   }
 
-  // Singleton Entra ID (Azure AD) routes: no providerId path segment, since
-  // Entra app registrations require a fixed, exact redirect URI. The
-  // provider is instead resolved by workspace (see
-  // AuthProviderRepo.findEntraProvider). Must stay registered before the
-  // generic ':providerId'-scoped routes below are matched by Nest, though
-  // segment-count alone already disambiguates them ('oidc/login' vs
-  // 'oidc/:providerId/login').
-  @Get('oidc/login')
-  async oidcEntraLogin(
-    @Query('redirect') redirect: string | undefined,
-    @AuthWorkspace() workspace: Workspace,
-    @Res({ passthrough: true }) res: FastifyReply,
-  ) {
-    return this.startOidcLogin(undefined, redirect, workspace, res);
-  }
-
-  @Get('oidc/callback')
-  async oidcEntraCallback(
-    @Query('code') code: string,
-    @Query('state') state: string,
-    @AuthWorkspace() workspace: Workspace,
-    @Res({ passthrough: true }) res: FastifyReply,
-    @Req() req: FastifyRequest,
-  ) {
-    return this.finishOidcLogin(code, state, workspace, res, req);
-  }
-
   @Get('oidc/:providerId/login')
   async oidcLogin(
     @Param('providerId') providerId: string,
@@ -99,7 +72,7 @@ export class SsoAuthController {
   }
 
   private async startOidcLogin(
-    providerId: string | undefined,
+    providerId: string,
     redirect: string | undefined,
     workspace: Workspace,
     res: FastifyReply,

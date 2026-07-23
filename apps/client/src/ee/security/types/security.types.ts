@@ -20,7 +20,6 @@ export interface IAuthProvider {
   allowSignup: boolean;
   isEnabled: boolean;
   groupSync: boolean;
-  avatarSync: boolean;
   creatorId: string;
   workspaceId: string;
   createdAt: Date;

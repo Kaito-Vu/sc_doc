@@ -17,7 +17,6 @@ import { executeTx } from '@docmost/db/utils';
 import { User } from '@docmost/db/types/entity.types';
 import { SessionService } from '../../core/session/session.service';
 import { WorkspaceService } from '../../core/workspace/services/workspace.service';
-import { AttachmentService } from '../../core/attachment/services/attachment.service';
 import { EnvironmentService } from '../../integrations/environment/environment.service';
 import {
   AUDIT_SERVICE,
@@ -27,9 +26,6 @@ import { AuditEvent, AuditResource } from '../../common/events/audit-events';
 import { encodeOidcState, decodeOidcState } from './oidc-state.util';
 import { UserRole } from '../../common/helpers/types/permission';
 import { nanoIdGen } from '../../common/helpers';
-
-const AZURE_GRAPH_SCOPE = 'https://graph.microsoft.com/User.Read';
-const AZURE_GRAPH_PHOTO_URL = 'https://graph.microsoft.com/v1.0/me/photo/$value';
 
 @Injectable()
 export class OidcAuthService {
@@ -42,31 +38,23 @@ export class OidcAuthService {
     private readonly groupUserRepo: GroupUserRepo,
     private readonly sessionService: SessionService,
     private readonly workspaceService: WorkspaceService,
-    private readonly attachmentService: AttachmentService,
     private readonly environmentService: EnvironmentService,
     @Inject(AUDIT_SERVICE) private readonly auditService: IAuditService,
     @InjectKysely() private readonly db: KyselyDB,
   ) {}
 
-  private buildCallbackUrl(providerId?: string): string {
-    const base = `${this.environmentService.getAppUrl()}/api/sso/oidc`;
-    return providerId ? `${base}/${providerId}/callback` : `${base}/callback`;
+  private buildCallbackUrl(providerId: string): string {
+    return `${this.environmentService.getAppUrl()}/api/sso/oidc/${providerId}/callback`;
   }
 
   private isOidcCapable(provider: { type: string } | undefined): boolean {
-    return provider?.type === 'oidc' || provider?.type === 'azure-ad';
-  }
-
-  private isAzureProvider(provider: { type: string } | undefined): boolean {
-    return provider?.type === 'azure-ad';
+    return provider?.type === 'oidc';
   }
 
   /**
-   * Tolerates the two most common admin mistakes when pasting an Entra ID
-   * issuer: pasting the ADFS/Entra federation metadata URL instead of the
-   * OIDC issuer, or pasting the full `.well-known/openid-configuration`
-   * discovery URL instead of its base. Both are normalized to the issuer
-   * base URL `client.discovery()` expects.
+   * Tolerates a common admin mistake when pasting an issuer: pasting the
+   * full `.well-known/openid-configuration` discovery URL instead of the
+   * issuer base URL `client.discovery()` expects.
    */
   private normalizeIssuerUrl(rawIssuer: string): URL {
     let parsed: URL;
@@ -74,19 +62,7 @@ export class OidcAuthService {
       parsed = new URL(rawIssuer.trim());
     } catch {
       throw new BadRequestException(
-        'Invalid OIDC issuer URL. Expected an issuer base URL such as https://login.microsoftonline.com/<tenant>/v2.0',
-      );
-    }
-
-    const federationTenant = this.extractAzureFederationTenant(parsed);
-    if (federationTenant) {
-      return new URL(
-        `https://login.microsoftonline.com/${encodeURIComponent(federationTenant)}/v2.0`,
-      );
-    }
-    if (parsed.pathname.toLowerCase().includes('/federationmetadata/')) {
-      throw new BadRequestException(
-        'Azure federation metadata URL is not a valid OIDC issuer. Use an issuer base URL such as https://login.microsoftonline.com/<tenant>/v2.0',
+        'Invalid OIDC issuer URL. Expected an issuer base URL.',
       );
     }
 
@@ -96,22 +72,6 @@ export class OidcAuthService {
     }
 
     return parsed;
-  }
-
-  private extractAzureFederationTenant(url: URL): string | null {
-    if (!url.pathname.toLowerCase().includes('/federationmetadata/')) {
-      return null;
-    }
-    const host = url.hostname.toLowerCase();
-    if (
-      host !== 'login.microsoftonline.com' &&
-      host !== 'login.windows.net' &&
-      host !== 'sts.windows.net'
-    ) {
-      return null;
-    }
-    const segments = url.pathname.split('/').filter(Boolean);
-    return segments[0] || null;
   }
 
   private async discover(
@@ -130,26 +90,17 @@ export class OidcAuthService {
         `OIDC discovery failed for issuer=${issuerUrl.toString()}: ${message}`,
       );
       throw new BadRequestException(
-        `OIDC discovery failed for issuer ${issuerUrl.toString()}. Verify the issuer is the OIDC issuer base URL (e.g. https://login.microsoftonline.com/<tenant>/v2.0), not a federation metadata or discovery-document URL.`,
+        `OIDC discovery failed for issuer ${issuerUrl.toString()}. Verify the issuer is the OIDC issuer base URL, not a discovery-document URL.`,
       );
     }
   }
 
-  /**
-   * providerId is omitted for the singleton Entra ID (Azure AD) flow, whose
-   * redirect URI is fixed (no dynamic segment, since Entra app registrations
-   * pin an exact callback URL) - the actual provider is resolved by
-   * workspace instead. It is always present for the generic, providerId-
-   * scoped OIDC flow.
-   */
   async buildAuthorizationUrl(
-    providerId: string | undefined,
+    providerId: string,
     workspaceId: string,
     redirect?: string,
   ): Promise<{ url: string; stateCookie: string }> {
-    const provider = providerId
-      ? await this.authProviderRepo.findById(providerId, workspaceId)
-      : await this.authProviderRepo.findEntraProvider(workspaceId);
+    const provider = await this.authProviderRepo.findById(providerId, workspaceId);
     if (!provider || !provider.isEnabled || !this.isOidcCapable(provider)) {
       throw new NotFoundException('SSO provider not found');
     }
@@ -168,21 +119,10 @@ export class OidcAuthService {
     const codeVerifier = client.randomPKCECodeVerifier();
     const codeChallenge = await client.calculatePKCECodeChallenge(codeVerifier);
 
-    // Azure providers additionally request Graph's User.Read scope so the
-    // resulting access_token can fetch the user's profile photo for avatar
-    // sync (see handleCallback) - generic OIDC providers have no Graph API.
-    const scope = this.isAzureProvider(provider)
-      ? `openid profile email ${AZURE_GRAPH_SCOPE}`
-      : 'openid profile email';
-
-    // The redirect_uri shape (singleton vs providerId-scoped) mirrors how
-    // this authorization request was reached, not how the provider was
-    // resolved - the singleton /callback route always issues a singleton
-    // redirect_uri, matching the fixed URI registered in Entra.
     const callbackUrl = this.buildCallbackUrl(providerId);
     const authUrl = client.buildAuthorizationUrl(config, {
       redirect_uri: callbackUrl,
-      scope,
+      scope: 'openid profile email',
       state,
       nonce,
       code_challenge: codeChallenge,
@@ -196,7 +136,6 @@ export class OidcAuthService {
         state,
         redirect,
         codeVerifier,
-        singleton: providerId === undefined,
       },
       this.environmentService.getAppSecret(),
     );
@@ -236,12 +175,8 @@ export class OidcAuthService {
     const config = await this.discover(provider);
 
     // Reconstructs the exact redirect_uri sent in the authorization request
-    // (required for the token exchange to match per the OAuth spec) - based
-    // on how this cycle was STARTED (decoded.singleton), not on whether a
-    // providerId happens to be known now.
-    const callbackUrl = this.buildCallbackUrl(
-      decoded.singleton ? undefined : decoded.providerId,
-    );
+    // (required for the token exchange to match per the OAuth spec).
+    const callbackUrl = this.buildCallbackUrl(decoded.providerId);
     const currentUrl = new URL(callbackUrl);
     currentUrl.searchParams.set('code', params.code);
     currentUrl.searchParams.set('state', params.state);
@@ -254,17 +189,15 @@ export class OidcAuthService {
 
     // The email/name claims come from the ID token returned by openid-client's
     // authorizationCodeGrant, which already performs full OIDC validation
-    // (signature, issuer, audience, expiry) regardless of the issuer - Entra ID
-    // included.
+    // (signature, issuer, audience, expiry) regardless of the issuer.
     const claims = tokens.claims();
     const providerUserId = claims?.sub as string | undefined;
     if (!providerUserId) {
       throw new BadRequestException('SSO provider did not return a subject claim');
     }
 
-    // Azure AD only guarantees `preferred_username`; the `email` claim is
-    // only emitted when the optional claim is configured on the app
-    // registration and the user has a verified email on that domain.
+    // Some providers only guarantee `preferred_username`; `email` is only
+    // emitted when the provider is configured to include it.
     const email =
       (claims?.email as string | undefined) ??
       (claims?.preferred_username as string | undefined);
@@ -281,10 +214,6 @@ export class OidcAuthService {
       provider,
       workspaceId: params.workspaceId,
     });
-
-    if (this.isAzureProvider(provider) && provider.avatarSync) {
-      await this.syncAzureAvatar(user, provider.id, tokens.access_token);
-    }
 
     await this.userRepo.updateLastLogin(user.id, params.workspaceId);
     this.auditService.log({
@@ -371,55 +300,6 @@ export class OidcAuthService {
 
       return user;
     });
-  }
-
-  /**
-   * Best-effort profile photo sync from Microsoft Graph - must never block
-   * login, so any failure (missing photo, expired token, network error) is
-   * logged and swallowed rather than thrown.
-   */
-  private async syncAzureAvatar(
-    user: User,
-    providerId: string,
-    accessToken: string | undefined,
-  ): Promise<void> {
-    if (!accessToken) {
-      return;
-    }
-    try {
-      const response = await fetch(AZURE_GRAPH_PHOTO_URL, {
-        headers: { Authorization: `Bearer ${accessToken}` },
-        signal: AbortSignal.timeout(10_000),
-      });
-      if (!response.ok) {
-        if (response.status !== 404) {
-          this.logger.warn(
-            `Azure avatar fetch failed with status=${response.status} providerId=${providerId} userId=${user.id}`,
-          );
-        }
-        return;
-      }
-      const mimeType = response.headers.get('content-type')?.toLowerCase();
-      if (!mimeType || !mimeType.startsWith('image/')) {
-        return;
-      }
-      const arrayBuffer = await response.arrayBuffer();
-      if (!arrayBuffer || arrayBuffer.byteLength === 0) {
-        return;
-      }
-      await this.attachmentService.uploadUserAvatarFromBuffer({
-        buffer: Buffer.from(arrayBuffer),
-        mimeType,
-        userId: user.id,
-        workspaceId: user.workspaceId,
-      });
-    } catch (error) {
-      this.logger.warn(
-        `Azure avatar sync errored for providerId=${providerId} userId=${user.id}: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
-      );
-    }
   }
 }
 

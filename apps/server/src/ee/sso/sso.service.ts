@@ -111,7 +111,6 @@ export class SsoService {
       allowSignup: data.allowSignup ?? false,
       isEnabled: data.isEnabled ?? false,
       groupSync: data.groupSync ?? false,
-      avatarSync: data.avatarSync ?? false,
       creatorId: user.id,
       workspaceId,
     });
@@ -163,7 +162,6 @@ export class SsoService {
         allowSignup: data.allowSignup,
         isEnabled: data.isEnabled,
         groupSync: data.groupSync,
-        avatarSync: data.avatarSync,
       },
     );
 

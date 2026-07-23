@@ -90,7 +90,6 @@ export interface AuthAccounts {
 
 export interface AuthProviders {
   allowSignup: Generated<boolean>;
-  avatarSync: Generated<boolean>;
   createdAt: Generated<Timestamp>;
   creatorId: string | null;
   deletedAt: Timestamp | null;

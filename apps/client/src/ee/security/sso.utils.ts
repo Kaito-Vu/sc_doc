@@ -12,13 +12,6 @@ export function buildCallbackUrl(opts: {
     return `${domain}/api/sso/${type}/callback`;
   }
 
-  // Azure AD (Entra ID) uses a fixed, singleton callback URL (no providerId
-  // segment) - Entra app registrations require an exact, unchanging redirect
-  // URI. Generic OIDC keeps the providerId-scoped route.
-  if (type === SSO_PROVIDER.AZURE_AD) {
-    return `${domain}/api/sso/oidc/callback`;
-  }
-
   return `${domain}/api/sso/${type}/${providerId}/callback`;
 }
 
@@ -40,14 +33,6 @@ export function buildSsoLoginUrl(opts: {
   }
 
   const query = params.toString();
-
-  // Azure AD (Entra ID) uses the singleton login route (no providerId) to
-  // match its fixed callback URL. Generic OIDC keeps the providerId-scoped
-  // route.
-  if (type === SSO_PROVIDER.AZURE_AD) {
-    const base = `${domain}/api/sso/oidc/login`;
-    return query ? `${base}?${query}` : base;
-  }
 
   const base = `${domain}/api/sso/${type}/${providerId}/login`;
   return query ? `${base}?${query}` : base;

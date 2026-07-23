@@ -5,10 +5,9 @@ import { SsoAuthController } from './sso-auth.controller';
 import { SsoModule } from '../sso/sso.module';
 import { SessionModule } from '../../core/session/session.module';
 import { WorkspaceModule } from '../../core/workspace/workspace.module';
-import { AttachmentModule } from '../../core/attachment/attachment.module';
 
 @Module({
-  imports: [SsoModule, SessionModule, WorkspaceModule, AttachmentModule],
+  imports: [SsoModule, SessionModule, WorkspaceModule],
   providers: [SsoAuthService, OidcAuthService],
   controllers: [SsoAuthController],
 })
