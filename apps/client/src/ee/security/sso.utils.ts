@@ -10,7 +10,7 @@ export function buildCallbackUrl(opts: {
   const domain = getAppUrl();
 
   if (type === SSO_PROVIDER.OIDC && isAzureAd) {
-    return `${domain}/api/sso/EntraId/callback`;
+    return `${domain}/api/sso/entraid/callback`;
   }
 
   if (type === SSO_PROVIDER.GOOGLE || type === SSO_PROVIDER.OIDC) {

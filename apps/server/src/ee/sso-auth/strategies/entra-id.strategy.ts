@@ -7,7 +7,7 @@ export class EntraIdStrategy implements OidcProviderStrategy {
   readonly flavor = 'entra-id' as const;
 
   getCallbackPath(): string {
-    return '/api/sso/EntraId/callback';
+    return '/api/sso/entraid/callback';
   }
 
   getExtraScopes(): string[] {
