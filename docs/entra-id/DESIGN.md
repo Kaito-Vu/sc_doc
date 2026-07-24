@@ -56,6 +56,7 @@ File mới trong `apps/server/src/ee/sso-auth/`:
 // oidc-provider-strategy.interface.ts
 export interface OidcProviderStrategy {
   readonly flavor: 'generic' | 'entra-id';
+  getCallbackPath(): string;
   getExtraScopes(): string[];
   normalizeIssuer(issuerUrl: URL): URL;
   fetchAvatar(
@@ -69,6 +70,10 @@ export interface OidcProviderStrategy {
 @Injectable()
 export class GenericOidcStrategy implements OidcProviderStrategy {
   readonly flavor = 'generic' as const;
+
+  getCallbackPath(): string {
+    return '/api/sso/oidc/callback';
+  }
 
   getExtraScopes(): string[] {
     return [];
@@ -90,6 +95,10 @@ export class GenericOidcStrategy implements OidcProviderStrategy {
 export class EntraIdStrategy implements OidcProviderStrategy {
   private readonly logger = new Logger(EntraIdStrategy.name);
   readonly flavor = 'entra-id' as const;
+
+  getCallbackPath(): string {
+    return '/api/sso/EntraId/callback';
+  }
 
   getExtraScopes(): string[] {
     return ['https://graph.microsoft.com/User.Read'];
@@ -171,17 +180,20 @@ export class OidcProviderStrategyFactory {
 
 ### 3.4 Route OIDC (`apps/server/src/ee/sso-auth/sso-auth.controller.ts`)
 
-| Route | Ghi chú |
-|---|---|
-| `GET /sso/oidc/:providerId/login` | Không đổi |
-| `GET /sso/oidc/callback` | Route mới, không có `:providerId` — provider được resolve từ `providerId` trong signed state cookie `oidc_state` |
-| `GET /sso/oidc/:providerId/callback` | Xoá |
+Callback URL khác nhau theo flavor — mỗi `OidcProviderStrategy` khai báo path riêng qua `getCallbackPath()`:
 
-`OidcAuthService.buildCallbackUrl()` trả cố định `${appUrl}/api/sso/oidc/callback`, dùng ở cả `buildAuthorizationUrl` và khi build `currentUrl` trong `handleCallback`.
+| Flavor | Callback path | Route | Ghi chú |
+|---|---|---|---|
+| Generic OIDC | `/api/sso/oidc/callback` | `GET /sso/oidc/callback` | Không có `:providerId` |
+| Microsoft Entra ID | `/api/sso/EntraId/callback` | `GET /sso/EntraId/callback` | Không có `:providerId` |
+| (cũ) | — | `GET /sso/oidc/:providerId/callback` | Xoá |
+| Login (cả 2 flavor) | — | `GET /sso/oidc/:providerId/login` | Không đổi |
 
-Client `apps/client/src/ee/security/sso.utils.ts`: `buildCallbackUrl` — nhánh `type === SSO_PROVIDER.OIDC` trả `${domain}/api/sso/oidc/callback` (giống nhánh `GOOGLE`).
+`OidcAuthService.buildCallbackUrl(provider)` gọi `strategyFactory.create(provider).getCallbackPath()` để lấy đúng path theo flavor, dùng ở cả `buildAuthorizationUrl` (redirect_uri gửi cho IdP) và khi build lại `currentUrl` trong `handleCallback` (token exchange) — 2 route callback trên server đều gọi chung `finishOidcLogin`, vì provider luôn được resolve từ `providerId` trong signed state cookie `oidc_state`, không phụ thuộc route nào được gọi.
 
-Trước khi deploy: cập nhật [SETUP.md](SETUP.md) với Redirect URI mới, thông báo admin cập nhật Azure App Registration trước thời điểm deploy.
+Client `apps/client/src/ee/security/sso.utils.ts`: `buildCallbackUrl` nhận thêm `isAzureAd?: boolean` — `type === 'oidc' && isAzureAd` trả `/api/sso/EntraId/callback`, ngược lại `type === 'oidc'` (generic) hoặc `GOOGLE` trả `/api/sso/<type>/callback`. `sso-oidc-form.tsx` truyền `isAzureAd` theo template đang chọn nên URL hiển thị/copy đổi động ngay khi admin đổi template.
+
+Trước khi deploy: cập nhật [SETUP.md](SETUP.md) với cả 2 Redirect URI mới (`/api/sso/oidc/callback` cho Generic OIDC, `/api/sso/EntraId/callback` cho Entra ID), thông báo admin cập nhật Azure App Registration trước thời điểm deploy.
 
 ### 3.5 `AttachmentService.uploadUserAvatarFromBuffer`
 
@@ -410,15 +422,15 @@ sequenceDiagram
     Controller->>Service: buildAuthorizationUrl(providerId)
     Service->>Entra: discovery (.well-known/openid-configuration)
     Entra-->>Service: OIDC metadata + JWKS
-    Note right of Service: redirect_uri = /api/sso/oidc/callback
+    Note right of Service: redirect_uri = strategy.getCallbackPath()<br/>Generic: /api/sso/oidc/callback<br/>Entra ID: /api/sso/EntraId/callback
     Service-->>Controller: authUrl + signed state
     Controller-->>Browser: 302 + Set-Cookie oidc_state (httpOnly, 10min)
 
     Browser->>Entra: 302 to authorize endpoint
     Note over Browser,Entra: User đăng nhập tại Entra ID
-    Entra-->>Browser: 302 back to /sso/oidc/callback?code&state
+    Entra-->>Browser: 302 back to callback path?code&state
 
-    Browser->>Controller: GET /sso/oidc/callback
+    Browser->>Controller: GET /sso/oidc/callback hoặc /sso/EntraId/callback
     Controller->>Service: handleCallback(code, state, stateCookie)
     Service->>Service: verify signed state (HMAC, TTL)
     Service->>Entra: authorizationCodeGrant
@@ -454,7 +466,7 @@ sequenceDiagram
 
 **Server — sửa:**
 - `apps/server/src/ee/sso-auth/oidc-auth.service.ts` — factory, display name, callback URL cố định
-- `apps/server/src/ee/sso-auth/sso-auth.controller.ts` — route callback chung, xoá route theo `:providerId`
+- `apps/server/src/ee/sso-auth/sso-auth.controller.ts` — route callback riêng theo flavor (`/sso/oidc/callback`, `/sso/EntraId/callback`), xoá route theo `:providerId`
 - `apps/server/src/ee/sso-auth/sso-auth.module.ts` — đăng ký strategy/factory
 - `apps/server/src/ee/sso-auth/sso-auth.service.ts` (`ldapLogin`) — `MfaGateService`, audit log
 - `apps/server/src/ee/sso/sso.service.ts` — mã hoá/mask secret, `tenantId`

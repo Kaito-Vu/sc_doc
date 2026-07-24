@@ -6,6 +6,10 @@ export class EntraIdStrategy implements OidcProviderStrategy {
   private readonly logger = new Logger(EntraIdStrategy.name);
   readonly flavor = 'entra-id' as const;
 
+  getCallbackPath(): string {
+    return '/api/sso/EntraId/callback';
+  }
+
   getExtraScopes(): string[] {
     return ['https://graph.microsoft.com/User.Read'];
   }

@@ -4,9 +4,14 @@ import { getAppUrl, getServerAppUrl } from "@/lib/config.ts";
 export function buildCallbackUrl(opts: {
   providerId: string;
   type: SSO_PROVIDER;
+  isAzureAd?: boolean;
 }): string {
-  const { providerId, type } = opts;
+  const { providerId, type, isAzureAd } = opts;
   const domain = getAppUrl();
+
+  if (type === SSO_PROVIDER.OIDC && isAzureAd) {
+    return `${domain}/api/sso/EntraId/callback`;
+  }
 
   if (type === SSO_PROVIDER.GOOGLE || type === SSO_PROVIDER.OIDC) {
     return `${domain}/api/sso/${type}/callback`;

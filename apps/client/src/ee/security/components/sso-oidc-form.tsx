@@ -73,12 +73,14 @@ export function SsoOIDCForm({ provider, onClose }: Readonly<SsoFormProps>) {
     validate: zod4Resolver(ssoSchema),
   });
 
+  const isAzureAd = form.values.template === "azuread";
+
   const callbackUrl = buildCallbackUrl({
     providerId: provider.id,
     type: provider.type,
+    isAzureAd,
   });
 
-  const isAzureAd = form.values.template === "azuread";
   const displayedIssuer = isAzureAd
     ? form.values.oidcTenantId
       ? `https://login.microsoftonline.com/${form.values.oidcTenantId}/v2.0`

@@ -22,6 +22,7 @@ import { encodeOidcState, decodeOidcState } from './oidc-state.util';
 
 const genericStrategyStub = {
   flavor: 'generic' as const,
+  getCallbackPath: () => '/api/sso/oidc/callback',
   getExtraScopes: () => [],
   normalizeIssuer: (url: URL) => url,
   fetchAvatar: async () => undefined,

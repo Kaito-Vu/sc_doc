@@ -76,6 +76,21 @@ export class SsoAuthController {
     return this.finishOidcLogin(code, state, workspace, res, req);
   }
 
+  // Callback riêng cho Entra ID (mục 3.4/EntraIdStrategy.getCallbackPath) -
+  // cùng logic xử lý với oidc/callback, provider được resolve từ signed
+  // state cookie chứ không phải từ path, nên chỉ cần route riêng để khớp
+  // Redirect URI đã đăng ký trên Azure App Registration.
+  @Get('EntraId/callback')
+  async entraIdCallback(
+    @Query('code') code: string,
+    @Query('state') state: string,
+    @AuthWorkspace() workspace: Workspace,
+    @Res({ passthrough: true }) res: FastifyReply,
+    @Req() req: FastifyRequest,
+  ) {
+    return this.finishOidcLogin(code, state, workspace, res, req);
+  }
+
   private async startOidcLogin(
     providerId: string,
     redirect: string | undefined,

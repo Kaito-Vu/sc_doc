@@ -44,8 +44,9 @@ export class OidcAuthService {
     @InjectKysely() private readonly db: KyselyDB,
   ) {}
 
-  private buildCallbackUrl(): string {
-    return `${this.environmentService.getAppUrl()}/api/sso/oidc/callback`;
+  private buildCallbackUrl(provider: { settings?: any }): string {
+    const strategy = this.strategyFactory.create(provider);
+    return `${this.environmentService.getAppUrl()}${strategy.getCallbackPath()}`;
   }
 
   private isOidcCapable(provider: { type: string } | undefined): boolean {
@@ -135,7 +136,7 @@ export class OidcAuthService {
       ' ',
     );
 
-    const callbackUrl = this.buildCallbackUrl();
+    const callbackUrl = this.buildCallbackUrl(provider);
     const authUrl = client.buildAuthorizationUrl(config, {
       redirect_uri: callbackUrl,
       scope,
@@ -199,7 +200,7 @@ export class OidcAuthService {
 
     // Reconstructs the exact redirect_uri sent in the authorization request
     // (required for the token exchange to match per the OAuth spec).
-    const callbackUrl = this.buildCallbackUrl();
+    const callbackUrl = this.buildCallbackUrl(provider);
     const currentUrl = new URL(callbackUrl);
     currentUrl.searchParams.set('code', params.code);
     currentUrl.searchParams.set('state', params.state);
