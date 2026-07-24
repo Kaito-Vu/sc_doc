@@ -17,7 +17,6 @@ import { FastifyReply, FastifyRequest } from 'fastify';
 import { AuthWorkspace } from '../../common/decorators/auth-workspace.decorator';
 import { Workspace } from '@docmost/db/types/entity.types';
 import { EnvironmentService } from '../../integrations/environment/environment.service';
-import { SkipTransform } from '../../common/decorators/skip-transform.decorator';
 
 @Controller('sso')
 export class SsoAuthController {
@@ -56,13 +55,12 @@ export class SsoAuthController {
     return {};
   }
 
-  @SkipTransform()
   @Get('oidc/:providerId/login')
   async oidcLogin(
     @Param('providerId') providerId: string,
     @Query('redirect') redirect: string | undefined,
     @AuthWorkspace() workspace: Workspace,
-    @Res({ passthrough: true }) res: FastifyReply,
+    @Res() res: FastifyReply,
   ) {
     try {
       await this.startOidcLogin(providerId, redirect, workspace, res);
@@ -75,13 +73,12 @@ export class SsoAuthController {
     }
   }
 
-  @SkipTransform()
   @Get('oidc/callback')
   async oidcCallback(
     @Query('code') code: string,
     @Query('state') state: string,
     @AuthWorkspace() workspace: Workspace,
-    @Res({ passthrough: true }) res: FastifyReply,
+    @Res() res: FastifyReply,
     @Req() req: FastifyRequest,
   ) {
     return this.finishOidcLogin(code, state, workspace, res, req);
@@ -91,13 +88,12 @@ export class SsoAuthController {
   // cùng logic xử lý với oidc/callback, provider được resolve từ signed
   // state cookie chứ không phải từ path, nên chỉ cần route riêng để khớp
   // Redirect URI đã đăng ký trên Azure App Registration.
-  @SkipTransform()
   @Get('entraid/callback')
   async entraIdCallback(
     @Query('code') code: string,
     @Query('state') state: string,
     @AuthWorkspace() workspace: Workspace,
-    @Res({ passthrough: true }) res: FastifyReply,
+    @Res() res: FastifyReply,
     @Req() req: FastifyRequest,
   ) {
     return this.finishOidcLogin(code, state, workspace, res, req);
@@ -121,14 +117,16 @@ export class SsoAuthController {
       path: '/',
       maxAge: 600,
     });
-    // Do NOT `return res.redirect(url)` here: Fastify's reply.redirect()
-    // returns `this` (the reply instance), and with @Res({passthrough:true})
-    // Nest treats any non-undefined return value as a body to additionally
-    // send, re-serializing the response with its own default 200 status -
-    // silently overwriting the 302 + Location header redirect() already set,
-    // so the browser receives 200 OK with a Location header it never
-    // follows (this is exactly the "blank white screen" bug). Call
-    // redirect() as a side effect and return nothing.
+    // @Res() is used WITHOUT passthrough on this handler so Nest fully
+    // disables its own response handling for this route (no automatic
+    // reply.status(200).send() after the handler returns). With
+    // passthrough:true, Nest still calls that afterwards regardless of what
+    // the handler returns; reply.redirect()'s status/Location are set
+    // synchronously but the actual header flush to the socket happens
+    // asynchronously (fastify onSend hooks), so Nest's later
+    // reply.status(200) call can still land before the flush and silently
+    // downgrade the redirect to 200 OK with a Location header the browser
+    // never follows (this was the "blank white screen" bug).
     res.redirect(url);
   }
 
