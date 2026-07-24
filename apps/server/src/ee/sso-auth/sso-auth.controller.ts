@@ -62,7 +62,15 @@ export class SsoAuthController {
     @AuthWorkspace() workspace: Workspace,
     @Res({ passthrough: true }) res: FastifyReply,
   ) {
-    return this.startOidcLogin(providerId, redirect, workspace, res);
+    try {
+      await this.startOidcLogin(providerId, redirect, workspace, res);
+    } catch (error) {
+      this.logger.error(
+        `OIDC login failed for provider ${providerId}: ${error instanceof Error ? error.message : String(error)}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+      res.redirect(`${this.environmentService.getAppUrl()}/login?error=sso_failed`);
+    }
   }
 
   @Get('oidc/callback')
