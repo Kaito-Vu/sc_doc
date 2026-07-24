@@ -17,6 +17,7 @@ import { FastifyReply, FastifyRequest } from 'fastify';
 import { AuthWorkspace } from '../../common/decorators/auth-workspace.decorator';
 import { Workspace } from '@docmost/db/types/entity.types';
 import { EnvironmentService } from '../../integrations/environment/environment.service';
+import { SkipTransform } from '../../common/decorators/skip-transform.decorator';
 
 @Controller('sso')
 export class SsoAuthController {
@@ -55,6 +56,7 @@ export class SsoAuthController {
     return {};
   }
 
+  @SkipTransform()
   @Get('oidc/:providerId/login')
   async oidcLogin(
     @Param('providerId') providerId: string,
@@ -73,6 +75,7 @@ export class SsoAuthController {
     }
   }
 
+  @SkipTransform()
   @Get('oidc/callback')
   async oidcCallback(
     @Query('code') code: string,
@@ -88,7 +91,8 @@ export class SsoAuthController {
   // cùng logic xử lý với oidc/callback, provider được resolve từ signed
   // state cookie chứ không phải từ path, nên chỉ cần route riêng để khớp
   // Redirect URI đã đăng ký trên Azure App Registration.
-  @Get('EntraId/callback')
+  @SkipTransform()
+  @Get('entraid/callback')
   async entraIdCallback(
     @Query('code') code: string,
     @Query('state') state: string,
