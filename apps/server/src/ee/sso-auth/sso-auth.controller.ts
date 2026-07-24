@@ -8,6 +8,7 @@ import {
   Param,
   Post,
   Query,
+  Redirect,
   Req,
   Res,
 } from '@nestjs/common';
@@ -55,30 +56,43 @@ export class SsoAuthController {
     return {};
   }
 
+  // Manually calling reply.redirect() via @Res() does not reliably produce a
+  // 302 in this NestJS+Fastify version combo (verified with a minimal
+  // repro): the redirect's status/Location are set synchronously but the
+  // actual header flush to the socket happens asynchronously, so it can be
+  // silently downgraded to 200 OK with a Location header the browser never
+  // follows. @Redirect() (with a dynamic { url, statusCode } return value)
+  // goes through Nest's own response pipeline and does not have this issue -
+  // this is the verified fix for the "blank white screen" bug.
   @Get('oidc/:providerId/login')
+  @Redirect()
   async oidcLogin(
     @Param('providerId') providerId: string,
     @Query('redirect') redirect: string | undefined,
     @AuthWorkspace() workspace: Workspace,
-    @Res() res: FastifyReply,
+    @Res({ passthrough: true }) res: FastifyReply,
   ) {
     try {
-      await this.startOidcLogin(providerId, redirect, workspace, res);
+      return await this.startOidcLogin(providerId, redirect, workspace, res);
     } catch (error) {
       this.logger.error(
         `OIDC login failed for provider ${providerId}: ${error instanceof Error ? error.message : String(error)}`,
         error instanceof Error ? error.stack : undefined,
       );
-      res.redirect(`${this.environmentService.getAppUrl()}/login?error=sso_failed`);
+      return {
+        url: `${this.environmentService.getAppUrl()}/login?error=sso_failed`,
+        statusCode: 302,
+      };
     }
   }
 
   @Get('oidc/callback')
+  @Redirect()
   async oidcCallback(
     @Query('code') code: string,
     @Query('state') state: string,
     @AuthWorkspace() workspace: Workspace,
-    @Res() res: FastifyReply,
+    @Res({ passthrough: true }) res: FastifyReply,
     @Req() req: FastifyRequest,
   ) {
     return this.finishOidcLogin(code, state, workspace, res, req);
@@ -89,11 +103,12 @@ export class SsoAuthController {
   // state cookie chứ không phải từ path, nên chỉ cần route riêng để khớp
   // Redirect URI đã đăng ký trên Azure App Registration.
   @Get('entraid/callback')
+  @Redirect()
   async entraIdCallback(
     @Query('code') code: string,
     @Query('state') state: string,
     @AuthWorkspace() workspace: Workspace,
-    @Res() res: FastifyReply,
+    @Res({ passthrough: true }) res: FastifyReply,
     @Req() req: FastifyRequest,
   ) {
     return this.finishOidcLogin(code, state, workspace, res, req);
@@ -104,7 +119,7 @@ export class SsoAuthController {
     redirect: string | undefined,
     workspace: Workspace,
     res: FastifyReply,
-  ) {
+  ): Promise<{ url: string; statusCode: number }> {
     const { url, stateCookie } =
       await this.oidcAuthService.buildAuthorizationUrl(
         providerId,
@@ -117,17 +132,7 @@ export class SsoAuthController {
       path: '/',
       maxAge: 600,
     });
-    // @Res() is used WITHOUT passthrough on this handler so Nest fully
-    // disables its own response handling for this route (no automatic
-    // reply.status(200).send() after the handler returns). With
-    // passthrough:true, Nest still calls that afterwards regardless of what
-    // the handler returns; reply.redirect()'s status/Location are set
-    // synchronously but the actual header flush to the socket happens
-    // asynchronously (fastify onSend hooks), so Nest's later
-    // reply.status(200) call can still land before the flush and silently
-    // downgrade the redirect to 200 OK with a Location header the browser
-    // never follows (this was the "blank white screen" bug).
-    res.redirect(url);
+    return { url, statusCode: 302 };
   }
 
   private async finishOidcLogin(
@@ -136,7 +141,7 @@ export class SsoAuthController {
     workspace: Workspace,
     res: FastifyReply,
     req: FastifyRequest,
-  ) {
+  ): Promise<{ url: string; statusCode: number }> {
     const appUrl = this.environmentService.getAppUrl();
     const stateCookie = req.cookies?.['oidc_state'];
     try {
@@ -154,8 +159,7 @@ export class SsoAuthController {
       res.clearCookie('oidc_state', { path: '/' });
 
       if (result.requiresMfa || !result.authToken) {
-        res.redirect(`${appUrl}/login/mfa`);
-        return;
+        return { url: `${appUrl}/login/mfa`, statusCode: 302 };
       }
 
       res.setCookie('authToken', result.authToken, {
@@ -165,15 +169,14 @@ export class SsoAuthController {
         expires: this.environmentService.getCookieExpiresIn(),
         secure: this.environmentService.isHttps(),
       });
-      // See the comment in startOidcLogin: do not return the redirect() call.
-      res.redirect(`${appUrl}${result.redirect ?? '/'}`);
+      return { url: `${appUrl}${result.redirect ?? '/'}`, statusCode: 302 };
     } catch (error) {
       this.logger.error(
         `OIDC callback failed: ${error instanceof Error ? error.message : String(error)}`,
         error instanceof Error ? error.stack : undefined,
       );
       res.clearCookie('oidc_state', { path: '/' });
-      res.redirect(`${appUrl}/login?error=sso_failed`);
+      return { url: `${appUrl}/login?error=sso_failed`, statusCode: 302 };
     }
   }
 }
