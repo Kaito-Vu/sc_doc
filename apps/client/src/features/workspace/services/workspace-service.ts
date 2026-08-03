@@ -36,6 +36,13 @@ export async function getWorkspaceMembers(
   return req.data;
 }
 
+export async function getWorkspaceMemberAuthProviders(): Promise<
+  { id: string; name: string }[]
+> {
+  const req = await api.post("/workspace/members/providers");
+  return req.data;
+}
+
 export async function deleteWorkspaceMember(data: {
   userId: string;
 }): Promise<void> {

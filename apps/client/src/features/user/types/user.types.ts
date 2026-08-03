@@ -27,6 +27,7 @@ export interface IUser {
   notificationCommentCreated: boolean; // used for update
   notificationCommentResolved: boolean; // used for update
   hasGeneratedPassword?: boolean;
+  authProvider?: { id: string; name: string; type: string } | null;
 }
 
 export interface ICurrentUser {

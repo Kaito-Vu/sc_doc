@@ -21,7 +21,10 @@ describe('SsoAuthController.oidcLogin', () => {
         },
         {
           provide: EnvironmentService,
-          useValue: { getAppUrl: () => 'http://localhost:3000' },
+          useValue: {
+            getAppUrl: () => 'http://localhost:3000',
+            isHttps: () => false,
+          },
         },
       ],
     }).compile();

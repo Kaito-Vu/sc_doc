@@ -156,10 +156,14 @@ export class UserRepo {
     return count as number;
   }
 
-  async getUsersPaginated(workspaceId: string, pagination: PaginationOptions) {
+  async getUsersPaginated(
+    workspaceId: string,
+    pagination: PaginationOptions & { providerId?: string },
+  ) {
     let query = this.db
       .selectFrom('users')
       .select(this.baseFields)
+      .select(this.withAuthProvider)
       .where('workspaceId', '=', workspaceId)
       .where('deletedAt', 'is', null);
 
@@ -173,6 +177,31 @@ export class UserRepo {
           sql`users.email`,
           'ilike',
           sql`f_unaccent(${'%' + pagination.query + '%'})`,
+        ),
+      );
+    }
+
+    if (pagination.providerId === 'local') {
+      query = query.where((eb) =>
+        eb.not(
+          eb.exists(
+            eb
+              .selectFrom('authAccounts')
+              .select('authAccounts.id')
+              .whereRef('authAccounts.userId', '=', 'users.id')
+              .where('authAccounts.deletedAt', 'is', null),
+          ),
+        ),
+      );
+    } else if (pagination.providerId) {
+      query = query.where((eb) =>
+        eb.exists(
+          eb
+            .selectFrom('authAccounts')
+            .select('authAccounts.id')
+            .whereRef('authAccounts.userId', '=', 'users.id')
+            .where('authAccounts.deletedAt', 'is', null)
+            .where('authAccounts.authProviderId', '=', pagination.providerId),
         ),
       );
     }
@@ -237,5 +266,22 @@ export class UserRepo {
         ])
         .whereRef('userMfa.userId', '=', 'users.id'),
     ).as('mfa');
+  }
+
+  withAuthProvider(eb: ExpressionBuilder<DB, 'users'>) {
+    return jsonObjectFrom(
+      eb
+        .selectFrom('authAccounts')
+        .innerJoin(
+          'authProviders',
+          'authProviders.id',
+          'authAccounts.authProviderId',
+        )
+        .select(['authProviders.id', 'authProviders.name', 'authProviders.type'])
+        .whereRef('authAccounts.userId', '=', 'users.id')
+        .where('authAccounts.deletedAt', 'is', null)
+        .orderBy('authAccounts.updatedAt', 'desc')
+        .limit(1),
+    ).as('authProvider');
   }
 }

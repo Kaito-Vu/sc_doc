@@ -142,6 +142,7 @@ export class SsoAuthController {
       sameSite: 'lax',
       path: '/',
       maxAge: 600,
+      secure: this.environmentService.isHttps(),
     });
     return { url, statusCode: 302 };
   }
@@ -157,7 +158,9 @@ export class SsoAuthController {
     const stateCookie = req.cookies?.['oidc_state'];
     try {
       if (!code || !state || !stateCookie) {
-        throw new Error('Missing OIDC callback parameters');
+        throw new Error(
+          `Missing OIDC callback parameters (code=${!!code}, state=${!!state}, oidc_state cookie=${!!stateCookie}, cookies received=${Object.keys(req.cookies ?? {}).join(',') || 'none'})`,
+        );
       }
       const result = await this.oidcAuthService.handleCallback({
         code,

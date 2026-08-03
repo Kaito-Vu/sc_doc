@@ -572,9 +572,36 @@ export class WorkspaceService {
 
   async getWorkspaceUsers(
     workspaceId: string,
-    pagination: PaginationOptions,
-  ): Promise<CursorPaginationResult<User>> {
+    pagination: PaginationOptions & { providerId?: string },
+  ): Promise<
+    CursorPaginationResult<
+      User & {
+        authProvider: { id: string; name: string; type: string } | null;
+      }
+    >
+  > {
     return this.userRepo.getUsersPaginated(workspaceId, pagination);
+  }
+
+  async getWorkspaceMemberAuthProviders(
+    workspaceId: string,
+  ): Promise<{ id: string; name: string }[]> {
+    return this.db
+      .selectFrom('authProviders')
+      .select(['id', 'name'])
+      .where('workspaceId', '=', workspaceId)
+      .where('deletedAt', 'is', null)
+      .where((eb) =>
+        eb.exists(
+          eb
+            .selectFrom('authAccounts')
+            .select('authAccounts.id')
+            .whereRef('authAccounts.authProviderId', '=', 'authProviders.id')
+            .where('authAccounts.deletedAt', 'is', null),
+        ),
+      )
+      .orderBy('name', 'asc')
+      .execute();
   }
 
   async updateWorkspaceUserRole(

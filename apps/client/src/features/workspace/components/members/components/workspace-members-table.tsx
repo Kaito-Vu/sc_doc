@@ -1,10 +1,11 @@
-import { Group, Table, Text, Badge } from "@mantine/core";
+import { Group, Table, Text, Badge, Select } from "@mantine/core";
 import {
   useChangeMemberRoleMutation,
+  useWorkspaceMemberAuthProvidersQuery,
   useWorkspaceMembersQuery,
 } from "@/features/workspace/queries/workspace-query.ts";
 import { CustomAvatar } from "@/components/ui/custom-avatar.tsx";
-import React from "react";
+import React, { useState } from "react";
 import RoleSelectMenu from "@/components/ui/role-select-menu.tsx";
 import {
   getUserRoleLabel,
@@ -21,11 +22,15 @@ import MemberActionMenu from "@/features/workspace/components/members/components
 
 export default function WorkspaceMembersTable() {
   const { t } = useTranslation();
-  const { search, cursor, goNext, goPrev, handleSearch } = usePaginateAndSearch();
+  const { search, cursor, goNext, goPrev, handleSearch, resetCursor } =
+    usePaginateAndSearch();
+  const [providerId, setProviderId] = useState<string | null>(null);
+  const { data: authProviders } = useWorkspaceMemberAuthProvidersQuery();
   const { data, isLoading } = useWorkspaceMembersQuery({
     cursor,
     limit: 100,
     query: search,
+    providerId: providerId || undefined,
   });
   const changeMemberRoleMutation = useChangeMemberRoleMutation();
   const { isAdmin, isOwner } = useUserRole();
@@ -33,6 +38,20 @@ export default function WorkspaceMembersTable() {
   const assignableUserRoles = isOwner
     ? userRoleData
     : userRoleData.filter((role) => role.value !== UserRole.OWNER);
+
+  const providerFilterOptions = [
+    { value: "", label: t("All providers") },
+    { value: "local", label: t("Local") },
+    ...(authProviders ?? []).map((provider) => ({
+      value: provider.id,
+      label: provider.name,
+    })),
+  ];
+
+  const handleProviderFilterChange = (value: string | null) => {
+    setProviderId(value || null);
+    resetCursor();
+  };
 
   const handleRoleChange = async (
     userId: string,
@@ -53,13 +72,24 @@ export default function WorkspaceMembersTable() {
 
   return (
     <>
-      <SearchInput onSearch={handleSearch} />
+      <Group mb="sm" align="flex-end">
+        <SearchInput onSearch={handleSearch} />
+        <Select
+          placeholder={t("Filter by provider")}
+          data={providerFilterOptions}
+          value={providerId || ""}
+          onChange={handleProviderFilterChange}
+          clearable
+          w={220}
+        />
+      </Group>
       <Table.ScrollContainer minWidth={600}>
         <Table highlightOnHover verticalSpacing="sm">
           <Table.Thead>
             <Table.Tr>
               <Table.Th>{t("User")}</Table.Th>
               <Table.Th>{t("Status")}</Table.Th>
+              <Table.Th>{t("Provider")}</Table.Th>
               <Table.Th>{t("Role")}</Table.Th>
               <Table.Th aria-label={t("Action")} />
             </Table.Tr>
@@ -95,6 +125,11 @@ export default function WorkspaceMembersTable() {
                     )}
                   </Table.Td>
                   <Table.Td>
+                    <Badge variant="light" color="gray">
+                      {user.authProvider?.name || t("Local")}
+                    </Badge>
+                  </Table.Td>
+                  <Table.Td>
                     {isAdmin ? (
                       <RoleSelectMenu
                         roles={assignableUserRoles}
@@ -119,7 +154,7 @@ export default function WorkspaceMembersTable() {
                 </Table.Tr>
               ))
             ) : (
-              <NoTableResults colSpan={3} />
+              <NoTableResults colSpan={4} />
             )}
           </Table.Tbody>
         </Table>
