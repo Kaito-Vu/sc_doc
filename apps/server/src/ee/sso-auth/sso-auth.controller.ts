@@ -18,6 +18,7 @@ import { FastifyReply, FastifyRequest } from 'fastify';
 import { AuthWorkspace } from '../../common/decorators/auth-workspace.decorator';
 import { Workspace } from '@docmost/db/types/entity.types';
 import { EnvironmentService } from '../../integrations/environment/environment.service';
+import { SkipTransform } from '../../common/decorators/skip-transform.decorator';
 
 @Controller('sso')
 export class SsoAuthController {
@@ -64,6 +65,14 @@ export class SsoAuthController {
   // follows. @Redirect() (with a dynamic { url, statusCode } return value)
   // goes through Nest's own response pipeline and does not have this issue -
   // this is the verified fix for the "blank white screen" bug.
+  //
+  // @SkipTransform() is required alongside @Redirect(): the global
+  // TransformHttpResponseInterceptor wraps every handler's return value into
+  // { data, success, status } before Nest's redirect handler reads it, so
+  // without skipping it, `result.url`/`result.statusCode` come back
+  // undefined and Nest falls back to the (empty) static @Redirect() config -
+  // verified with a repro: 302 status but an empty Location header.
+  @SkipTransform()
   @Get('oidc/:providerId/login')
   @Redirect()
   async oidcLogin(
@@ -86,6 +95,7 @@ export class SsoAuthController {
     }
   }
 
+  @SkipTransform()
   @Get('oidc/callback')
   @Redirect()
   async oidcCallback(
@@ -102,6 +112,7 @@ export class SsoAuthController {
   // cùng logic xử lý với oidc/callback, provider được resolve từ signed
   // state cookie chứ không phải từ path, nên chỉ cần route riêng để khớp
   // Redirect URI đã đăng ký trên Azure App Registration.
+  @SkipTransform()
   @Get('entraid/callback')
   @Redirect()
   async entraIdCallback(
