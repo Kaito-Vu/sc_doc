@@ -15,6 +15,10 @@ export default function License() {
   const hasLicense = entitlements != null && entitlements.tier !== "free";
   const { isAdmin } = useUserRole();
 
+  if (!isAdmin) {
+    return null;
+  }
+
   return (
     <>
       <Helmet>
@@ -22,7 +26,7 @@ export default function License() {
       </Helmet>
       <SettingsTitle title="License" />
 
-      {isAdmin && <ActivateLicenseForm />}
+      <ActivateLicenseForm />
 
       <InstallationDetails />
 
