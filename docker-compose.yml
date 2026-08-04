@@ -45,6 +45,9 @@ services:
     container_name: docmost-seaweedfs
     restart: unless-stopped
     entrypoint: ["sh", "-c"]
+    ports:
+      - "9333:9333"
+      - "8686:8888"
     command:
       - |
         mkdir -p /etc/seaweedfs
