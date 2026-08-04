@@ -32,14 +32,13 @@ export async function getCheckHostname(
 export async function getWorkspaceMembers(
   params?: QueryParams,
 ): Promise<IPagination<IUser>> {
-  const req = await api.post("/workspace/members", params);
-  return req.data;
-}
-
-export async function getWorkspaceMemberAuthProviders(): Promise<
-  { id: string; name: string }[]
-> {
-  const req = await api.post("/workspace/members/providers");
+  // providerId is an opaque pass-through for EE plugins (see
+  // workspace.controller.ts) — sent as a query param, not part of the
+  // pagination body core validates.
+  const { providerId, ...body } = params ?? {};
+  const req = await api.post("/workspace/members", body, {
+    params: providerId ? { providerId } : undefined,
+  });
   return req.data;
 }
 

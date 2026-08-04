@@ -6,9 +6,11 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'crypto';
+import { InjectKysely } from 'nestjs-kysely';
 import { AuthProviderRepo } from './auth-provider.repo';
 import { PaginationOptions } from '@docmost/db/pagination/pagination-options';
 import { User } from '@docmost/db/types/entity.types';
+import { KyselyDB } from '@docmost/db/types/kysely.types';
 import WorkspaceAbilityFactory from '../../core/casl/abilities/workspace-ability.factory';
 import {
   WorkspaceCaslAction,
@@ -31,7 +33,34 @@ export class SsoService {
     private readonly workspaceAbility: WorkspaceAbilityFactory,
     private readonly environmentService: EnvironmentService,
     @Inject(AUDIT_SERVICE) private readonly auditService: IAuditService,
+    @InjectKysely() private readonly db: KyselyDB,
   ) {}
+
+  /**
+   * Providers actually linked to at least one member — used to populate the
+   * provider filter on the workspace Members list (ee/sso owns this so core
+   * never needs to know about auth_providers).
+   */
+  async listMemberAuthProviders(
+    workspaceId: string,
+  ): Promise<{ id: string; name: string }[]> {
+    return this.db
+      .selectFrom('authProviders')
+      .select(['id', 'name'])
+      .where('workspaceId', '=', workspaceId)
+      .where('deletedAt', 'is', null)
+      .where((eb) =>
+        eb.exists(
+          eb
+            .selectFrom('authAccounts')
+            .select('authAccounts.id')
+            .whereRef('authAccounts.authProviderId', '=', 'authProviders.id')
+            .where('authAccounts.deletedAt', 'is', null),
+        ),
+      )
+      .orderBy('name', 'asc')
+      .execute();
+  }
 
   private assertAdmin(user: User, workspace: Workspace) {
     const ability = this.workspaceAbility.createForUser(user, workspace);

@@ -31,6 +31,15 @@ export class SsoController {
     return this.ssoService.list(workspace.id, user, workspace, pagination);
   }
 
+  // Powers the provider filter on the workspace Members list (core). Not
+  // gated behind Feature.SSO_CUSTOM: workspaces without the SSO add-on
+  // simply have no auth_providers rows, so this returns an empty list.
+  @HttpCode(HttpStatus.OK)
+  @Post('member-providers')
+  async memberProviders(@AuthWorkspace() workspace: Workspace) {
+    return this.ssoService.listMemberAuthProviders(workspace.id);
+  }
+
   @HttpCode(HttpStatus.OK)
   @Post('info')
   @RequireFeature(Feature.SSO_CUSTOM)

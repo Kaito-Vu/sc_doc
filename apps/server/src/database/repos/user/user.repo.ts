@@ -14,6 +14,8 @@ import { executeWithCursorPagination } from '@docmost/db/pagination/cursor-pagin
 import { ExpressionBuilder, sql } from 'kysely';
 import { jsonObjectFrom } from 'kysely/helpers/postgres';
 import { NotificationSettingKey } from '../../../core/notification/notification.constants';
+import { CoreHooks } from '../../../core/plugins/plugin-hooks';
+import { runHook } from '../../../core/plugins/run-hook';
 
 @Injectable()
 export class UserRepo {
@@ -163,7 +165,6 @@ export class UserRepo {
     let query = this.db
       .selectFrom('users')
       .select(this.baseFields)
-      .select(this.withAuthProvider)
       .where('workspaceId', '=', workspaceId)
       .where('deletedAt', 'is', null);
 
@@ -181,30 +182,14 @@ export class UserRepo {
       );
     }
 
-    if (pagination.providerId === 'local') {
-      query = query.where((eb) =>
-        eb.not(
-          eb.exists(
-            eb
-              .selectFrom('authAccounts')
-              .select('authAccounts.id')
-              .whereRef('authAccounts.userId', '=', 'users.id')
-              .where('authAccounts.deletedAt', 'is', null),
-          ),
-        ),
-      );
-    } else if (pagination.providerId) {
-      query = query.where((eb) =>
-        eb.exists(
-          eb
-            .selectFrom('authAccounts')
-            .select('authAccounts.id')
-            .whereRef('authAccounts.userId', '=', 'users.id')
-            .where('authAccounts.deletedAt', 'is', null)
-            .where('authAccounts.authProviderId', '=', pagination.providerId),
-        ),
-      );
-    }
+    // Lets an EE plugin (ee/sso) enrich/filter this query with auth
+    // provider data — core has no knowledge of auth_providers/auth_accounts.
+    // No-op (returns context unchanged) when no handler is registered.
+    ({ query } = await runHook(CoreHooks.BEFORE_MEMBERS_QUERY, {
+      query,
+      workspaceId,
+      providerId: pagination.providerId,
+    }));
 
     return executeWithCursorPagination(query, {
       perPage: pagination.limit,
@@ -268,20 +253,4 @@ export class UserRepo {
     ).as('mfa');
   }
 
-  withAuthProvider(eb: ExpressionBuilder<DB, 'users'>) {
-    return jsonObjectFrom(
-      eb
-        .selectFrom('authAccounts')
-        .innerJoin(
-          'authProviders',
-          'authProviders.id',
-          'authAccounts.authProviderId',
-        )
-        .select(['authProviders.id', 'authProviders.name', 'authProviders.type'])
-        .whereRef('authAccounts.userId', '=', 'users.id')
-        .where('authAccounts.deletedAt', 'is', null)
-        .orderBy('authAccounts.updatedAt', 'desc')
-        .limit(1),
-    ).as('authProvider');
-  }
 }

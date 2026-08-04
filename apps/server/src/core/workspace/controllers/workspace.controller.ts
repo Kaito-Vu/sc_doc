@@ -5,6 +5,7 @@ import {
   HttpCode,
   HttpStatus,
   Post,
+  Query,
   Req,
   Res,
   UseGuards,
@@ -35,7 +36,6 @@ import { EnvironmentService } from '../../../integrations/environment/environmen
 import { LicenseCheckService } from '../../../integrations/environment/license-check.service';
 import { CheckHostnameDto } from '../dto/check-hostname.dto';
 import { RemoveWorkspaceUserDto } from '../dto/remove-workspace-user.dto';
-import { GetWorkspaceMembersDto } from '../dto/get-workspace-members.dto';
 import { WorkspaceRepo } from '@docmost/db/repos/workspace/workspace.repo';
 import { CoreHooks } from '../../../core/plugins/plugin-hooks';
 import { runHook } from '../../../core/plugins/run-hook';
@@ -118,7 +118,11 @@ export class WorkspaceController {
   @Post('members')
   async getWorkspaceMembers(
     @Body()
-    pagination: GetWorkspaceMembersDto,
+    pagination: PaginationOptions,
+    // Opaque pass-through for EE plugins (e.g. ee/sso's SSO provider
+    // filter) — core does not interpret this value itself, see
+    // user.repo.ts#getUsersPaginated / CoreHooks.BEFORE_MEMBERS_QUERY.
+    @Query('providerId') providerId: string | undefined,
     @AuthUser() user: User,
     @AuthWorkspace() workspace: Workspace,
   ) {
@@ -127,23 +131,10 @@ export class WorkspaceController {
       throw new ForbiddenException();
     }
 
-    return this.workspaceService.getWorkspaceUsers(workspace.id, pagination);
-  }
-
-  @HttpCode(HttpStatus.OK)
-  @Post('members/providers')
-  async getWorkspaceMemberAuthProviders(
-    @AuthUser() user: User,
-    @AuthWorkspace() workspace: Workspace,
-  ) {
-    const ability = this.workspaceAbility.createForUser(user, workspace);
-    if (ability.cannot(WorkspaceCaslAction.Read, WorkspaceCaslSubject.Member)) {
-      throw new ForbiddenException();
-    }
-
-    return this.workspaceService.getWorkspaceMemberAuthProviders(
-      workspace.id,
-    );
+    return this.workspaceService.getWorkspaceUsers(workspace.id, {
+      ...pagination,
+      providerId,
+    });
   }
 
   @HttpCode(HttpStatus.OK)

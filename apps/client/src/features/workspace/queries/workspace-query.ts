@@ -10,7 +10,6 @@ import {
   getInvitationById,
   getPendingInvitations,
   getWorkspaceMembers,
-  getWorkspaceMemberAuthProviders,
   createInvitation,
   resendInvitation,
   revokeInvitation,
@@ -57,16 +56,6 @@ export function useWorkspaceMembersQuery(
     queryKey: ["workspaceMembers", params],
     queryFn: () => getWorkspaceMembers(params),
     placeholderData: keepPreviousData,
-  });
-}
-
-export function useWorkspaceMemberAuthProvidersQuery(): UseQueryResult<
-  { id: string; name: string }[],
-  Error
-> {
-  return useQuery({
-    queryKey: ["workspaceMemberAuthProviders"],
-    queryFn: () => getWorkspaceMemberAuthProviders(),
   });
 }
 

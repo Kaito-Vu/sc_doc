@@ -1,4 +1,5 @@
 import { Test } from '@nestjs/testing';
+import { KYSELY_MODULE_CONNECTION_TOKEN } from 'nestjs-kysely';
 import { SsoService } from './sso.service';
 import { AuthProviderRepo } from './auth-provider.repo';
 import WorkspaceAbilityFactory from '../../core/casl/abilities/workspace-ability.factory';
@@ -44,6 +45,7 @@ describe('SsoService', () => {
           useValue: { getAppSecret: () => 'test-secret' },
         },
         { provide: AUDIT_SERVICE, useValue: auditService },
+        { provide: KYSELY_MODULE_CONNECTION_TOKEN(), useValue: {} },
       ],
     }).compile();
     service = moduleRef.get(SsoService);
