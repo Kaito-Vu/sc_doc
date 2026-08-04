@@ -1,4 +1,4 @@
-import { Group, Table, Text, Badge } from "@mantine/core";
+import { Group, Table, Text, Badge, Paper } from "@mantine/core";
 import {
   useChangeMemberRoleMutation,
   useWorkspaceMembersQuery,
@@ -70,80 +70,105 @@ export default function WorkspaceMembersTable() {
           onChange={handleProviderFilterChange}
         />
       </Group>
-      <Table.ScrollContainer minWidth={600}>
-        <Table highlightOnHover verticalSpacing="sm">
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th>{t("User")}</Table.Th>
-              <Table.Th>{t("Status")}</Table.Th>
-              <Table.Th>{t("Provider")}</Table.Th>
-              <Table.Th>{t("Role")}</Table.Th>
-              <Table.Th aria-label={t("Action")} />
-            </Table.Tr>
-          </Table.Thead>
+      <Paper withBorder radius="md">
+        <Table.ScrollContainer minWidth={600}>
+          <Table verticalSpacing="md" horizontalSpacing="lg">
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th c="dimmed" fz="xs" tt="uppercase" fw={600}>
+                  {t("User")}
+                </Table.Th>
+                <Table.Th c="dimmed" fz="xs" tt="uppercase" fw={600}>
+                  {t("Status")}
+                </Table.Th>
+                <Table.Th c="dimmed" fz="xs" tt="uppercase" fw={600}>
+                  {t("Provider")}
+                </Table.Th>
+                <Table.Th c="dimmed" fz="xs" tt="uppercase" fw={600}>
+                  {t("Role")}
+                </Table.Th>
+                <Table.Th aria-label={t("Action")} />
+              </Table.Tr>
+            </Table.Thead>
 
-          <Table.Tbody>
-            {data?.items.length > 0 ? (
-              data?.items.map((user, index) => (
-                <Table.Tr key={index}>
-                  <Table.Td>
-                    <Group gap="sm" wrap="nowrap">
-                      <CustomAvatar
-                        avatarUrl={user.avatarUrl}
-                        name={user.name}
-                      />
-                      <div>
-                        <Text fz="sm" fw={500} lineClamp={1}>
-                          {user.name}
-                        </Text>
-                        <Text fz="xs" c="dimmed">
-                          {user.email}
-                        </Text>
-                      </div>
-                    </Group>
-                  </Table.Td>
-                  <Table.Td>
-                    {user.deactivatedAt ? (
-                      <Badge variant="light" color="orange">
-                        {t("Deactivated")}
-                      </Badge>
-                    ) : (
-                      <Badge variant="light">{t("Active")}</Badge>
-                    )}
-                  </Table.Td>
-                  <Table.Td>
-                    <MemberProviderBadge user={user} />
-                  </Table.Td>
-                  <Table.Td>
-                    {isAdmin ? (
-                      <RoleSelectMenu
-                        roles={assignableUserRoles}
-                        roleName={getUserRoleLabel(user.role)}
-                        onChange={(newRole) =>
-                          handleRoleChange(user.id, user.role, newRole)
-                        }
-                      />
-                    ) : (
-                      <Text fz="sm">{t(getUserRoleLabel(user.role))}</Text>
-                    )}
-                  </Table.Td>
-                  <Table.Td>
-                    {isAdmin && (
-                      <MemberActionMenu
-                        userId={user.id}
-                        name={user.name}
-                        deactivatedAt={user.deactivatedAt}
-                      />
-                    )}
-                  </Table.Td>
-                </Table.Tr>
-              ))
-            ) : (
-              <NoTableResults colSpan={4} />
-            )}
-          </Table.Tbody>
-        </Table>
-      </Table.ScrollContainer>
+            <Table.Tbody>
+              {data?.items.length > 0 ? (
+                data?.items.map((user, index) => (
+                  <Table.Tr key={index}>
+                    <Table.Td>
+                      <Group gap="sm" wrap="nowrap">
+                        <CustomAvatar
+                          avatarUrl={user.avatarUrl}
+                          name={user.name}
+                          radius="xl"
+                        />
+                        <div>
+                          <Text fz="sm" fw={500} lineClamp={1}>
+                            {user.name}
+                          </Text>
+                          <Text fz="xs" c="dimmed">
+                            {user.email}
+                          </Text>
+                        </div>
+                      </Group>
+                    </Table.Td>
+                    <Table.Td>
+                      {user.deactivatedAt ? (
+                        <Badge
+                          variant="light"
+                          color="orange"
+                          radius="sm"
+                          tt="none"
+                          fw={500}
+                        >
+                          {t("Deactivated")}
+                        </Badge>
+                      ) : (
+                        <Badge
+                          variant="light"
+                          color="green"
+                          radius="sm"
+                          tt="none"
+                          fw={500}
+                        >
+                          {t("Active")}
+                        </Badge>
+                      )}
+                    </Table.Td>
+                    <Table.Td>
+                      <MemberProviderBadge user={user} />
+                    </Table.Td>
+                    <Table.Td>
+                      {isAdmin ? (
+                        <RoleSelectMenu
+                          roles={assignableUserRoles}
+                          roleName={getUserRoleLabel(user.role)}
+                          onChange={(newRole) =>
+                            handleRoleChange(user.id, user.role, newRole)
+                          }
+                        />
+                      ) : (
+                        <Text fz="sm">{t(getUserRoleLabel(user.role))}</Text>
+                      )}
+                    </Table.Td>
+                    <Table.Td>
+                      {isAdmin && (
+                        <MemberActionMenu
+                          userId={user.id}
+                          name={user.name}
+                          deactivatedAt={user.deactivatedAt}
+                        />
+                      )}
+                    </Table.Td>
+                  </Table.Tr>
+                ))
+              ) : (
+                <NoTableResults colSpan={4} />
+              )}
+            </Table.Tbody>
+          </Table>
+        </Table.ScrollContainer>
+      </Paper>
 
       {data?.items.length > 0 && (
         <Paginate

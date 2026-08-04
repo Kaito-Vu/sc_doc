@@ -6,11 +6,10 @@ import { PluginDefinitionService } from './services/plugin-definition.service'
 import { HookRegistry } from './services/hook.registry'
 import { PluginsController } from './plugins.controller'
 import { RecaptchaModule } from './recaptcha/recaptcha.module'
-import { MinioModule } from './minio/minio.module'
 
 @Global()
 @Module({
-  imports: [RecaptchaModule, MinioModule],
+  imports: [RecaptchaModule],
   providers: [PluginRegistry, PluginConfigService, PluginDefinitionService, HookRegistry],
   controllers: [PluginsController],
   exports: [PluginRegistry, PluginConfigService, PluginDefinitionService, HookRegistry],
