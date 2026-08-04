@@ -21,6 +21,7 @@ export enum CoreHooks {
   // Workspace events
   BEFORE_INVITE_CREATE = 'workspace:beforeInviteCreate',
   BEFORE_INVITE_ACCEPT = 'workspace:beforeInviteAccept',
+  BEFORE_MEMBERS_QUERY = 'workspace:beforeMembersQuery',
 
   // Share events
   BEFORE_SHARE_GET_INFO = 'share:beforeGetInfo',

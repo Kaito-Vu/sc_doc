@@ -5,6 +5,7 @@ import {
   HttpCode,
   HttpStatus,
   Post,
+  Query,
   Req,
   Res,
   UseGuards,
@@ -118,6 +119,10 @@ export class WorkspaceController {
   async getWorkspaceMembers(
     @Body()
     pagination: PaginationOptions,
+    // Opaque pass-through for EE plugins (e.g. ee/sso's SSO provider
+    // filter) — core does not interpret this value itself, see
+    // user.repo.ts#getUsersPaginated / CoreHooks.BEFORE_MEMBERS_QUERY.
+    @Query('providerId') providerId: string | undefined,
     @AuthUser() user: User,
     @AuthWorkspace() workspace: Workspace,
   ) {
@@ -126,7 +131,10 @@ export class WorkspaceController {
       throw new ForbiddenException();
     }
 
-    return this.workspaceService.getWorkspaceUsers(workspace.id, pagination);
+    return this.workspaceService.getWorkspaceUsers(workspace.id, {
+      ...pagination,
+      providerId,
+    });
   }
 
   @HttpCode(HttpStatus.OK)

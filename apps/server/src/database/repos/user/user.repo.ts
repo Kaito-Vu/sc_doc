@@ -14,6 +14,8 @@ import { executeWithCursorPagination } from '@docmost/db/pagination/cursor-pagin
 import { ExpressionBuilder, sql } from 'kysely';
 import { jsonObjectFrom } from 'kysely/helpers/postgres';
 import { NotificationSettingKey } from '../../../core/notification/notification.constants';
+import { CoreHooks } from '../../../core/plugins/plugin-hooks';
+import { runHook } from '../../../core/plugins/run-hook';
 
 @Injectable()
 export class UserRepo {
@@ -156,7 +158,10 @@ export class UserRepo {
     return count as number;
   }
 
-  async getUsersPaginated(workspaceId: string, pagination: PaginationOptions) {
+  async getUsersPaginated(
+    workspaceId: string,
+    pagination: PaginationOptions & { providerId?: string },
+  ) {
     let query = this.db
       .selectFrom('users')
       .select(this.baseFields)
@@ -176,6 +181,15 @@ export class UserRepo {
         ),
       );
     }
+
+    // Lets an EE plugin (ee/sso) enrich/filter this query with auth
+    // provider data — core has no knowledge of auth_providers/auth_accounts.
+    // No-op (returns context unchanged) when no handler is registered.
+    ({ query } = await runHook(CoreHooks.BEFORE_MEMBERS_QUERY, {
+      query,
+      workspaceId,
+      providerId: pagination.providerId,
+    }));
 
     return executeWithCursorPagination(query, {
       perPage: pagination.limit,
@@ -238,4 +252,5 @@ export class UserRepo {
         .whereRef('userMfa.userId', '=', 'users.id'),
     ).as('mfa');
   }
+
 }

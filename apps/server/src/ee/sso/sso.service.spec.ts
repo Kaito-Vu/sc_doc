@@ -1,7 +1,9 @@
 import { Test } from '@nestjs/testing';
+import { KYSELY_MODULE_CONNECTION_TOKEN } from 'nestjs-kysely';
 import { SsoService } from './sso.service';
 import { AuthProviderRepo } from './auth-provider.repo';
 import WorkspaceAbilityFactory from '../../core/casl/abilities/workspace-ability.factory';
+import { EnvironmentService } from '../../integrations/environment/environment.service';
 import { AUDIT_SERVICE } from '../../integrations/audit/audit.service';
 import { AuditEvent, AuditResource } from '../../common/events/audit-events';
 
@@ -38,46 +40,24 @@ describe('SsoService', () => {
             createForUser: () => ({ cannot: () => false }),
           },
         },
+        {
+          provide: EnvironmentService,
+          useValue: { getAppSecret: () => 'test-secret' },
+        },
         { provide: AUDIT_SERVICE, useValue: auditService },
+        { provide: KYSELY_MODULE_CONNECTION_TOKEN(), useValue: {} },
       ],
     }).compile();
     service = moduleRef.get(SsoService);
   });
 
   describe('create', () => {
-    it('passes avatarSync through to the repo insert, defaulting to false', async () => {
-      authProviderRepo.insert.mockResolvedValue({ id: 'p1', type: 'azure-ad', name: 'Azure AD' });
-
-      await service.create(workspace.id, user, workspace, {
-        name: 'Azure AD',
-        type: 'azure-ad',
-      });
-
-      expect(authProviderRepo.insert).toHaveBeenCalledWith(
-        expect.objectContaining({ avatarSync: false }),
-      );
-    });
-
-    it('honors an explicit avatarSync: true', async () => {
-      authProviderRepo.insert.mockResolvedValue({ id: 'p1', type: 'azure-ad', name: 'Azure AD' });
-
-      await service.create(workspace.id, user, workspace, {
-        name: 'Azure AD',
-        type: 'azure-ad',
-        avatarSync: true,
-      });
-
-      expect(authProviderRepo.insert).toHaveBeenCalledWith(
-        expect.objectContaining({ avatarSync: true }),
-      );
-    });
-
     it('logs an SSO_PROVIDER_CREATED audit event', async () => {
-      authProviderRepo.insert.mockResolvedValue({ id: 'p1', type: 'azure-ad', name: 'Azure AD' });
+      authProviderRepo.insert.mockResolvedValue({ id: 'p1', type: 'oidc', name: 'OIDC' });
 
       await service.create(workspace.id, user, workspace, {
-        name: 'Azure AD',
-        type: 'azure-ad',
+        name: 'OIDC',
+        type: 'oidc',
       });
 
       expect(auditService.log).toHaveBeenCalledWith(
@@ -91,29 +71,13 @@ describe('SsoService', () => {
   });
 
   describe('update', () => {
-    it('passes avatarSync through to the repo update', async () => {
-      authProviderRepo.findById.mockResolvedValue({ id: 'p1', type: 'azure-ad' });
-      authProviderRepo.update.mockResolvedValue({ id: 'p1', type: 'azure-ad', name: 'Azure AD' });
-
-      await service.update(workspace.id, user, workspace, {
-        providerId: 'p1',
-        avatarSync: true,
-      });
-
-      expect(authProviderRepo.update).toHaveBeenCalledWith(
-        'p1',
-        workspace.id,
-        expect.objectContaining({ avatarSync: true }),
-      );
-    });
-
     it('logs an SSO_PROVIDER_UPDATED audit event', async () => {
-      authProviderRepo.findById.mockResolvedValue({ id: 'p1', type: 'azure-ad' });
-      authProviderRepo.update.mockResolvedValue({ id: 'p1', type: 'azure-ad', name: 'Azure AD' });
+      authProviderRepo.findById.mockResolvedValue({ id: 'p1', type: 'oidc' });
+      authProviderRepo.update.mockResolvedValue({ id: 'p1', type: 'oidc', name: 'OIDC' });
 
       await service.update(workspace.id, user, workspace, {
         providerId: 'p1',
-        avatarSync: true,
+        isEnabled: true,
       });
 
       expect(auditService.log).toHaveBeenCalledWith(
@@ -128,7 +92,7 @@ describe('SsoService', () => {
 
   describe('delete', () => {
     it('logs an SSO_PROVIDER_DELETED audit event', async () => {
-      authProviderRepo.findById.mockResolvedValue({ id: 'p1', type: 'azure-ad', name: 'Azure AD' });
+      authProviderRepo.findById.mockResolvedValue({ id: 'p1', type: 'oidc', name: 'OIDC' });
 
       await service.delete('p1', workspace.id, user, workspace);
 

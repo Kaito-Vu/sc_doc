@@ -14,6 +14,17 @@ export async function getSsoProviders(): Promise<IPagination<IAuthProvider>> {
   return req.data;
 }
 
+// Providers actually linked to at least one workspace member — powers the
+// provider filter on the (core) workspace Members list.
+export async function getMemberAuthProviders(): Promise<
+  { id: string; name: string }[]
+> {
+  const req = await api.post<{ id: string; name: string }[]>(
+    "/sso/member-providers",
+  );
+  return req.data;
+}
+
 export async function createSsoProvider(data: any): Promise<IAuthProvider> {
   const req = await api.post<IAuthProvider>("/sso/create", data);
   return req.data;

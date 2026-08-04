@@ -7,6 +7,7 @@ import {
 import {
   createSsoProvider,
   deleteSsoProvider,
+  getMemberAuthProviders,
   getSsoProviderById,
   getSsoProviders,
   updateSsoProvider,
@@ -20,6 +21,17 @@ export function useGetSsoProviders(): UseQueryResult<IPagination<IAuthProvider>,
     queryKey: ["sso-providers"],
     queryFn: () => getSsoProviders(),
     staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function useMemberAuthProvidersQuery(): UseQueryResult<
+  { id: string; name: string }[],
+  Error
+> {
+  return useQuery({
+    queryKey: ["member-auth-providers"],
+    queryFn: () => getMemberAuthProviders(),
+    staleTime: 60 * 1000,
   });
 }
 

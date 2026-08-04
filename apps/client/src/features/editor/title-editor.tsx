@@ -1,8 +1,6 @@
 import "@/features/editor/styles/index.css";
 import React, { useCallback, useEffect, useState } from "react";
 import { EditorContent, useEditor } from "@tiptap/react";
-import { ActionIcon, Group, Tooltip } from "@mantine/core";
-import { IconPencil } from "@tabler/icons-react";
 import { Document } from "@tiptap/extension-document";
 import { Heading } from "@tiptap/extension-heading";
 import { Text } from "@tiptap/extension-text";
@@ -56,9 +54,6 @@ export function TitleEditor({
   const navigate = useNavigate();
   const [activePageId, setActivePageId] = useState(pageId);
   const currentPageEditMode = useAtomValue(currentPageEditModeAtom);
-  // Untitled pages (no title yet) are editable right away; once a page has a
-  // title, editing requires the explicit "Edit title" button below.
-  const [isEditingTitle, setIsEditingTitle] = useState(!title);
 
   const titleEditor = useEditor({
     extensions: [
@@ -158,7 +153,6 @@ export function TitleEditor({
 
       localEmitter.emit("message", event);
       emit(event);
-      setIsEditingTitle(false);
     });
   }, [pageId, title, titleEditor]);
 
@@ -189,19 +183,10 @@ export function TitleEditor({
     };
   }, [pageId]);
 
-  // This component instance persists across page navigation (see
-  // activePageId above), so re-derive the edit-without-clicking affordance
-  // for each newly loaded page rather than only on first mount.
-  useEffect(() => {
-    setIsEditingTitle(!title);
-  }, [pageId]);
-
   useEffect(() => {
     if (!titleEditor) return;
-    titleEditor.setEditable(
-      editable && currentPageEditMode === PageEditMode.Edit && isEditingTitle
-    );
-  }, [currentPageEditMode, titleEditor, editable, isEditingTitle]);
+    titleEditor.setEditable(editable && currentPageEditMode === PageEditMode.Edit);
+  }, [currentPageEditMode, titleEditor, editable]);
 
   const openSearchDialog = () => {
     const event = new CustomEvent("openFindDialogFromEditor", {});
@@ -264,52 +249,16 @@ export function TitleEditor({
 
   return (
     <div className="page-title">
-      {isEditingTitle ? (
-        <EditorContent
-          editor={titleEditor}
-          onKeyDown={(event) => {
-            // First handle the search hotkey
-            getHotkeyHandler([["mod+F", openSearchDialog]])(event);
+      <EditorContent
+        editor={titleEditor}
+        onKeyDown={(event) => {
+          // First handle the search hotkey
+          getHotkeyHandler([["mod+F", openSearchDialog]])(event);
 
-            // Then handle other key events
-            handleTitleKeyDown(event);
-          }}
-          onBlur={() => {
-            // Keep untitled pages freely editable — only require the
-            // "Edit title" button again once a title has actually been set.
-            if (titleEditor && titleEditor.getText().trim() !== "") {
-              setIsEditingTitle(false);
-            }
-          }}
-        />
-      ) : (
-        <Group gap="xs" wrap="nowrap">
-          <EditorContent
-            editor={titleEditor}
-            onKeyDown={(event) => {
-              // First handle the search hotkey
-              getHotkeyHandler([["mod+F", openSearchDialog]])(event);
-
-              // Then handle other key events
-              handleTitleKeyDown(event);
-            }}
-            style={{ flex: 1 }}
-          />
-          {editable && currentPageEditMode === PageEditMode.Edit && (
-            <Tooltip label={t("Click to edit title")} position="right">
-              <ActionIcon
-                size="sm"
-                variant="subtle"
-                color="gray"
-                onClick={() => setIsEditingTitle(true)}
-                aria-label={t("Edit title")}
-              >
-                <IconPencil size={16} stroke={2} />
-              </ActionIcon>
-            </Tooltip>
-          )}
-        </Group>
-      )}
+          // Then handle other key events
+          handleTitleKeyDown(event);
+        }}
+      />
     </div>
   );
 }

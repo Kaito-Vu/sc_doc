@@ -9,6 +9,8 @@ export interface IAuthProvider {
   oidcIssuer: string;
   oidcClientId: string;
   oidcClientSecret: string;
+  oidcTenantId?: string;
+  settings?: { oidc?: { provider?: "generic" | "azuread" } };
   ldapUrl: string;
   ldapBindDn: string;
   ldapBindPassword: string;
@@ -20,7 +22,6 @@ export interface IAuthProvider {
   allowSignup: boolean;
   isEnabled: boolean;
   groupSync: boolean;
-  avatarSync: boolean;
   creatorId: string;
   workspaceId: string;
   createdAt: Date;

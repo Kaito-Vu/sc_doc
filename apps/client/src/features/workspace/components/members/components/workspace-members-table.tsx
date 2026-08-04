@@ -4,7 +4,7 @@ import {
   useWorkspaceMembersQuery,
 } from "@/features/workspace/queries/workspace-query.ts";
 import { CustomAvatar } from "@/components/ui/custom-avatar.tsx";
-import React from "react";
+import React, { useState } from "react";
 import RoleSelectMenu from "@/components/ui/role-select-menu.tsx";
 import {
   getUserRoleLabel,
@@ -18,14 +18,19 @@ import { SearchInput } from "@/components/common/search-input.tsx";
 import NoTableResults from "@/components/common/no-table-results.tsx";
 import { usePaginateAndSearch } from "@/hooks/use-paginate-and-search.tsx";
 import MemberActionMenu from "@/features/workspace/components/members/components/members-action-menu.tsx";
+import { MemberProviderFilter } from "@/ee/security/components/member-provider-filter.tsx";
+import { MemberProviderBadge } from "@/ee/security/components/member-provider-badge.tsx";
 
 export default function WorkspaceMembersTable() {
   const { t } = useTranslation();
-  const { search, cursor, goNext, goPrev, handleSearch } = usePaginateAndSearch();
+  const { search, cursor, goNext, goPrev, handleSearch, resetCursor } =
+    usePaginateAndSearch();
+  const [providerId, setProviderId] = useState<string | null>(null);
   const { data, isLoading } = useWorkspaceMembersQuery({
     cursor,
     limit: 100,
     query: search,
+    providerId: providerId || undefined,
   });
   const changeMemberRoleMutation = useChangeMemberRoleMutation();
   const { isAdmin, isOwner } = useUserRole();
@@ -33,6 +38,11 @@ export default function WorkspaceMembersTable() {
   const assignableUserRoles = isOwner
     ? userRoleData
     : userRoleData.filter((role) => role.value !== UserRole.OWNER);
+
+  const handleProviderFilterChange = (value: string | null) => {
+    setProviderId(value);
+    resetCursor();
+  };
 
   const handleRoleChange = async (
     userId: string,
@@ -53,13 +63,20 @@ export default function WorkspaceMembersTable() {
 
   return (
     <>
-      <SearchInput onSearch={handleSearch} />
+      <Group mb="sm" align="flex-end">
+        <SearchInput onSearch={handleSearch} />
+        <MemberProviderFilter
+          value={providerId}
+          onChange={handleProviderFilterChange}
+        />
+      </Group>
       <Table.ScrollContainer minWidth={600}>
         <Table highlightOnHover verticalSpacing="sm">
           <Table.Thead>
             <Table.Tr>
               <Table.Th>{t("User")}</Table.Th>
               <Table.Th>{t("Status")}</Table.Th>
+              <Table.Th>{t("Provider")}</Table.Th>
               <Table.Th>{t("Role")}</Table.Th>
               <Table.Th aria-label={t("Action")} />
             </Table.Tr>
@@ -95,6 +112,9 @@ export default function WorkspaceMembersTable() {
                     )}
                   </Table.Td>
                   <Table.Td>
+                    <MemberProviderBadge user={user} />
+                  </Table.Td>
+                  <Table.Td>
                     {isAdmin ? (
                       <RoleSelectMenu
                         roles={assignableUserRoles}
@@ -119,7 +139,7 @@ export default function WorkspaceMembersTable() {
                 </Table.Tr>
               ))
             ) : (
-              <NoTableResults colSpan={3} />
+              <NoTableResults colSpan={4} />
             )}
           </Table.Tbody>
         </Table>

@@ -1,4 +1,3 @@
-# syntax=docker/dockerfile:1.7
 FROM node:22-slim AS base
 LABEL org.opencontainers.image.source="https://github.com/docmost/docmost"
 
@@ -68,18 +67,11 @@ COPY --from=builder /app/.npmrc /app/.npmrc
 # Copy patches
 COPY --from=builder /app/patches /app/patches
 
-# Install prod deps as root, then drop the global pnpm install entirely.
-# pnpm is only needed to materialize node_modules during the build; the
-# running container starts the already-built server directly via `node`,
-# so keeping pnpm (and whatever it bundles internally, e.g. picomatch)
-# in the shipped image is unnecessary attack surface.
+# Install prod deps as root, then drop global pnpm & vulnerable npm sub-modules
 RUN --mount=type=cache,id=pnpm-store,target=/pnpm-store,uid=1000,gid=1000 \
   pnpm install --frozen-lockfile --prod --store-dir=/pnpm-store \
   && mkdir -p /app/data/storage \
   && npm uninstall -g pnpm \
-  # npm itself (bundled in the base image) vendors its own picomatch copy
-  # with a known CVE; npm is never invoked at runtime by this app, so drop
-  # the vulnerable bundled module rather than wait on an upstream Node fix.
   && rm -rf /usr/local/lib/node_modules/npm/node_modules/picomatch \
   && chown -R node:node /app
 
@@ -91,13 +83,7 @@ VOLUME ["/app/data/storage"]
 
 EXPOSE 3000
 
-# LOCAL_STORAGE_PATH (apps/server/src/common/helpers/constants.ts) is
-# computed as path.resolve(process.cwd(), '..', '..', 'data/storage') —
-# i.e. it assumes the process starts with CWD = apps/server (two levels
-# below /app), which is what `pnpm --filter ./apps/server run start:prod`
-# used to give us for free. Running `node` directly from /app instead
-# resolves storage to /data/storage, missing the declared volume entirely
-# and breaking file uploads. Switch CWD to apps/server to match.
+# Set CWD to apps/server so relative storage resolves correctly (/app/data/storage)
 WORKDIR /app/apps/server
 
 CMD ["node", "dist/main"]
