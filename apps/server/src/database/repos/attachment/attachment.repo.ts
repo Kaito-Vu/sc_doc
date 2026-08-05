@@ -177,4 +177,14 @@ export class AttachmentRepo {
       .where('filePath', '=', attachmentFilePath)
       .executeTakeFirst();
   }
+
+  async sumFileSizeByWorkspaceId(workspaceId: string): Promise<number> {
+    const result = await this.db
+      .selectFrom('attachments')
+      .select((eb) => eb.fn.sum('fileSize').as('total'))
+      .where('workspaceId', '=', workspaceId)
+      .where('deletedAt', 'is', null)
+      .executeTakeFirst();
+    return Number(result?.total ?? 0);
+  }
 }

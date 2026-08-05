@@ -147,4 +147,41 @@ export class PageHistoryRepo {
         ),
     ).as('contributors');
   }
+
+  async countEditsByUserSince(params: {
+    workspaceId: string;
+    spaceId?: string;
+    since: Date;
+  }): Promise<
+    { userId: string; name: string; avatarUrl: string | null; count: number }[]
+  > {
+    let query = this.db
+      .selectFrom('pageHistory')
+      .innerJoin('users', 'users.id', 'pageHistory.lastUpdatedById')
+      .select((eb) => [
+        'pageHistory.lastUpdatedById as userId',
+        'users.name as name',
+        'users.avatarUrl as avatarUrl',
+        eb.fn.count('pageHistory.id').as('count'),
+      ])
+      .where('pageHistory.workspaceId', '=', params.workspaceId)
+      .where('pageHistory.createdAt', '>=', params.since)
+      .groupBy([
+        'pageHistory.lastUpdatedById',
+        'users.name',
+        'users.avatarUrl',
+      ]);
+
+    if (params.spaceId) {
+      query = query.where('pageHistory.spaceId', '=', params.spaceId);
+    }
+
+    const rows = await query.execute();
+    return rows.map((r) => ({
+      userId: r.userId as string,
+      name: r.name as string,
+      avatarUrl: r.avatarUrl as string | null,
+      count: Number(r.count),
+    }));
+  }
 }

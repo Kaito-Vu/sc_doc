@@ -221,6 +221,16 @@ export class SpaceRepo {
       .as('memberCount');
   }
 
+  async countByWorkspaceId(workspaceId: string): Promise<number> {
+    const result = await this.db
+      .selectFrom('spaces')
+      .select((eb) => eb.fn.count('id').as('count'))
+      .where('workspaceId', '=', workspaceId)
+      .where('deletedAt', 'is', null)
+      .executeTakeFirst();
+    return Number(result?.count ?? 0);
+  }
+
   async deleteSpace(spaceId: string, workspaceId: string): Promise<void> {
     await this.db
       .deleteFrom('spaces')
