@@ -64,7 +64,7 @@ export default function WorkspaceMembersTable() {
   return (
     <>
       <Group mb="sm" align="flex-end">
-        <SearchInput onSearch={handleSearch} />
+        <SearchInput onSearch={handleSearch} mb={0} />
         <MemberProviderFilter
           value={providerId}
           onChange={handleProviderFilterChange}
