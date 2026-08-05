@@ -40,6 +40,7 @@ import WorkspaceApiKeys from "@/ee/api-key/pages/workspace-api-keys";
 import AiSettings from "@/ee/ai/pages/ai-settings.tsx";
 import BasePage from "@/ee/base/pages/base-page.tsx";
 import AuditLogs from "@/ee/audit/pages/audit-logs.tsx";
+import WorkspaceStatistics from "@/ee/statistics/pages/workspace-statistics.tsx";
 import VerifiedPages from "@/ee/page-verification/pages/verified-pages.tsx";
 import ReviewPage from "@/ee/page-verification/pages/review-page.tsx";
 import TemplateList from "@/ee/template/pages/template-list";
@@ -130,6 +131,7 @@ export default function App() {
             <Route path={"ai"} element={<AiSettings />} />
             <Route path={"ai/mcp"} element={<AiSettings />} />
             <Route path={"audit"} element={<AuditLogs />} />
+            <Route path={"statistics"} element={<WorkspaceStatistics />} />
             <Route path={"verifications"} element={<VerifiedPages />} />
             <Route path={"plugins"} element={<PluginsPage />} />
             {!isCloud() && <Route path={"license"} element={<License />} />}

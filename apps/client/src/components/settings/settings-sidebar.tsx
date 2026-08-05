@@ -14,6 +14,7 @@ import {
   IconWorld,
   IconSparkles,
   IconHistory,
+  IconChartBar,
   IconShieldCheck,
   IconPackage,
 } from "@tabler/icons-react";
@@ -125,6 +126,13 @@ const groupedData: DataGroup[] = [
         feature: Feature.AUDIT_LOGS,
         role: "owner",
         env: "selfhosted",
+      },
+      {
+        label: "Statistics",
+        icon: IconChartBar,
+        path: "/settings/statistics",
+        feature: Feature.STATISTICS,
+        role: "admin",
       },
       {
         label: "Plugins",
