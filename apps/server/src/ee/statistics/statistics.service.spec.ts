@@ -118,11 +118,21 @@ describe('StatisticsService.getTopContributors', () => {
 
 describe('StatisticsService.getWorkspaceStats', () => {
   it('assembles counts, role breakdown, and trends from the injected repos', async () => {
+    const now = new Date();
+    const dayOfWeek = (now.getUTCDay() + 6) % 7; // 0=Mon..6=Sun
+    const currentWeekStart = new Date(
+      Date.UTC(
+        now.getUTCFullYear(),
+        now.getUTCMonth(),
+        now.getUTCDate() - dayOfWeek,
+      ),
+    );
+
     const pageRepo = {
       countByWorkspaceId: jest.fn().mockResolvedValue(42),
       countCreatedByWeek: jest
         .fn()
-        .mockResolvedValue([{ weekStart: new Date('2026-01-05'), count: 3 }]),
+        .mockResolvedValue([{ weekStart: currentWeekStart, count: 3 }]),
     };
     const userRepo = {
       countByWorkspaceId: jest.fn().mockResolvedValue(10),
@@ -130,7 +140,7 @@ describe('StatisticsService.getWorkspaceStats', () => {
       countNeverLoggedInByWorkspaceId: jest.fn().mockResolvedValue(2),
       countJoinedByWeek: jest
         .fn()
-        .mockResolvedValue([{ weekStart: new Date('2026-01-05'), count: 1 }]),
+        .mockResolvedValue([{ weekStart: currentWeekStart, count: 1 }]),
       roleCountByWorkspaceId: jest
         .fn()
         .mockImplementation((role: string) =>
@@ -163,12 +173,16 @@ describe('StatisticsService.getWorkspaceStats', () => {
       { role: 'admin', count: 2 },
       { role: 'member', count: 7 },
     ]);
-    expect(result.pagesCreatedByWeek).toEqual([
-      { weekStart: '2026-01-05T00:00:00.000Z', count: 3 },
-    ]);
-    expect(result.usersJoinedByWeek).toEqual([
-      { weekStart: '2026-01-05T00:00:00.000Z', count: 1 },
-    ]);
+    expect(result.pagesCreatedByWeek).toHaveLength(12);
+    expect(result.usersJoinedByWeek).toHaveLength(12);
+    expect(result.pagesCreatedByWeek[11].count).toBe(3);
+    expect(result.usersJoinedByWeek[11].count).toBe(1);
+    expect(
+      result.pagesCreatedByWeek.slice(0, 11).every((w) => w.count === 0),
+    ).toBe(true);
+    expect(
+      result.usersJoinedByWeek.slice(0, 11).every((w) => w.count === 0),
+    ).toBe(true);
   });
 });
 

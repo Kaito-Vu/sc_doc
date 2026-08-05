@@ -55,6 +55,39 @@ export class StatisticsService {
     private readonly spaceRepo: SpaceRepo,
   ) {}
 
+  private buildWeeklyBuckets(
+    rows: { weekStart: Date; count: number }[],
+    weeksBack: number,
+  ): WeeklyCount[] {
+    const now = new Date();
+    const dayOfWeek = (now.getUTCDay() + 6) % 7; // 0=Mon..6=Sun, matches Postgres date_trunc('week', ...) which starts on Monday
+    const currentWeekStart = new Date(
+      Date.UTC(
+        now.getUTCFullYear(),
+        now.getUTCMonth(),
+        now.getUTCDate() - dayOfWeek,
+      ),
+    );
+
+    const countByKey = new Map<string, number>();
+    for (const row of rows) {
+      const key = new Date(row.weekStart).toISOString().slice(0, 10);
+      countByKey.set(key, row.count);
+    }
+
+    const buckets: WeeklyCount[] = [];
+    for (let i = weeksBack - 1; i >= 0; i--) {
+      const weekStart = new Date(currentWeekStart);
+      weekStart.setUTCDate(weekStart.getUTCDate() - i * 7);
+      const key = weekStart.toISOString().slice(0, 10);
+      buckets.push({
+        weekStart: weekStart.toISOString(),
+        count: countByKey.get(key) ?? 0,
+      });
+    }
+    return buckets;
+  }
+
   private periodToDays(period: StatsPeriod): number {
     switch (period) {
       case 'week':
@@ -105,14 +138,8 @@ export class StatisticsService {
         { role: UserRole.ADMIN, count: adminCount },
         { role: UserRole.MEMBER, count: memberCount },
       ],
-      pagesCreatedByWeek: pagesCreatedByWeek.map((r) => ({
-        weekStart: r.weekStart.toISOString(),
-        count: r.count,
-      })),
-      usersJoinedByWeek: usersJoinedByWeek.map((r) => ({
-        weekStart: r.weekStart.toISOString(),
-        count: r.count,
-      })),
+      pagesCreatedByWeek: this.buildWeeklyBuckets(pagesCreatedByWeek, 12),
+      usersJoinedByWeek: this.buildWeeklyBuckets(usersJoinedByWeek, 12),
     };
   }
 

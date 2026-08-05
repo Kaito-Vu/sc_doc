@@ -17,6 +17,7 @@ import { Feature } from "@/ee/features";
 import StatCard from "@/ee/statistics/components/stat-card";
 import TrendChart from "@/ee/statistics/components/trend-chart";
 import TopContributors from "@/ee/statistics/components/top-contributors";
+import UsersByRole from "@/ee/statistics/components/users-by-role";
 import {
   useWorkspaceStatisticsQuery,
   useWorkspaceTopContributorsQuery,
@@ -90,6 +91,14 @@ export default function WorkspaceStatistics() {
           />
         </Grid.Col>
       </Grid>
+
+      {stats?.usersByRole && (
+        <Grid mt="md">
+          <Grid.Col span={12}>
+            <UsersByRole data={stats.usersByRole} />
+          </Grid.Col>
+        </Grid>
+      )}
 
       <Grid mt="md">
         <Grid.Col span={{ base: 12, md: 6 }}>
