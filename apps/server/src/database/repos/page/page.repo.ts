@@ -528,14 +528,14 @@ export class PageRepo {
     const rows = await this.db
       .selectFrom('pages')
       .select((eb) => [
-        sql<Date>`date_trunc('week', "createdAt")`.as('weekStart'),
+        sql<Date>`date_trunc('week', "created_at")`.as('weekStart'),
         eb.fn.count('id').as('count'),
       ])
       .where('workspaceId', '=', workspaceId)
       .where('deletedAt', 'is', null)
       .where('createdAt', '>=', since)
-      .groupBy(sql`date_trunc('week', "createdAt")`)
-      .orderBy(sql`date_trunc('week', "createdAt")`, 'asc')
+      .groupBy(sql`date_trunc('week', "created_at")`)
+      .orderBy(sql`date_trunc('week', "created_at")`, 'asc')
       .execute();
 
     return rows.map((r) => ({
