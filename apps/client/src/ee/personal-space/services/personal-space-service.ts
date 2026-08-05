@@ -6,9 +6,7 @@ export async function getPersonalSpace(): Promise<ISpace | null> {
   return req.data;
 }
 
-export async function createPersonalSpace(data: {
-  name?: string;
-}): Promise<ISpace> {
-  const req = await api.post<ISpace>("/personal-space/create", data);
+export async function createPersonalSpace(): Promise<ISpace> {
+  const req = await api.post<ISpace>("/personal-space/create", {});
   return req.data;
 }

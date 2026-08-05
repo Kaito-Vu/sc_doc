@@ -30,6 +30,29 @@ export class AuthAccountRepo {
       .executeTakeFirst();
   }
 
+  async findByUserId(
+    userId: string,
+    workspaceId: string,
+    trx?: KyselyTransaction,
+  ): Promise<{ providerName: string; providerType: string } | undefined> {
+    const db = dbOrTx(this.db, trx);
+    return db
+      .selectFrom('authAccounts')
+      .innerJoin(
+        'authProviders',
+        'authProviders.id',
+        'authAccounts.authProviderId',
+      )
+      .select([
+        'authProviders.name as providerName',
+        'authProviders.type as providerType',
+      ])
+      .where('authAccounts.userId', '=', userId)
+      .where('authAccounts.workspaceId', '=', workspaceId)
+      .where('authAccounts.deletedAt', 'is', null)
+      .executeTakeFirst();
+  }
+
   async upsert(
     data: {
       userId: string;
