@@ -8,7 +8,8 @@ The editor currently uses TipTap's default `OrderedList`/`ListItem` (from `@tipt
 - Headings optionally auto-numbered as an outline (`1.`, `1.1.`, `1.1.1.`) driven by heading level, using the same per-level format configuration.
 - Both features share one 10-level numbering definition per page.
 - Users can restart numbering at a specific list item or heading.
-- Numbering must be preserved in DOCX and PDF export, not just the live editor.
+- Numbering must be preserved in PDF export, not just the live editor.
+- Ordered lists gain Word-style Tab/Shift-Tab level navigation (already provided by `@tiptap/extension-list`'s default keymap; this feature must not break it).
 
 This is an EE feature (gated by license, like SSO/Bases/Audit), scoped per page, and must follow the fork's Golden Rule: all logic lives under `ee/`, core files get only mechanical hook-ins.
 
@@ -17,6 +18,7 @@ This is an EE feature (gated by license, like SSO/Bases/Audit), scoped per page,
 - Word's full "list style" reuse-across-documents system — one numbering definition per page is sufficient for v1.
 - Numbering across multiple pages (e.g. auto-numbering that continues from a parent page into subpages).
 - Markdown export numbering (Markdown has no native multilevel numbering; out of scope — copy-as-markdown keeps current behavior).
+- **DOCX export.** `apps/server/src/ee/docx-export/docx-export.service.ts` currently exports plain text only (title + paragraphs) — it does not call the fully-built rich serializer (`pageNodeToDocxBuffer` in `packages/editor-ext/src/lib/prosemirror-docx/schema.ts`), which itself is unused by any server code today. Wiring that serializer in is a separate, pre-existing gap unrelated to numbering, and out of scope here. This plan does not touch DOCX export; it remains exactly as it is today (no regression). A future project can wire `pageNodeToDocxBuffer` into the DOCX export service and, at that point, extend `numbering.ts`'s hardcoded `numbered`/`bullets` presets to read from `NumberingSettings` — note `docx`'s `HeadingLevel` enum only goes up to `HEADING_6`, so levels 7–10 could not map to native Word heading styles even then.
 - Per-list-instance format overrides — all ordered lists and headings on a page share the single page-level definition.
 
 ## Data model
@@ -59,10 +61,9 @@ interface NumberingSettings {
 New package module `packages/editor-ext/src/lib/numbering/` (plain TS, no framework deps) exporting:
 
 - `buildCounterCss(settings: NumberingSettings, opts: { headings: boolean }): string` — generates a `<style>` string with `counter-reset`/`counter-increment`/`content` rules for `.numbered-list` and `.numbered-heading` classes, parameterized by the 10 level configs. Used by both the main editor and the PDF-render view.
-- `resolveLevelFormat(format: NumberingLevelFormat): { cssListStyle?: string, isText: boolean }` — maps our format enum to CSS `list-style-type`/counter formatting keywords (`decimal`, `lower-roman`, `upper-roman`, `lower-alpha`, `upper-alpha`) or bullet glyph.
-- `buildDocxLevels(settings: NumberingSettings): ILevelsOptions[]` — maps the same config to the `docx` package's `LevelFormat` enum + `text` pattern (extends the existing `packages/editor-ext/src/lib/prosemirror-docx/numbering.ts`, replacing its two hardcoded presets with a generator driven by `NumberingSettings`).
+- `resolveLevelFormat(format: NumberingLevelFormat): { cssCounterStyle: string, isBullet: boolean }` — maps our format enum to CSS counter-style keywords (`decimal`, `lower-roman`, `upper-roman`, `lower-alpha`, `upper-alpha`) or marks it as a literal bullet glyph.
 
-This keeps format-mapping logic in exactly one place instead of duplicating it between CSS generation and DOCX generation.
+This keeps format-mapping logic in exactly one place. DOCX export is out of scope (see Non-goals) so this engine does not include a `docx`-targeting function; a future project can add one alongside wiring up the real DOCX serializer.
 
 ## Editor implementation
 
@@ -96,9 +97,8 @@ Add `NUMBERING: 'page:numbering'` to the `Feature` enum in `apps/server/src/comm
 
 ## Export
 
-- **DOCX** (`apps/server/src/ee/docx-export`): pass `page.numberingSettings` into the `prosemirror-docx` serializer options; when present, call `buildDocxLevels` to register a `docx` `Numbering` reference used by ordered-list and (if linked) heading paragraph styles, replacing the current hardcoded `numbered`/`bullets` presets in `numbering.ts`. When `numberingSettings` is null, fall back to the existing hardcoded presets unchanged (no behavior change for pages that don't use this feature).
 - **PDF** (`apps/server/src/ee/pdf-export`): `getRenderPayload` includes `numberingSettings` in its response; the PDF-render client route applies the same `ee/numbering` extensions/CSS as the main editor, so the headless-browser-rendered PDF matches the editor visually. No separate PDF-specific numbering code needed.
-- **Markdown copy/export**: unchanged (non-goal).
+- **DOCX and Markdown export**: unchanged (see Non-goals).
 
 ## Restart numbering semantics
 
@@ -106,7 +106,7 @@ Add `NUMBERING: 'page:numbering'` to the `Feature` enum in `apps/server/src/comm
 
 ## Testing
 
-- `packages/editor-ext`: unit tests for `buildCounterCss` (given a settings object, produces the expected `counter-reset`/`content` rules) and `buildDocxLevels` (given settings, produces expected `ILevelsOptions`), plus a test that `numbering.ts`'s existing hardcoded presets remain byte-identical when `numberingSettings` is null (regression guard for existing DOCX export tests).
+- `packages/editor-ext`: unit tests for `buildCounterCss` (given a settings object, produces the expected `counter-reset`/`content` rules) and `resolveLevelFormat` (each format enum value maps to the expected CSS counter-style/bullet glyph).
 - `apps/client`: component test for `numbering-settings-modal` (save round-trip, 10-row validation), and a test that `NumberedHeading`/`NumberedOrderedList` no-op (render exactly like the upstream extensions) when the feature is off or settings are null.
-- `apps/server`: e2e test for the `numberingSettings` PATCH endpoint (licence-gated 403 when feature disabled), and a DOCX export snapshot test with a custom `numberingSettings` producing the expected `numbering.xml` levels.
-- Manual verification: enable numbering on a page with nested ordered lists + headings across all 10 levels, confirm live renumbering on insert/delete/reorder, confirm "restart here" resets correctly, confirm DOCX export opens in Word with matching numbers, confirm PDF export (Print PDF / export-to-PDF) matches editor.
+- `apps/server`: e2e test for the `numberingSettings` endpoint (licence-gated 403 when feature disabled; persists and round-trips a full 10-level config).
+- Manual verification: enable numbering on a page with nested ordered lists + headings across all 10 levels, confirm live renumbering on insert/delete/reorder, confirm Tab/Shift-Tab still indents/outdents list items and renumbers correctly, confirm "restart here" resets correctly, confirm PDF export (Print PDF / export-to-PDF) matches editor.
