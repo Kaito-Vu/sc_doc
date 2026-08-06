@@ -42,3 +42,5 @@ lerna-debug.log*
 .nx/installation
 .nx/cache
 _ee_dist_extract/
+
+.claude/worktrees
