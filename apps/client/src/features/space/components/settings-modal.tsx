@@ -11,6 +11,9 @@ import {
   SpaceCaslSubject,
 } from "@/features/space/permissions/permissions.type.ts";
 import { useTranslation } from "react-i18next";
+import SpaceStatistics from "@/ee/statistics/components/space-statistics.tsx";
+import { useHasFeature } from "@/ee/hooks/use-feature";
+import { Feature } from "@/ee/features";
 
 interface SpaceSettingsModalProps {
   spaceId: string;
@@ -28,6 +31,7 @@ export default function SpaceSettingsModal({
 
   const spaceRules = space?.membership?.permissions;
   const spaceAbility = useSpaceAbility(spaceRules);
+  const hasStatistics = useHasFeature(Feature.STATISTICS);
 
   return (
     <>
@@ -68,6 +72,15 @@ export default function SpaceSettingsModal({
                       {t("Security")}
                     </Tabs.Tab>
                   )}
+                  {hasStatistics &&
+                    spaceAbility.can(
+                      SpaceCaslAction.Manage,
+                      SpaceCaslSubject.Settings,
+                    ) && (
+                      <Tabs.Tab fw={500} value="statistics">
+                        {t("Statistics")}
+                      </Tabs.Tab>
+                    )}
                 </Tabs.List>
 
                 <Tabs.Panel value="general">
@@ -111,6 +124,14 @@ export default function SpaceSettingsModal({
                           SpaceCaslSubject.Settings,
                         )}
                       />
+                    </div>
+                  </ScrollArea>
+                </Tabs.Panel>
+
+                <Tabs.Panel value="statistics">
+                  <ScrollArea h={580} scrollbarSize={5} pr={8}>
+                    <div style={{ paddingBottom: "100px" }}>
+                      <SpaceStatistics spaceId={space?.id} />
                     </div>
                   </ScrollArea>
                 </Tabs.Panel>

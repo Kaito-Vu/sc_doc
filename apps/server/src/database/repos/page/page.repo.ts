@@ -487,6 +487,97 @@ export class PageRepo {
       .as('hasChildren');
   }
 
+  async countByWorkspaceId(workspaceId: string): Promise<number> {
+    const result = await this.db
+      .selectFrom('pages')
+      .select((eb) => eb.fn.count('id').as('count'))
+      .where('workspaceId', '=', workspaceId)
+      .where('deletedAt', 'is', null)
+      .executeTakeFirst();
+    return Number(result?.count ?? 0);
+  }
+
+  async countBySpaceId(spaceId: string): Promise<number> {
+    const result = await this.db
+      .selectFrom('pages')
+      .select((eb) => eb.fn.count('id').as('count'))
+      .where('spaceId', '=', spaceId)
+      .where('deletedAt', 'is', null)
+      .executeTakeFirst();
+    return Number(result?.count ?? 0);
+  }
+
+  async countUpdatedSince(spaceId: string, since: Date): Promise<number> {
+    const result = await this.db
+      .selectFrom('pages')
+      .select((eb) => eb.fn.count('id').as('count'))
+      .where('spaceId', '=', spaceId)
+      .where('deletedAt', 'is', null)
+      .where('updatedAt', '>=', since)
+      .executeTakeFirst();
+    return Number(result?.count ?? 0);
+  }
+
+  async countCreatedByWeek(
+    workspaceId: string,
+    weeksBack: number,
+  ): Promise<{ weekStart: Date; count: number }[]> {
+    const since = new Date(
+      Date.now() - weeksBack * 7 * 24 * 60 * 60 * 1000,
+    );
+    const rows = await this.db
+      .selectFrom('pages')
+      .select((eb) => [
+        sql<Date>`date_trunc('week', "created_at")`.as('weekStart'),
+        eb.fn.count('id').as('count'),
+      ])
+      .where('workspaceId', '=', workspaceId)
+      .where('deletedAt', 'is', null)
+      .where('createdAt', '>=', since)
+      .groupBy(sql`date_trunc('week', "created_at")`)
+      .orderBy(sql`date_trunc('week', "created_at")`, 'asc')
+      .execute();
+
+    return rows.map((r) => ({
+      weekStart: r.weekStart as Date,
+      count: Number(r.count),
+    }));
+  }
+
+  async countCreatedByUserSince(params: {
+    workspaceId: string;
+    spaceId?: string;
+    since: Date;
+  }): Promise<
+    { userId: string; name: string; avatarUrl: string | null; count: number }[]
+  > {
+    let query = this.db
+      .selectFrom('pages')
+      .innerJoin('users', 'users.id', 'pages.creatorId')
+      .select((eb) => [
+        'pages.creatorId as userId',
+        'users.name as name',
+        'users.avatarUrl as avatarUrl',
+        eb.fn.count('pages.id').as('count'),
+      ])
+      .where('pages.workspaceId', '=', params.workspaceId)
+      .where('pages.deletedAt', 'is', null)
+      .where('pages.createdAt', '>=', params.since)
+      .groupBy(['pages.creatorId', 'users.name', 'users.avatarUrl']);
+
+    if (params.spaceId) {
+      query = query.where('pages.spaceId', '=', params.spaceId);
+    }
+
+    const rows = await query.execute();
+    return rows.map((r) => ({
+      userId: r.userId as string,
+      name: r.name as string,
+      avatarUrl: r.avatarUrl as string | null,
+      count: Number(r.count),
+    }));
+  }
+
   async getPageAndDescendants(
     parentPageId: string,
     opts: { includeContent: boolean },

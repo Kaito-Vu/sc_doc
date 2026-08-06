@@ -9,6 +9,7 @@ export interface SearchInputProps {
   ariaLabel?: string;
   debounceDelay?: number;
   onSearch: (value: string) => void;
+  mb?: string | number;
 }
 
 export function SearchInput({
@@ -16,6 +17,7 @@ export function SearchInput({
   ariaLabel,
   debounceDelay = 500,
   onSearch,
+  mb = "sm",
 }: SearchInputProps) {
   const { t } = useTranslation();
   const [value, setValue] = useState("");
@@ -26,7 +28,7 @@ export function SearchInput({
   }, [debouncedValue, onSearch]);
 
   return (
-    <Group mb="sm">
+    <Group mb={mb}>
       <TextInput
         size="sm"
         placeholder={placeholder || t("Search...")}

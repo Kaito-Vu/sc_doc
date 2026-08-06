@@ -40,6 +40,7 @@ import WorkspaceApiKeys from "@/ee/api-key/pages/workspace-api-keys";
 import AiSettings from "@/ee/ai/pages/ai-settings.tsx";
 import BasePage from "@/ee/base/pages/base-page.tsx";
 import AuditLogs from "@/ee/audit/pages/audit-logs.tsx";
+import WorkspaceStatistics from "@/ee/statistics/pages/workspace-statistics.tsx";
 import VerifiedPages from "@/ee/page-verification/pages/verified-pages.tsx";
 import ReviewPage from "@/ee/page-verification/pages/review-page.tsx";
 import TemplateList from "@/ee/template/pages/template-list";
@@ -49,7 +50,6 @@ import AiChat from "@/ee/ai-chat/pages/ai-chat.tsx";
 import VerifyEmail from "@/ee/pages/verify-email.tsx";
 import LabelPage from "@/pages/label/label-page";
 import PluginsPage from "@/ee/plugins/pages/PluginsPage";
-import IntegrationsSettings from "@/pages/settings/workspace/integrations";
 
 export default function App() {
   useRedirectToCloudSelect();
@@ -131,10 +131,9 @@ export default function App() {
             <Route path={"ai"} element={<AiSettings />} />
             <Route path={"ai/mcp"} element={<AiSettings />} />
             <Route path={"audit"} element={<AuditLogs />} />
+            <Route path={"statistics"} element={<WorkspaceStatistics />} />
             <Route path={"verifications"} element={<VerifiedPages />} />
             <Route path={"plugins"} element={<PluginsPage />} />
-            <Route path={"integrations"} element={<IntegrationsSettings />} />
-            <Route path={"integrations/minio"} element={<IntegrationsSettings />} />
             {!isCloud() && <Route path={"license"} element={<License />} />}
             {isCloud() && <Route path={"billing"} element={<Billing />} />}
           </Route>

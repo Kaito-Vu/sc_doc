@@ -4,15 +4,19 @@ services:
     depends_on:
       - db
       - redis
-      - minio
+      - seaweedfs
     environment:
       APP_URL: 'https://doc.etc.vn'
       APP_SECRET: '4cb43dc7af32d3171aa2c542c6627df986c4151cff48365e4fac62c25d87741a'
       DATABASE_URL: 'postgresql://docmost:STRONG_DB_PASSWORD@db:5432/docmost'
       REDIS_URL: 'redis://redis:6379'
-      # MinIO Configuration
-      MINIO_ENDPOINT: 'minio:9000'
-      MINIO_USE_SSL: 'false'
+      STORAGE_DRIVER: 's3'
+      AWS_S3_ENDPOINT: 'http://seaweedfs:8333'
+      AWS_S3_BUCKET: 'docmost'
+      AWS_S3_REGION: 'us-east-1'
+      AWS_S3_FORCE_PATH_STYLE: 'true'
+      AWS_S3_ACCESS_KEY_ID: 'docmost_seaweedfs_access_key'
+      AWS_S3_SECRET_ACCESS_KEY: 'CHANGE_ME_STRONG_SEAWEEDFS_SECRET'
     ports:
       - "8888:3000"
     restart: unless-stopped
@@ -36,28 +40,56 @@ services:
     volumes:
       - redis_data:/data
 
-  minio:
-    image: minio/minio:latest
-    container_name: docmost-minio
+  seaweedfs:
+    image: chrislusf/seaweedfs:latest
+    container_name: docmost-seaweedfs
     restart: unless-stopped
-    environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
-    command: server /data --console-address ":9001"
+    entrypoint: ["sh", "-c"]
     ports:
-      - "${MINIO_API_PORT:-9000}:9000"
-      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+      - "9333:9333"
+      - "8686:8888"
+    command:
+      - |
+        mkdir -p /etc/seaweedfs
+        cat > /etc/seaweedfs/s3.json <<'EOF'
+        {
+          "identities": [
+            {
+              "name": "docmost",
+              "credentials": [
+                {
+                  "accessKey": "docmost_seaweedfs_access_key",
+                  "secretKey": "CHANGE_ME_STRONG_SEAWEEDFS_SECRET"
+                }
+              ],
+              "actions": ["Read", "Write", "List", "Tagging", "Admin"]
+            }
+          ]
+        }
+        EOF
+        exec weed server -dir=/data -s3 -s3.port=8333 -s3.config=/etc/seaweedfs/s3.json -ip=seaweedfs -master.volumeSizeLimitMB=1024
     volumes:
-      - minio_data:/data
+      - ./data/seaweedfs:/data
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
-      interval: 30s
-      timeout: 20s
-      retries: 3
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:9333/cluster/status"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
       start_period: 10s
+
+  seaweedfs-init:
+    image: chrislusf/seaweedfs:latest
+    container_name: docmost-seaweedfs-init
+    restart: "no"
+    depends_on:
+      seaweedfs:
+        condition: service_healthy
+    entrypoint: ["sh", "-c"]
+    command:
+      - |
+        weed shell -master=seaweedfs:9333 -c "s3.bucket.create -name docmost" || true
 
 volumes:
   docmost:
   db_data:
   redis_data:
-  minio_data:

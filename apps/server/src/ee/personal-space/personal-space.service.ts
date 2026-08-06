@@ -8,7 +8,7 @@ import { SpaceService } from '../../core/space/services/space.service';
 import { WorkspaceRepo } from '@docmost/db/repos/workspace/workspace.repo';
 import { User } from '@docmost/db/types/entity.types';
 import slugify from '@sindresorhus/slugify';
-import { v7 as uuid7 } from 'uuid';
+import { AuthAccountRepo } from '../sso/auth-account.repo';
 
 @Injectable()
 export class PersonalSpaceService {
@@ -16,6 +16,7 @@ export class PersonalSpaceService {
     private readonly spaceRepo: SpaceRepo,
     private readonly spaceService: SpaceService,
     private readonly workspaceRepo: WorkspaceRepo,
+    private readonly authAccountRepo: AuthAccountRepo,
   ) {}
 
   async getInfo(user: User, workspaceId: string) {
@@ -23,11 +24,7 @@ export class PersonalSpaceService {
     return space ?? null;
   }
 
-  async create(
-    user: User,
-    workspaceId: string,
-    data: { name?: string },
-  ) {
+  async create(user: User, workspaceId: string) {
     const workspace = await this.workspaceRepo.findById(workspaceId);
     const settings = (workspace?.settings ?? {}) as Record<string, any>;
     if (!settings?.spaces?.allowPersonal) {
@@ -42,14 +39,27 @@ export class PersonalSpaceService {
       throw new BadRequestException('Personal space already exists');
     }
 
-    const name = data.name?.trim() || `${user.name}'s space`;
-    let slug = slugify(name, { lowercase: true });
-    if (!slug) slug = `personal-${uuid7().slice(0, 8)}`;
+    // display name is always "Personal Space"; slug encodes the login
+    // provider + username (e.g. "entraid-vuna") so it stays unique and
+    // stable across a workspace's members regardless of display name
+    const name = 'Personal Space';
+
+    const authAccount = await this.authAccountRepo.findByUserId(
+      user.id,
+      workspaceId,
+    );
+    const providerSlug =
+      slugify(authAccount?.providerName ?? '', { lowercase: true }) ||
+      'local';
+    const username =
+      slugify(user.email.split('@')[0], { lowercase: true }) || 'user';
+
+    let slug = `${providerSlug}-${username}`;
 
     let suffix = 0;
     while (await this.spaceRepo.slugExists(slug, workspaceId)) {
       suffix += 1;
-      slug = `${slugify(name, { lowercase: true }) || 'personal'}-${suffix}`;
+      slug = `${providerSlug}-${username}-${suffix}`;
     }
 
     return this.spaceService.createSpace(

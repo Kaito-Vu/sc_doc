@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { ScrollArea, Text, Divider, Modal, UnstyledButton, Tooltip } from "@mantine/core";
 import {
   IconHome,
@@ -24,6 +24,7 @@ import { useHasFeature } from "@/ee/hooks/use-feature";
 import { Feature } from "@/ee/features";
 import { useUpgradeLabel } from "@/ee/hooks/use-upgrade-label";
 import AllSpacesSidebarSection from "@/features/space/components/sidebar/all-spaces-sidebar-section";
+import PersonalSpaceNavItem from "@/ee/personal-space/components/personal-space-nav-item";
 
 export default function GlobalSidebar() {
   const { t } = useTranslation();
@@ -93,17 +94,24 @@ export default function GlobalSidebar() {
                 </UnstyledButton>
               </Tooltip>
             ) : (
-              <Link
-                key={item.label}
-                className={classes.link}
-                data-active={active === item.path || undefined}
-                aria-current={active === item.path ? "page" : undefined}
-                to={item.path}
-                onClick={handleNavClick}
-              >
-                <item.icon className={classes.linkIcon} stroke={2} />
-                <span>{t(item.label)}</span>
-              </Link>
+              <Fragment key={item.label}>
+                <Link
+                  className={classes.link}
+                  data-active={active === item.path || undefined}
+                  aria-current={active === item.path ? "page" : undefined}
+                  to={item.path}
+                  onClick={handleNavClick}
+                >
+                  <item.icon className={classes.linkIcon} stroke={2} />
+                  <span>{t(item.label)}</span>
+                </Link>
+                {item.path === "/home" && (
+                  <PersonalSpaceNavItem
+                    currentPath={active}
+                    onNavigate={handleNavClick}
+                  />
+                )}
+              </Fragment>
             ),
           )}
         </div>
