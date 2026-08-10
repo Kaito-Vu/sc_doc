@@ -40,3 +40,4 @@ export {
 export * from "./lib/base-embed";
 export * from "./lib/numbering/types";
 export * from "./lib/numbering/format";
+export * from "./lib/numbering/css";
