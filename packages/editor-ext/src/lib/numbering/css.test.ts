@@ -45,6 +45,12 @@ describe('buildCounterCss', () => {
 
   it('resets the counter at a restart node', () => {
     const css = buildCounterCss(DEFAULT_NUMBERING_SETTINGS);
-    expect(css).toContain('.numbering-restart');
+    // Must explicitly reset the level's own counter back to its initial
+    // value, not `revert` (which un-sets the author counter-reset entirely
+    // rather than restarting the counter).
+    expect(css).toContain(
+      '.numbered-list[data-numbering-depth="1"].numbering-restart { counter-reset: numbering-level-1; }',
+    );
+    expect(css).not.toContain('counter-reset: revert');
   });
 });

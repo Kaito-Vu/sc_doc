@@ -43,9 +43,10 @@ function buildOrderedListRules(settings: NumberingSettings): string {
     );
     rules.push(`${selector} { counter-increment: ${counterName(levelNum)}; }`);
     rules.push(`${selector}::before { content: ${contentValue}; }`);
+    rules.push(
+      `.numbered-list[data-numbering-depth="${levelNum}"].numbering-restart { counter-reset: ${counterName(levelNum)}; }`,
+    );
   });
-
-  rules.push('.numbered-list.numbering-restart { counter-reset: revert; }');
 
   return rules.join('\n');
 }
