@@ -38,3 +38,5 @@ export {
   type DocxImageResolver,
 } from "./lib/prosemirror-docx";
 export * from "./lib/base-embed";
+export * from "./lib/numbering/types";
+export * from "./lib/numbering/format";

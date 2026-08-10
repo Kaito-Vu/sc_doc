@@ -7,6 +7,7 @@ export interface IPage {
   content: string;
   icon: string;
   coverPhoto: string;
+  numberingSettings: import("@docmost/editor-ext").NumberingSettings | null;
   parentPageId: string;
   creatorId: string;
   spaceId: string;
