@@ -76,6 +76,8 @@ import { EditorLinkMenu } from "@/features/editor/components/link/link-menu";
 import ColumnsMenu from "@/features/editor/components/columns/columns-menu.tsx";
 import { TransclusionLookupProvider } from "@/features/editor/components/transclusion/transclusion-lookup-context";
 import { useTranslation } from "react-i18next";
+import { useNumberingStyle } from "@/ee/numbering";
+import { usePageQuery } from "@/features/page/queries/page-query.ts";
 
 interface PageEditorProps {
   pageId: string;
@@ -123,6 +125,8 @@ export default function PageEditor({
     [isComponentMounted],
   );
   const { handleScrollTo } = useEditorScroll({ canScroll });
+  const { data: page } = usePageQuery({ pageId });
+  useNumberingStyle(page?.numberingSettings);
   // Providers only created once per pageId
   const providersRef = useRef<{
     local: IndexeddbPersistence;

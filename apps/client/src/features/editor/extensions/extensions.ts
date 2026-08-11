@@ -50,7 +50,6 @@ import {
   TableHeaderPin,
   TableReadonlySort,
   Subpages,
-  Heading,
   Highlight,
   Indent,
   UniqueID,
@@ -118,6 +117,7 @@ import { CleanStyles } from "@/features/editor/extensions/clean-styles.ts";
 import { TemplateSkeleton } from "@/ee/template/extensions/template-skeleton/template-skeleton-extension";
 import TemplateSkeletonView from "@/ee/template/extensions/template-skeleton/template-skeleton-view";
 import { mergeTemplateSkeletonItems } from "@/ee/template/extensions/template-skeleton/template-skeleton-slash-items";
+import { NumberedHeading } from "@/ee/numbering";
 
 const lowlight = createLowlight(common);
 lowlight.register("mermaid", plaintext);
@@ -183,7 +183,7 @@ export const mainExtensions = [
     },
   }),
   SharedStorage,
-  Heading.configure({ levels: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] } as any),
+  NumberedHeading.configure({ levels: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] } as any),
   UniqueID.configure({
     types: ["heading", "paragraph", "transclusionSource"],
     filterTransaction: (transaction) => !isChangeOrigin(transaction),
