@@ -24,4 +24,5 @@ export const Feature = {
   BASES: 'bases',
   STATISTICS: 'statistics',
   DETAIL_INFO_PANEL: 'detail:info-panel',
+  NUMBERING: 'page:numbering',
 } as const;
