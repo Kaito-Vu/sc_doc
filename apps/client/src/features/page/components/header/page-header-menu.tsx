@@ -58,6 +58,7 @@ import {
   PageVerificationMenuItem,
   PageVerificationModal,
 } from "@/ee/page-verification";
+import { NumberingSettingsMenuItem, NumberingSettingsModal } from "@/ee/numbering";
 import {
   useFavoriteIds,
   useAddFavoriteMutation,
@@ -207,6 +208,10 @@ function PageActionMenu({ readOnly }: PageActionMenuProps) {
     verificationOpened,
     { open: openVerificationModal, close: closeVerificationModal },
   ] = useDisclosure(false);
+  const [
+    numberingSettingsOpened,
+    { open: openNumberingSettings, close: closeNumberingSettings },
+  ] = useDisclosure(false);
   const [pageEditor] = useAtom(pageEditorAtom);
   const pageUpdatedAt = useTimeAgo(page?.updatedAt);
   const favoriteIds = useFavoriteIds("page", page?.spaceId);
@@ -335,6 +340,10 @@ function PageActionMenu({ readOnly }: PageActionMenuProps) {
           )}
 
           {!page?.isBase && (
+            <NumberingSettingsMenuItem onClick={openNumberingSettings} />
+          )}
+
+          {!page?.isBase && (
             <Menu.Item
               leftSection={<IconHistory size={16} />}
               onClick={openHistoryModal}
@@ -444,6 +453,13 @@ function PageActionMenu({ readOnly }: PageActionMenuProps) {
         pageId={page.id}
         opened={verificationOpened}
         onClose={closeVerificationModal}
+      />
+
+      <NumberingSettingsModal
+        pageId={page.id}
+        opened={numberingSettingsOpened}
+        onClose={closeNumberingSettings}
+        numberingSettings={page.numberingSettings}
       />
     </>
   );
