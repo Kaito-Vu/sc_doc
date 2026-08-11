@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 import clsx from "clsx";
 import type { ToolbarState } from "../use-toolbar-state";
 import classes from "../fixed-toolbar.module.css";
+import { RestartNumberingButton } from "@/ee/numbering";
 
 interface Props {
   editor: Editor;
@@ -43,6 +44,7 @@ export const ListsGroup: FC<Props> = ({ editor, state }) => {
           <IconListNumbers size={16} />
         </ActionIcon>
       </Tooltip>
+      <RestartNumberingButton editor={editor} />
       <Tooltip label={t("To-do List")} withArrow>
         <ActionIcon
           variant="subtle"

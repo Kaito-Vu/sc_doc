@@ -5,3 +5,4 @@ export * from "./extensions/numbered-heading";
 export * from "./hooks/use-numbering-style";
 export * from "./components/numbering-settings-modal";
 export * from "./components/numbering-settings-menu-item";
+export * from "./components/restart-numbering-button";
