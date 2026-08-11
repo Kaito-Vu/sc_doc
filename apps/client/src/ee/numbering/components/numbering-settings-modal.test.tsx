@@ -104,6 +104,61 @@ describe("NumberingSettingsModal", () => {
     expect(reopenedInput.value).toBe("%1.");
   });
 
+  it("does not clobber an in-progress edit when numberingSettings gets a new object reference while still open", () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+
+    const { rerender } = render(
+      <MantineProvider>
+        <QueryClientProvider client={queryClient}>
+          <NumberingSettingsModal
+            pageId="p1"
+            opened
+            onClose={() => {}}
+            numberingSettings={DEFAULT_NUMBERING_SETTINGS}
+          />
+        </QueryClientProvider>
+      </MantineProvider>,
+    );
+
+    const level1Row = screen.getByTestId("numbering-level-row-1");
+    const inputs = level1Row.querySelectorAll("input");
+    const textInput = inputs[inputs.length - 1] as HTMLInputElement;
+    expect(textInput.value).toBe("%1.");
+
+    // Edit the field without saving (in-progress edit).
+    fireEvent.change(textInput, { target: { value: "IN_PROGRESS" } });
+    expect(textInput.value).toBe("IN_PROGRESS");
+
+    // Simulate a websocket-triggered refetch of the underlying page query:
+    // numberingSettings gets a brand-new object reference with equivalent
+    // content, while the modal stays open (no opened transition).
+    const refetchedSettings = {
+      ...DEFAULT_NUMBERING_SETTINGS,
+      levels: [...DEFAULT_NUMBERING_SETTINGS.levels],
+    };
+    rerender(
+      <MantineProvider>
+        <QueryClientProvider client={queryClient}>
+          <NumberingSettingsModal
+            pageId="p1"
+            opened
+            onClose={() => {}}
+            numberingSettings={refetchedSettings}
+          />
+        </QueryClientProvider>
+      </MantineProvider>,
+    );
+
+    const rowAfterRefetch = screen.getByTestId("numbering-level-row-1");
+    const inputsAfterRefetch = rowAfterRefetch.querySelectorAll("input");
+    const textInputAfterRefetch = inputsAfterRefetch[
+      inputsAfterRefetch.length - 1
+    ] as HTMLInputElement;
+    expect(textInputAfterRefetch.value).toBe("IN_PROGRESS");
+  });
+
   it("saves the edited settings on submit", async () => {
     const spy = vi
       .spyOn(numberingService, "updateNumberingSettings")
