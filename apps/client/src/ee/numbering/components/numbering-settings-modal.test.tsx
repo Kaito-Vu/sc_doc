@@ -5,6 +5,7 @@ import { MantineProvider } from "@mantine/core";
 import { NumberingSettingsModal } from "./numbering-settings-modal";
 import * as numberingService from "@/ee/numbering/services/numbering-service";
 import { DEFAULT_NUMBERING_SETTINGS } from "@docmost/editor-ext";
+import type { NumberingLevels } from "@docmost/editor-ext";
 
 if (!window.matchMedia) {
   window.matchMedia = ((query: string) => ({
@@ -136,7 +137,7 @@ describe("NumberingSettingsModal", () => {
     // content, while the modal stays open (no opened transition).
     const refetchedSettings = {
       ...DEFAULT_NUMBERING_SETTINGS,
-      levels: [...DEFAULT_NUMBERING_SETTINGS.levels],
+      levels: [...DEFAULT_NUMBERING_SETTINGS.levels] as NumberingLevels,
     };
     rerender(
       <MantineProvider>
