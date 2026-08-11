@@ -4,6 +4,14 @@ import { Plugin, PluginKey } from "@tiptap/pm/state";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
 import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
 
+declare module "@tiptap/core" {
+  interface Commands<ReturnType> {
+    numbering: {
+      toggleNumberingRestart: () => ReturnType;
+    };
+  }
+}
+
 function orderedListDepthAt(doc: ProseMirrorNode, pos: number): number {
   const $pos = doc.resolve(pos + 1);
   let depth = 0;
@@ -48,7 +56,7 @@ export const NumberedOrderedList = OrderedList.extend({
           }
           return false;
         },
-    } as any;
+    };
   },
 
   addProseMirrorPlugins() {
