@@ -10,6 +10,8 @@ import { useAtom } from "jotai";
 import { readOnlyEditorAtom } from "@/features/editor/atoms/editor-atoms.ts";
 import { useEditorScroll } from "./hooks/use-editor-scroll";
 import { TransclusionLookupProvider } from "@/features/editor/components/transclusion/transclusion-lookup-context";
+import { useNumberingStyle } from "@/ee/numbering";
+import type { NumberingSettings } from "@docmost/editor-ext";
 
 interface PageEditorProps {
   title: string;
@@ -23,6 +25,7 @@ interface PageEditorProps {
    * that isn't itself shared.
    */
   shareId?: string;
+  numberingSettings?: NumberingSettings | null;
 }
 
 export default function ReadonlyPageEditor({
@@ -31,10 +34,13 @@ export default function ReadonlyPageEditor({
   pageId,
   printMode = false,
   shareId,
+  numberingSettings,
 }: PageEditorProps) {
   const [, setReadOnlyEditor] = useAtom(readOnlyEditorAtom);
   const isComponentMounted = useRef(false);
   const editorCreated = useRef(false);
+
+  useNumberingStyle(numberingSettings);
 
   const canScroll = useCallback(
     () => isComponentMounted.current && editorCreated.current,

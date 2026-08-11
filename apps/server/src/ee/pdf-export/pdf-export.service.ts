@@ -52,6 +52,7 @@ export class PdfExportService {
       pageId: page.id,
       title: page.title,
       content: getProsemirrorContent(page.content),
+      numberingSettings: page.numberingSettings ?? null,
     };
   }
 

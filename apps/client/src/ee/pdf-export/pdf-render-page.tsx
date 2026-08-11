@@ -8,6 +8,7 @@ type PdfRenderData = {
   pageId: string;
   title: string;
   content: any;
+  numberingSettings: import("@docmost/editor-ext").NumberingSettings | null;
 };
 
 export default function PdfRenderPage() {
@@ -58,6 +59,7 @@ export default function PdfRenderPage() {
         title={data.title}
         content={data.content}
         pageId={data.pageId}
+        numberingSettings={data.numberingSettings}
         printMode
       />
     </Container>
