@@ -117,7 +117,7 @@ import { CleanStyles } from "@/features/editor/extensions/clean-styles.ts";
 import { TemplateSkeleton } from "@/ee/template/extensions/template-skeleton/template-skeleton-extension";
 import TemplateSkeletonView from "@/ee/template/extensions/template-skeleton/template-skeleton-view";
 import { mergeTemplateSkeletonItems } from "@/ee/template/extensions/template-skeleton/template-skeleton-slash-items";
-import { NumberedHeading } from "@/ee/numbering";
+import { NumberedHeading, NumberedOrderedList } from "@/ee/numbering";
 
 const lowlight = createLowlight(common);
 lowlight.register("mermaid", plaintext);
@@ -135,6 +135,7 @@ lowlight.register("scala", scala);
 export const mainExtensions = [
   StarterKit.configure({
     heading: false,
+    orderedList: false,
     undoRedo: false,
     link: false,
     trailingNode: false,
@@ -184,6 +185,7 @@ export const mainExtensions = [
   }),
   SharedStorage,
   NumberedHeading.configure({ levels: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] } as any),
+  NumberedOrderedList,
   UniqueID.configure({
     types: ["heading", "paragraph", "transclusionSource"],
     filterTransaction: (transaction) => !isChangeOrigin(transaction),
