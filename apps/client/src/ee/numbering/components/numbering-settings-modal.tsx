@@ -1,4 +1,4 @@
-import { FC, useState } from "react";
+import { FC, useEffect, useState } from "react";
 import { Button, Group, Modal, ScrollArea, Stack, Switch } from "@mantine/core";
 import { useTranslation } from "react-i18next";
 import {
@@ -27,6 +27,12 @@ export const NumberingSettingsModal: FC<Props> = ({
     numberingSettings ?? DEFAULT_NUMBERING_SETTINGS,
   );
   const updateMutation = useUpdateNumberingSettingsMutation();
+
+  useEffect(() => {
+    if (opened) {
+      setDraft(numberingSettings ?? DEFAULT_NUMBERING_SETTINGS);
+    }
+  }, [opened, numberingSettings]);
 
   const updateLevel = (index: number, config: NumberingLevelConfig) => {
     const levels = [...draft.levels];

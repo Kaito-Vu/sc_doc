@@ -51,6 +51,59 @@ describe("NumberingSettingsModal", () => {
     expect(screen.getAllByTestId(/numbering-level-row-/)).toHaveLength(10);
   });
 
+  it("discards an abandoned edit when reopened after being closed without saving", () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+
+    const { rerender } = render(
+      <MantineProvider>
+        <QueryClientProvider client={queryClient}>
+          <NumberingSettingsModal
+            pageId="p1"
+            opened
+            onClose={() => {}}
+            numberingSettings={DEFAULT_NUMBERING_SETTINGS}
+          />
+        </QueryClientProvider>
+      </MantineProvider>,
+    );
+
+    const level1Row = screen.getByTestId("numbering-level-row-1");
+    const inputs = level1Row.querySelectorAll("input");
+    const textInput = inputs[inputs.length - 1] as HTMLInputElement;
+    expect(textInput.value).toBe("%1.");
+
+    // Edit the field without saving.
+    fireEvent.change(textInput, { target: { value: "ABANDONED" } });
+    expect(textInput.value).toBe("ABANDONED");
+
+    const rerenderWith = (opened: boolean) =>
+      rerender(
+        <MantineProvider>
+          <QueryClientProvider client={queryClient}>
+            <NumberingSettingsModal
+              pageId="p1"
+              opened={opened}
+              onClose={() => {}}
+              numberingSettings={DEFAULT_NUMBERING_SETTINGS}
+            />
+          </QueryClientProvider>
+        </MantineProvider>,
+      );
+
+    // Simulate "Cancel" (close without saving) then reopening later.
+    rerenderWith(false);
+    rerenderWith(true);
+
+    const reopenedRow = screen.getByTestId("numbering-level-row-1");
+    const reopenedInputs = reopenedRow.querySelectorAll("input");
+    const reopenedInput = reopenedInputs[
+      reopenedInputs.length - 1
+    ] as HTMLInputElement;
+    expect(reopenedInput.value).toBe("%1.");
+  });
+
   it("saves the edited settings on submit", async () => {
     const spy = vi
       .spyOn(numberingService, "updateNumberingSettings")
