@@ -53,4 +53,18 @@ describe('buildCounterCss', () => {
     );
     expect(css).not.toContain('counter-reset: revert');
   });
+
+  it('suppresses the native browser marker on numbered lists', () => {
+    const css = buildCounterCss(DEFAULT_NUMBERING_SETTINGS);
+    expect(css).toContain('.numbered-list { list-style: none; }');
+  });
+
+  it('does not reset the counter unconditionally per list instance (only on explicit restart)', () => {
+    const css = buildCounterCss(DEFAULT_NUMBERING_SETTINGS);
+    // Numbering should continue by default across separate list instances;
+    // only `.numbering-restart` should reset a level's counter.
+    expect(css).not.toContain(
+      '.numbered-list[data-numbering-depth="1"] { counter-reset: numbering-level-1; }',
+    );
+  });
 });

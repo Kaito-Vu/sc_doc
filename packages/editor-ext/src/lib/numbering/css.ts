@@ -25,6 +25,8 @@ function buildOrderedListRules(settings: NumberingSettings): string {
   const rules: string[] = [];
   const counterName = (n: number) => `numbering-level-${n}`;
 
+  rules.push('.numbered-list { list-style: none; }');
+
   settings.levels.forEach((level, index) => {
     const levelNum = index + 1;
     const { cssCounterStyle, isBullet } = resolveLevelFormat(level.format);
@@ -38,9 +40,6 @@ function buildOrderedListRules(settings: NumberingSettings): string {
             : `${counterName(n)}, decimal`,
         );
 
-    rules.push(
-      `.numbered-list[data-numbering-depth="${levelNum}"] { counter-reset: ${counterName(levelNum)}; }`,
-    );
     rules.push(`${selector} { counter-increment: ${counterName(levelNum)}; }`);
     rules.push(`${selector}::before { content: ${contentValue}; }`);
     rules.push(
@@ -58,7 +57,7 @@ function buildHeadingRules(settings: NumberingSettings): string {
   const counterName = (n: number) => `heading-level-${n}`;
   const resetChain = Array.from({ length: 10 }, (_, i) => counterName(i + 1)).join(' ');
 
-  rules.push(`.editor-content { counter-reset: ${resetChain}; }`);
+  rules.push(`.ProseMirror { counter-reset: ${resetChain}; }`);
 
   settings.levels.forEach((level, index) => {
     const levelNum = index + 1;

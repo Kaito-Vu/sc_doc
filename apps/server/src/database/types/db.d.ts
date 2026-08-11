@@ -326,7 +326,7 @@ export interface Pages {
   baseSchemaVersion: Generated<number>;
   isLocked: Generated<boolean>;
   lastUpdatedById: string | null;
-  numberingSettings: unknown | null;
+  numberingSettings: Json | null;
   parentPageId: string | null;
   position: string | null;
   slugId: string;
