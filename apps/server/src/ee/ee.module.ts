@@ -4,6 +4,7 @@ import { ApiKeyModule } from './api-key/api-key.module';
 import { AuditEeModule } from './audit/audit.module';
 import { MfaModule } from './mfa/mfa.module';
 import { PagePermissionModule } from './page-permission/page-permission.module';
+import { NumberingModule } from './numbering/numbering.module';
 import { TemplateModule } from './template/template.module';
 import { ScimModule } from './scim/scim.module';
 import { PageVerificationModule } from './page-verification/page-verification.module';
@@ -35,6 +36,7 @@ import { FeatureGateGuard } from './common/guards/feature-gate.guard';
     ApiKeyModule,
     MfaModule,
     PagePermissionModule,
+    NumberingModule,
     TemplateModule,
     ScimModule,
     PageVerificationModule,

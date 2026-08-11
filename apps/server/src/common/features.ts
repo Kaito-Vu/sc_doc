@@ -24,6 +24,7 @@ export const Feature = {
   DOCX_EXPORT: 'export:docx',
   BASES: 'bases',
   STATISTICS: 'statistics',
+  NUMBERING: 'page:numbering',
 } as const;
 
 export type FeatureKey = (typeof Feature)[keyof typeof Feature];
