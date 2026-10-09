@@ -670,6 +670,9 @@ importers:
       fast-bm25:
         specifier: 0.0.5
         version: 0.0.5(typescript@5.9.3)
+      fast-xml-parser:
+        specifier: 5.7.3
+        version: 5.7.3
       fastify-ip:
         specifier: 2.0.0
         version: 2.0.0
@@ -679,6 +682,9 @@ importers:
       happy-dom:
         specifier: 20.8.9
         version: 20.8.9
+      iconv-lite:
+        specifier: 0.6.3
+        version: 0.6.3
       ioredis:
         specifier: 5.10.1
         version: 5.10.1

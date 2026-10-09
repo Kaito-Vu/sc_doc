@@ -9,6 +9,7 @@ export const Feature = {
   CONFLUENCE_IMPORT: 'import:confluence',
   DOCX_IMPORT: 'import:docx',
   PDF_IMPORT: 'import:pdf',
+  EA_IMPORT: 'import:ea',
   ATTACHMENT_INDEXING: 'attachment:indexing',
   SECURITY_SETTINGS: 'security:settings',
   MCP: 'mcp',

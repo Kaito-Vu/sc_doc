@@ -18,6 +18,7 @@ import { BaseModule } from './base/base.module';
 import { CommentEeModule } from './comment/comment.module';
 import { DocumentImportModule } from './document-import/document-import.module';
 import { ConfluenceImportModule } from './confluence-import/confluence-import.module';
+import { EaImportModule } from './ea-import/ea-import.module';
 import { AttachmentEeModule } from './attachments-ee/attachment-ee.module';
 import { TypesenseEeModule } from './typesense/typesense.module';
 import { DocxExportModule } from './docx-export/docx-export.module';
@@ -49,6 +50,7 @@ import { FeatureGateGuard } from './common/guards/feature-gate.guard';
     CommentEeModule,
     DocumentImportModule,
     ConfluenceImportModule,
+    EaImportModule,
     AttachmentEeModule,
     TypesenseEeModule,
     DocxExportModule,

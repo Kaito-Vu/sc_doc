@@ -44,3 +44,4 @@ lerna-debug.log*
 _ee_dist_extract/
 
 .claude/worktrees
+samples/

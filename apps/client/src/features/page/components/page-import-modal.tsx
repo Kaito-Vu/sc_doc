@@ -13,6 +13,7 @@ import {
   IconFileCode,
   IconFileTypeDocx,
   IconFileTypePdf,
+  IconFileTypeXml,
   IconFileTypeZip,
   IconMarkdown,
   IconX,
@@ -21,6 +22,7 @@ import {
   importPage,
   importZip,
 } from "@/features/page/services/page-service.ts";
+import { importEaXml } from "@/ee/ea-import/services/ea-import-service.ts";
 import { notifications } from "@mantine/notifications";
 import { treeDataAtom } from "@/features/page/tree/atoms/tree-data-atom.ts";
 import { useAtom } from "jotai";
@@ -95,10 +97,12 @@ function ImportFormatSelection({ spaceId, onClose }: ImportFormatSelection) {
   const notionFileRef = useRef<() => void>(null);
   const confluenceFileRef = useRef<() => void>(null);
   const zipFileRef = useRef<() => void>(null);
+  const eaFileRef = useRef<() => void>(null);
 
   const canUseConfluence = useHasFeature(Feature.CONFLUENCE_IMPORT);
   const canUseDocx = useHasFeature(Feature.DOCX_IMPORT);
   const canUsePdf = useHasFeature(Feature.PDF_IMPORT);
+  const canUseEa = useHasFeature(Feature.EA_IMPORT);
   const upgradeLabel = useUpgradeLabel();
 
   const handleZipUpload = async (selectedFile: File, source: string) => {
@@ -173,6 +177,23 @@ function ImportFormatSelection({ spaceId, onClose }: ImportFormatSelection) {
       try {
         const fileTask = await getFileTaskById(fileTaskId);
         const status = fileTask.status;
+
+        if ((fileTask.metadata as any)?.skipped === true) {
+          notifications.update({
+            id: "import",
+            color: "yellow",
+            title: t("Import skipped"),
+            message: t(
+              "This Enterprise Architect package was already imported into this space.",
+            ),
+            loading: false,
+            withCloseButton: true,
+            autoClose: false,
+          });
+          clearInterval(intervalId);
+          setFileTaskId(null);
+          return;
+        }
 
         if (status === "success") {
           notifications.update({
@@ -328,6 +349,65 @@ function ImportFormatSelection({ spaceId, onClose }: ImportFormatSelection) {
     }
   };
 
+  const handleEaUpload = async (selectedFile: File) => {
+    if (!selectedFile) {
+      return;
+    }
+
+    const maxEaFileSize = bytes("30mb");
+    if (selectedFile.size > maxEaFileSize) {
+      notifications.show({
+        color: "red",
+        message: t("File exceeds the {{limit}} import limit", {
+          limit: formatBytes(maxEaFileSize),
+        }),
+      });
+      return;
+    }
+
+    try {
+      onClose();
+
+      notifications.show({
+        id: "import",
+        title: t("Uploading import file"),
+        message: t("Please don't close this tab."),
+        loading: true,
+        withCloseButton: false,
+        autoClose: false,
+      });
+
+      const task = await importEaXml(selectedFile, spaceId);
+
+      notifications.update({
+        id: "import",
+        title: t("Importing pages"),
+        message: t(
+          "Page import is in progress. You can check back later if this takes longer.",
+        ),
+        loading: true,
+        withCloseButton: true,
+        autoClose: false,
+      });
+
+      setFileTaskId(task.id);
+
+      eaFileRef.current?.();
+    } catch (err) {
+      console.log("Failed to upload EA XML file", err);
+      notifications.update({
+        id: "import",
+        color: "red",
+        title: t("Failed to upload import file"),
+        message: err?.response?.data?.message,
+        icon: <IconX size={18} />,
+        loading: false,
+        withCloseButton: true,
+        autoClose: false,
+      });
+    }
+  };
+
   // @ts-ignore
   return (
     <>
@@ -423,6 +503,31 @@ function ImportFormatSelection({ spaceId, onClose }: ImportFormatSelection) {
                 {...props}
               >
                 PDF
+              </Button>
+            </Tooltip>
+          )}
+        </FileButton>
+
+        <FileButton
+          onChange={handleEaUpload}
+          accept=".xml,.xmi,.zip"
+          resetRef={eaFileRef}
+          inputProps={{
+            "aria-label": t("Choose {{format}} file", {
+              format: "Enterprise Architect (XML/XMI or ZIP with Images)",
+            }),
+          }}
+        >
+          {(props) => (
+            <Tooltip label={upgradeLabel} disabled={canUseEa}>
+              <Button
+                disabled={!canUseEa}
+                justify="start"
+                variant="default"
+                leftSection={<IconFileTypeXml size={18} />}
+                {...props}
+              >
+                Enterprise Architect (XML)
               </Button>
             </Tooltip>
           )}

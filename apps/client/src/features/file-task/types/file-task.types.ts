@@ -14,4 +14,5 @@ export interface IFileTask {
   createdAt: string;
   updatedAt: string;
   deletedAt: string | null;
+  metadata?: Record<string, unknown> | null;
 }
