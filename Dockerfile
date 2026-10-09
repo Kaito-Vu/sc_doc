@@ -1,7 +1,7 @@
-FROM node:22-slim AS base
+FROM node:26-slim AS base
 LABEL org.opencontainers.image.source="https://github.com/docmost/docmost"
 
-RUN npm install -g pnpm@10.34.4
+RUN npm install -g pnpm@11.28.2
 
 # ---------------------------------------------------------------------------
 # deps: install dependencies for the whole workspace.
@@ -13,7 +13,7 @@ FROM base AS deps
 
 WORKDIR /app
 
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY patches ./patches
 COPY apps/server/package.json ./apps/server/package.json
 COPY apps/client/package.json ./apps/client/package.json
@@ -62,14 +62,13 @@ COPY --from=builder /app/packages/base-formula/package.json /app/packages/base-f
 # Copy root package files
 COPY --from=builder /app/package.json /app/package.json
 COPY --from=builder /app/pnpm*.yaml /app/
-COPY --from=builder /app/.npmrc /app/.npmrc
 
 # Copy patches
 COPY --from=builder /app/patches /app/patches
 
 # Install prod deps as root, then drop global pnpm & vulnerable npm sub-modules
 RUN --mount=type=cache,id=pnpm-store,target=/pnpm-store,uid=1000,gid=1000 \
-  pnpm install --frozen-lockfile --prod --store-dir=/pnpm-store \
+  pnpm --filter "./apps/server..." install --frozen-lockfile --prod --store-dir=/pnpm-store \
   && mkdir -p /app/data/storage \
   && npm uninstall -g pnpm \
   && rm -rf /usr/local/lib/node_modules/npm/node_modules/picomatch \

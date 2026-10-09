@@ -57,10 +57,12 @@ export async function up(db: Kysely<any>): Promise<void> {
     WHERE enabled = true
   `.execute(db);
 
-  await db.schema.alterTable('audit').addColumn('user_agent', 'text').execute();
+  await sql`
+    ALTER TABLE audit ADD COLUMN IF NOT EXISTS user_agent text
+  `.execute(db);
 }
 
 export async function down(db: Kysely<any>): Promise<void> {
-  await db.schema.alterTable('audit').dropColumn('user_agent').execute();
+  await sql`ALTER TABLE audit DROP COLUMN IF EXISTS user_agent`.execute(db);
   await db.schema.dropTable('siem_destinations').ifExists().execute();
 }
