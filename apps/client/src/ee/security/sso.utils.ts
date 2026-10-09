@@ -4,17 +4,17 @@ import { getAppUrl, getServerAppUrl } from "@/lib/config.ts";
 export function buildCallbackUrl(opts: {
   providerId: string;
   type: SSO_PROVIDER;
+  isAzureAd?: boolean;
 }): string {
-  const { providerId, type } = opts;
+  const { providerId, type, isAzureAd } = opts;
   const domain = getAppUrl();
 
-  if (type === SSO_PROVIDER.GOOGLE) {
-    return `${domain}/api/sso/${type}/callback`;
+  if (type === SSO_PROVIDER.OIDC && isAzureAd) {
+    return `${domain}/api/sso/entraid/callback`;
   }
 
-  // Azure AD uses standard OIDC callback URL
-  if (type === SSO_PROVIDER.AZURE_AD) {
-    return `${domain}/api/sso/oidc/callback`;
+  if (type === SSO_PROVIDER.GOOGLE || type === SSO_PROVIDER.OIDC) {
+    return `${domain}/api/sso/${type}/callback`;
   }
 
   return `${domain}/api/sso/${type}/${providerId}/callback`;
@@ -37,15 +37,8 @@ export function buildSsoLoginUrl(opts: {
     return `${getServerAppUrl()}/api/sso/${type}/login?${params.toString()}`;
   }
 
-  // Azure AD uses standard OIDC login URL
-  if (type === SSO_PROVIDER.AZURE_AD) {
-    if (workspaceId) params.set("workspaceId", workspaceId);
-    const query = params.toString();
-    const base = `${getServerAppUrl()}/api/sso/oidc/login`;
-    return query ? `${base}?${query}` : base;
-  }
-
   const query = params.toString();
+
   const base = `${domain}/api/sso/${type}/${providerId}/login`;
   return query ? `${base}?${query}` : base;
 }

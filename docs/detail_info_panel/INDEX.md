@@ -316,7 +316,6 @@ Feature sẽ được coi là **thành công** khi:
 
 Liên kết tới các tài liệu khác trong project:
 - Plugin architecture: `docs/plugin_management/`
-- MinIO integration: `docs/minio/`
 - RecAPTCHA integration: `docs/recaptcha_v3/`
 
 ---

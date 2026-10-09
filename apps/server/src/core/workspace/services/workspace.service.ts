@@ -737,7 +737,7 @@ export class WorkspaceService {
 
   async getWorkspaceUsers(
     workspaceId: string,
-    pagination: PaginationOptions,
+    pagination: PaginationOptions & { providerId?: string },
   ): Promise<CursorPaginationResult<User>> {
     return this.userRepo.getUsersPaginated(workspaceId, pagination);
   }

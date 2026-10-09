@@ -14,6 +14,8 @@ import { executeWithCursorPagination } from '@docmost/db/pagination/cursor-pagin
 import { ExpressionBuilder, sql } from 'kysely';
 import { jsonObjectFrom } from 'kysely/helpers/postgres';
 import { NotificationSettingKey } from '../../../core/notification/notification.constants';
+import { CoreHooks } from '../../../core/plugins/plugin-hooks';
+import { runHook } from '../../../core/plugins/run-hook';
 
 @Injectable()
 export class UserRepo {
@@ -160,7 +162,10 @@ export class UserRepo {
     return count as number;
   }
 
-  async getUsersPaginated(workspaceId: string, pagination: PaginationOptions) {
+  async getUsersPaginated(
+    workspaceId: string,
+    pagination: PaginationOptions & { providerId?: string },
+  ) {
     let query = this.db
       .selectFrom('users')
       .select(this.baseFields)
@@ -180,6 +185,15 @@ export class UserRepo {
         ),
       );
     }
+
+    // Lets an EE plugin (ee/sso) enrich/filter this query with auth
+    // provider data — core has no knowledge of auth_providers/auth_accounts.
+    // No-op (returns context unchanged) when no handler is registered.
+    ({ query } = await runHook(CoreHooks.BEFORE_MEMBERS_QUERY, {
+      query,
+      workspaceId,
+      providerId: pagination.providerId,
+    }));
 
     return executeWithCursorPagination(query, {
       perPage: pagination.limit,
@@ -242,4 +256,63 @@ export class UserRepo {
         .whereRef('userMfa.userId', '=', 'users.id'),
     ).as('mfa');
   }
+
+  async countByWorkspaceId(workspaceId: string): Promise<number> {
+    const result = await this.db
+      .selectFrom('users')
+      .select((eb) => eb.fn.count('id').as('count'))
+      .where('workspaceId', '=', workspaceId)
+      .where('deletedAt', 'is', null)
+      .executeTakeFirst();
+    return Number(result?.count ?? 0);
+  }
+
+  async countActiveByWorkspaceId(workspaceId: string): Promise<number> {
+    const result = await this.db
+      .selectFrom('users')
+      .select((eb) => eb.fn.count('id').as('count'))
+      .where('workspaceId', '=', workspaceId)
+      .where('deletedAt', 'is', null)
+      .where('deactivatedAt', 'is', null)
+      .executeTakeFirst();
+    return Number(result?.count ?? 0);
+  }
+
+  async countNeverLoggedInByWorkspaceId(workspaceId: string): Promise<number> {
+    const result = await this.db
+      .selectFrom('users')
+      .select((eb) => eb.fn.count('id').as('count'))
+      .where('workspaceId', '=', workspaceId)
+      .where('deletedAt', 'is', null)
+      .where('lastLoginAt', 'is', null)
+      .executeTakeFirst();
+    return Number(result?.count ?? 0);
+  }
+
+  async countJoinedByWeek(
+    workspaceId: string,
+    weeksBack: number,
+  ): Promise<{ weekStart: Date; count: number }[]> {
+    const since = new Date(
+      Date.now() - weeksBack * 7 * 24 * 60 * 60 * 1000,
+    );
+    const rows = await this.db
+      .selectFrom('users')
+      .select((eb) => [
+        sql<Date>`date_trunc('week', "created_at")`.as('weekStart'),
+        eb.fn.count('id').as('count'),
+      ])
+      .where('workspaceId', '=', workspaceId)
+      .where('deletedAt', 'is', null)
+      .where('createdAt', '>=', since)
+      .groupBy(sql`date_trunc('week', "created_at")`)
+      .orderBy(sql`date_trunc('week', "created_at")`, 'asc')
+      .execute();
+
+    return rows.map((r) => ({
+      weekStart: r.weekStart as Date,
+      count: Number(r.count),
+    }));
+  }
+
 }

@@ -14,9 +14,9 @@ import {
   IconWorld,
   IconSparkles,
   IconHistory,
+  IconChartBar,
   IconShieldCheck,
   IconPackage,
-  IconPlug,
 } from "@tabler/icons-react";
 import { Link, useLocation } from "react-router-dom";
 import classes from "./settings.module.css";
@@ -128,15 +128,16 @@ const groupedData: DataGroup[] = [
         env: "selfhosted",
       },
       {
-        label: "Plugins",
-        icon: IconPackage,
-        path: "/settings/plugins",
+        label: "Statistics",
+        icon: IconChartBar,
+        path: "/settings/statistics",
+        feature: Feature.STATISTICS,
         role: "admin",
       },
       {
-        label: "Integrations",
-        icon: IconPlug,
-        path: "/settings/integrations",
+        label: "Plugins",
+        icon: IconPackage,
+        path: "/settings/plugins",
         role: "admin",
       },
     ],
@@ -186,6 +187,10 @@ export default function SettingsSidebar() {
 
   const menuItems = groupedData.map((group) => {
     if (group.heading === "System" && (!isAdmin || isCloud())) {
+      return null;
+    }
+
+    if (group.heading === "Workspace" && !isAdmin) {
       return null;
     }
 

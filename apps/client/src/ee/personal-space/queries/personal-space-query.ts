@@ -24,8 +24,8 @@ export function usePersonalSpaceQuery(
 export function useCreatePersonalSpaceMutation() {
   const queryClient = useQueryClient();
 
-  return useMutation<ISpace, Error, { name?: string }>({
-    mutationFn: (data) => createPersonalSpace(data),
+  return useMutation<ISpace, Error, void>({
+    mutationFn: () => createPersonalSpace(),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["personal-space"] });
       queryClient.invalidateQueries({ queryKey: ["spaces"] });

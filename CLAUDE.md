@@ -53,7 +53,7 @@ Database migrations (server, Kysely-based, not an ORM):
 - `pnpm --filter ./apps/server run migration:up` / `migration:latest` / `migration:down` / `migration:redo`
 - `pnpm --filter ./apps/server run migration:codegen` — regenerates `apps/server/src/database/types/db.d.ts` from the live DB schema; never hand-edit that file
 
-Local infra without running the app: `docker compose up -d db redis minio` gives Postgres 18, Redis 8, and MinIO. Copy `.env.example` to `.env` and set `DATABASE_URL`, `REDIS_URL`, `APP_SECRET`, and `UNLOCK_EE=true` before running the app.
+Local infra without running the app: `docker compose up -d db redis` gives Postgres 18 and Redis 8. Copy `.env.example` to `.env` and set `DATABASE_URL`, `REDIS_URL`, `APP_SECRET`, and `UNLOCK_EE=true` before running the app.
 
 # Architecture
 
@@ -75,12 +75,12 @@ pnpm/Nx monorepo: `apps/client` (React 19 + Vite + Mantine SPA), `apps/server` (
 
 **Plugin system** (WIP, orthogonal to the EE/core split above): a fork-safe hook system for optional integrations (e.g. reCAPTCHA), implemented under `apps/server/src/ee/plugins` and `apps/client/src/ee/plugins`. `docs/plugin_management/` documents the design and rollout plan.
 
-`docs/` contains per-feature planning and architecture docs (SSO, plugin management, MinIO storage, page history, detail info panel, etc.) written during development of specific EE/fork features — check the relevant subdirectory there for design rationale before reworking one of those areas.
+`docs/` contains per-feature planning and architecture docs (SSO, plugin management, page history, detail info panel, etc.) written during development of specific EE/fork features — check the relevant subdirectory there for design rationale before reworking one of those areas.
 
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **sc_doc** (15264 symbols, 36152 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **sc_doc** (14721 symbols, 35608 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > Index stale? Run `node .gitnexus/run.cjs analyze` from the project root — it auto-selects an available runner. No `.gitnexus/run.cjs` yet? `npx gitnexus analyze` (npm 11 crash → `npm i -g gitnexus`; #1939).
 

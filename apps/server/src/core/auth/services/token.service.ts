@@ -83,7 +83,14 @@ export class TokenService {
     return this.jwtService.sign(payload, { expiresIn: '1h' });
   }
 
-  async generateMfaToken(user: User, workspaceId: string): Promise<string> {
+  async generateMfaToken(
+    user: User,
+    workspaceId: string,
+    loginContext?: Pick<
+      JwtMfaTokenPayload,
+      'method' | 'providerId' | 'providerName'
+    >,
+  ): Promise<string> {
     if (isUserDisabled(user)) {
       throw new ForbiddenException();
     }
@@ -92,6 +99,9 @@ export class TokenService {
       sub: user.id,
       workspaceId,
       type: JwtType.MFA_TOKEN,
+      method: loginContext?.method,
+      providerId: loginContext?.providerId,
+      providerName: loginContext?.providerName,
     };
     return this.jwtService.sign(payload, { expiresIn: '5m' });
   }

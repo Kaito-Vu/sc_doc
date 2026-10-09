@@ -9,6 +9,7 @@ import { AvatarIconType } from "@/features/attachments/types/attachment.types";
 import { IconChevronDown } from "@tabler/icons-react";
 import classes from "@/components/layouts/global/global-sidebar.module.css";
 import styles from "./all-spaces-sidebar-section.module.css";
+import { excludePersonalSpaces } from "@/ee/personal-space/lib/filter-personal-spaces";
 
 interface AllSpacesSidebarSectionProps {
   readonly onNavigate?: () => void;
@@ -20,7 +21,7 @@ export default function AllSpacesSidebarSection({
   const { t } = useTranslation();
   const [opened, setOpened] = useState(true);
   const { data: spacesData, isPending: isSpacesPending } = useGetSpacesQuery({ limit: 50 });
-  const allSpaces = spacesData?.items ?? [];
+  const allSpaces = excludePersonalSpaces(spacesData?.items ?? []);
 
   const handleNavClick = () => {
     onNavigate?.();

@@ -31,6 +31,7 @@ export class AuditLogService implements IAuditService {
       actorId: context.actorId ?? undefined,
       actorType: context.actorType,
       ipAddress: context.ipAddress ?? undefined,
+      userAgent: context.userAgent ?? undefined,
     });
   }
 
@@ -95,6 +96,7 @@ export class AuditLogService implements IAuditService {
         ipAddress: context.ipAddress
           ? sql`${context.ipAddress}::inet`
           : null,
+        userAgent: context.userAgent ?? null,
       })
       .execute();
   }

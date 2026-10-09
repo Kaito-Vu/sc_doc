@@ -70,6 +70,15 @@ export class AuthService {
 
     const errorMessage = 'Email or password does not match';
     if (!user || isUserDisabled(user)) {
+      this.auditService.log({
+        event: AuditEvent.USER_LOGIN_FAILED,
+        resourceType: AuditResource.USER,
+        metadata: {
+          method: 'local',
+          failureReason: !user ? 'user_not_found' : 'account_disabled',
+          attemptedEmail: loginDto.email,
+        },
+      });
       throw new UnauthorizedException(errorMessage);
     }
 
@@ -79,6 +88,15 @@ export class AuthService {
     );
 
     if (!isPasswordMatch) {
+      this.auditService.log({
+        event: AuditEvent.USER_LOGIN_FAILED,
+        resourceType: AuditResource.USER,
+        metadata: {
+          method: 'local',
+          failureReason: 'invalid_password',
+          attemptedEmail: loginDto.email,
+        },
+      });
       throw new UnauthorizedException(errorMessage);
     }
 
@@ -93,11 +111,13 @@ export class AuthService {
     user.lastLoginAt = new Date();
     await this.userRepo.updateLastLogin(user.id, workspaceId);
 
+    this.auditService.setActorId(user.id);
+    this.auditService.setActorType('user');
     this.auditService.log({
       event: AuditEvent.USER_LOGIN,
       resourceType: AuditResource.USER,
       resourceId: user.id,
-      metadata: { source: 'password' },
+      metadata: { method: 'local' },
     });
 
     return this.sessionService.createSessionAndToken(user);

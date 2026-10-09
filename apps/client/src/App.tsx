@@ -71,6 +71,9 @@ const WorkspaceApiKeys = lazy(
 const AiSettings = lazy(() => import("@/ee/ai/pages/ai-settings.tsx"));
 const BasePage = lazy(() => import("@/ee/base/pages/base-page.tsx"));
 const AuditLogs = lazy(() => import("@/ee/audit/pages/audit-logs.tsx"));
+const WorkspaceStatistics = lazy(
+  () => import("@/ee/statistics/pages/workspace-statistics.tsx"),
+);
 const VerifiedPages = lazy(
   () => import("@/ee/page-verification/pages/verified-pages.tsx"),
 );
@@ -87,9 +90,6 @@ const VerifyEmail = lazy(() => import("@/ee/pages/verify-email.tsx"));
 const LabelPage = lazy(() => import("@/pages/label/label-page"));
 const OAuthConsent = lazy(() => import("@/ee/oauth/pages/oauth-consent.tsx"));
 const PluginsPage = lazy(() => import("@/ee/plugins/pages/PluginsPage"));
-const IntegrationsSettings = lazy(
-  () => import("@/pages/settings/workspace/integrations"),
-);
 
 export default function App() {
   useRedirectToCloudSelect();
@@ -196,13 +196,9 @@ export default function App() {
               path={"siem"}
               element={<Navigate to="/settings/audit/siem" replace />}
             />
+            <Route path={"statistics"} element={<WorkspaceStatistics />} />
             <Route path={"verifications"} element={<VerifiedPages />} />
             <Route path={"plugins"} element={<PluginsPage />} />
-            <Route path={"integrations"} element={<IntegrationsSettings />} />
-            <Route
-              path={"integrations/minio"}
-              element={<IntegrationsSettings />}
-            />
             {!isCloud() && <Route path={"license"} element={<License />} />}
             {isCloud() && <Route path={"billing"} element={<Billing />} />}
           </Route>

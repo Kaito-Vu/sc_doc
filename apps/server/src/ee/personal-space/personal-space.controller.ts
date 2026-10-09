@@ -1,5 +1,4 @@
 import {
-  Body,
   Controller,
   HttpCode,
   HttpStatus,
@@ -29,11 +28,7 @@ export class PersonalSpaceController {
   @HttpCode(HttpStatus.OK)
   @Post('create')
   @RequireFeature(Feature.PERSONAL_SPACES)
-  async create(
-    @Body() body: { name?: string },
-    @AuthUser() user: User,
-    @AuthWorkspace() workspace: Workspace,
-  ) {
-    return this.personalSpaceService.create(user, workspace.id, body);
+  async create(@AuthUser() user: User, @AuthWorkspace() workspace: Workspace) {
+    return this.personalSpaceService.create(user, workspace.id);
   }
 }
