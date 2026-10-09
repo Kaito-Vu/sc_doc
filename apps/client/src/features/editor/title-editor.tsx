@@ -90,6 +90,7 @@ export function TitleEditor({
     },
     editable: editable,
     content: title,
+    textDirection: "auto",
     immediatelyRender: true,
     shouldRerenderOnTransaction: false,
     editorProps: {

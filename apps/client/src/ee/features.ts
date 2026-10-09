@@ -23,4 +23,9 @@ export const Feature = {
   DOCX_EXPORT: 'export:docx',
   BASES: 'bases',
   DETAIL_INFO_PANEL: 'detail:info-panel',
+  OAUTH: 'oauth',
+  AI_CONTROLS: 'ai:controls',
+  MCP_CONTROLS: 'mcp:controls',
+  PUBLIC_SPACE_APPEARANCE: 'public-space:appearance',
+  SIEM: 'siem',
 } as const;

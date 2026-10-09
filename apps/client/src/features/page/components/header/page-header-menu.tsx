@@ -20,6 +20,7 @@ import {
   IconList,
   IconMarkdown,
   IconMessage,
+  IconPaperclip,
   IconPrinter,
   IconStar,
   IconStarFilled,
@@ -52,6 +53,7 @@ import {
 import { formattedDate } from "@/lib/time.ts";
 import { PageEditModeToggle } from "@/features/user/components/page-state-pref.tsx";
 import MovePageModal from "@/features/page/components/move-page-modal.tsx";
+import PageAttachmentsModal from "@/features/attachments/components/page-attachments-modal.tsx";
 import { useTimeAgo } from "@/hooks/use-time-ago.tsx";
 import { PageShareModal } from "@/ee/page-permission";
 import {
@@ -207,6 +209,10 @@ function PageActionMenu({ readOnly }: PageActionMenuProps) {
     verificationOpened,
     { open: openVerificationModal, close: closeVerificationModal },
   ] = useDisclosure(false);
+  const [
+    attachmentsOpened,
+    { open: openAttachmentsModal, close: closeAttachmentsModal },
+  ] = useDisclosure(false);
   const [pageEditor] = useAtom(pageEditorAtom);
   const pageUpdatedAt = useTimeAgo(page?.updatedAt);
   const favoriteIds = useFavoriteIds("page", page?.spaceId);
@@ -343,6 +349,15 @@ function PageActionMenu({ readOnly }: PageActionMenuProps) {
             </Menu.Item>
           )}
 
+          {!page?.isBase && (
+            <Menu.Item
+              leftSection={<IconPaperclip size={16} />}
+              onClick={openAttachmentsModal}
+            >
+              {t("Attachments")}
+            </Menu.Item>
+          )}
+
           {!readOnly && !page?.isBase && (
             <PageVerificationMenuItem
               pageId={page?.id}
@@ -444,6 +459,12 @@ function PageActionMenu({ readOnly }: PageActionMenuProps) {
         pageId={page.id}
         opened={verificationOpened}
         onClose={closeVerificationModal}
+      />
+
+      <PageAttachmentsModal
+        pageId={page.id}
+        open={attachmentsOpened}
+        onClose={closeAttachmentsModal}
       />
     </>
   );

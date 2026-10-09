@@ -24,6 +24,7 @@ import {
   RevokeInviteDto,
 } from '../dto/invitation.dto';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
+import { OAuthScope } from '../../../common/decorators/oauth-scope.decorator';
 import { User, Workspace } from '@docmost/db/types/entity.types';
 import WorkspaceAbilityFactory from '../../casl/abilities/workspace-ability.factory';
 import {
@@ -60,6 +61,7 @@ export class WorkspaceController {
 
   @HttpCode(HttpStatus.OK)
   @Post('/info')
+  @OAuthScope('read')
   async getWorkspace(@AuthWorkspace() workspace: Workspace) {
     return this.workspaceService.getWorkspaceInfo(workspace.id);
   }
@@ -115,6 +117,7 @@ export class WorkspaceController {
 
   @HttpCode(HttpStatus.OK)
   @Post('members')
+  @OAuthScope('read')
   async getWorkspaceMembers(
     @Body()
     pagination: PaginationOptions,

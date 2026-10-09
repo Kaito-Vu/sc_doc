@@ -12,6 +12,9 @@ export const NotificationType = {
   PAGE_APPROVAL_REJECTED: 'page.approval_rejected',
   PAGE_APPROVAL_CLARIFICATION_REQUESTED: 'page.approval_clarification_requested',
   PAGE_REVERIFICATION_REQUIRED: 'page.reverification_required',
+  SIEM_DESTINATION_FAILING: 'siem_destination.failing',
+  SIEM_DESTINATION_DISABLED: 'siem_destination.disabled',
+  SIEM_DESTINATION_RECOVERED: 'siem_destination.recovered',
 } as const;
 
 export type NotificationType =
@@ -42,6 +45,9 @@ export const DIRECT_NOTIFICATION_TYPES: NotificationType[] = [
   NotificationType.COMMENT_RESOLVED,
   NotificationType.PAGE_USER_MENTION,
   NotificationType.PAGE_PERMISSION_GRANTED,
+  NotificationType.SIEM_DESTINATION_FAILING,
+  NotificationType.SIEM_DESTINATION_DISABLED,
+  NotificationType.SIEM_DESTINATION_RECOVERED,
 ];
 
 export const UPDATES_NOTIFICATION_TYPES: NotificationType[] = [

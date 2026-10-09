@@ -34,6 +34,7 @@ import {
   IconTag,
   IconMoodSmile,
   IconRotate2,
+  IconSuperscript,
 } from "@tabler/icons-react";
 import {
   CommandProps,
@@ -243,6 +244,16 @@ const CommandGroups: SlashMenuGroupedItemsType = {
       icon: IconPageBreak,
       command: ({ editor, range }: CommandProps) =>
         editor.chain().focus().deleteRange(range).setPageBreak().run(),
+    },
+    {
+      title: "Footnote",
+      description: "Insert a footnote reference.",
+      searchTerms: ["footnote", "reference", "citation", "note"],
+      icon: IconSuperscript,
+      command: ({ editor, range }: CommandProps) => {
+        editor.chain().focus().deleteRange(range).run();
+        editor.commands.addFootnote();
+      },
     },
     {
       title: "Image",

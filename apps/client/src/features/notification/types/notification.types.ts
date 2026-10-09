@@ -11,7 +11,10 @@ export type NotificationType =
   | "page.approval_requested"
   | "page.approval_rejected"
   | "page.approval_clarification_requested"
-  | "page.reverification_required";
+  | "page.reverification_required"
+  | "siem_destination.failing"
+  | "siem_destination.disabled"
+  | "siem_destination.recovered";
 
 export type INotification = {
   id: string;
