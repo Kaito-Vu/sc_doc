@@ -44,12 +44,12 @@ import {
 import {
   buildContainerHtml,
   buildDiagramHtml,
-  buildDocumentsHtml,
   buildFlowHtml,
-  DecodeLimits,
+  readModelDocumentUncompressedSize,
   stripDuplicateLeadingHeading,
   stripEaCodePrefix,
 } from './ea-content.builder';
+import { convertModelDocuments } from './ea-convert.pool';
 import {
   EaArchiveInspection,
   inspectEaArchive,
@@ -64,6 +64,9 @@ import { EA_IMPORT_JOB, EA_IMPORT_QUEUE } from './ea-import.constants';
 import { eaRootSignature } from './ea-import.util';
 
 const EA_SOURCE = 'ea';
+
+/** Duplicate-import resolution chosen by the user in the client dialog. */
+export type EaImportMode = 'replace' | 'keep';
 
 const MAX_PAGES = 300;
 const MAX_TOTAL_RTF_BYTES = 96 * 1024 * 1024;
@@ -136,7 +139,7 @@ export class EaImportService {
     userId: string,
     spaceId: string,
     workspaceId: string,
-    replace = false,
+    mode?: EaImportMode,
   ): Promise<FileTask> {
     const fileExtension = path.extname(file.filename).toLowerCase();
     const baseName = sanitizeFileName(
@@ -172,7 +175,7 @@ export class EaImportService {
       .returningAll()
       .executeTakeFirstOrThrow();
 
-    await this.eaImportQueue.add(EA_IMPORT_JOB, { fileTaskId, replace });
+    await this.eaImportQueue.add(EA_IMPORT_JOB, { fileTaskId, mode });
 
     return fileTask;
   }
@@ -183,7 +186,7 @@ export class EaImportService {
    */
   async processEaImportTask(
     fileTaskId: string,
-    replace = false,
+    mode?: EaImportMode,
   ): Promise<void> {
     const fileTask = await this.db
       .selectFrom('fileTasks')
@@ -221,7 +224,7 @@ export class EaImportService {
         spaceId: fileTask.spaceId,
         creatorId: fileTask.creatorId,
         fileTask,
-        replace,
+        mode,
       });
 
       await this.db
@@ -301,9 +304,9 @@ export class EaImportService {
 
   /**
    * Parse the EA export (optionally from a companion ZIP). When the same EA
-   * root package was already imported into this space the import is skipped,
-   * unless `replace` is set — in which case the previously imported page tree
-   * is deleted after the fresh import commits.
+   * root package was already imported into this space the import is skipped
+   * unless the user chose `replace` (delete the previous tree after the fresh
+   * import commits) or `keep` (import an additional copy alongside it).
    */
   private async runImport(opts: {
     buffer: Buffer;
@@ -312,9 +315,9 @@ export class EaImportService {
     spaceId: string;
     creatorId: string;
     fileTask: FileTask;
-    replace: boolean;
+    mode?: EaImportMode;
   }): Promise<{ result: EaImportResult; metadata: EaImportMetadata }> {
-    const { buffer, fileName, workspaceId, spaceId, creatorId, replace } = opts;
+    const { buffer, fileName, workspaceId, spaceId, creatorId, mode } = opts;
 
     let parsed: EaParseResult;
     let byKey = new Map<string, EaImageAsset>();
@@ -372,7 +375,7 @@ export class EaImportService {
       ? await this.findExistingImport(spaceId, workspaceId, eaRootId)
       : undefined;
 
-    if (existingImport && !replace) {
+    if (existingImport && !mode) {
       this.logger.log(
         `Skipping EA import: root signature ${eaRootId} already imported in space ${spaceId}`,
       );
@@ -403,14 +406,15 @@ export class EaImportService {
     }
 
     const replacedRootPageIds =
-      existingImport && replace
+      existingImport && mode === 'replace'
         ? this.metadataStringArray(
             existingImport.metadata,
             'rootPageIds',
             'pageIds',
           )
         : [];
-    const replacedTaskId = existingImport && replace ? existingImport.id : null;
+    const replacedTaskId =
+      existingImport && mode === 'replace' ? existingImport.id : null;
 
     // Flatten the package tree breadth-first so parents are always prepared
     // (and inserted) before their children.
@@ -446,11 +450,7 @@ export class EaImportService {
       );
     }
 
-    const limits: DecodeLimits = {
-      maxDocBytes: MAX_SINGLE_DOC_BYTES,
-      maxTotalBytes: MAX_TOTAL_RTF_BYTES,
-      usedTotal: { bytes: 0 },
-    };
+    const documentContent = await this.convertDocuments(prepared, warnings);
 
     const imageBudget = { count: 0, bytes: 0 };
 
@@ -474,13 +474,13 @@ export class EaImportService {
 
       let html: string;
       if (node.documents.length > 0) {
-        const rtfImages: EaRtfImage[] = [];
-        const documents = await buildDocumentsHtml(node, limits, rtfImages);
-        html = documents.html;
-        warnings.push(...documents.warnings);
+        const converted = documentContent.get(node) ?? {
+          html: '',
+          images: [] as EaRtfImage[],
+        };
         html = await this.embedRtfImages(
-          html,
-          rtfImages,
+          converted.html,
+          converted.images,
           page.id,
           title,
           { workspaceId, spaceId, creatorId },
@@ -610,6 +610,98 @@ export class EaImportService {
         warnings,
       },
     };
+  }
+
+  /**
+   * Convert every page's Model Documents (base64 ZIP -> RTF -> HTML) ahead of
+   * the page loop. Documents are independent and CPU-bound, so they run across
+   * a worker-thread pool; the per-document and total byte budgets are enforced
+   * up-front via a cheap size pre-scan (workers run without a shared budget).
+   */
+  private async convertDocuments(
+    prepared: PreparedPage[],
+    warnings: EaParseWarning[],
+  ): Promise<Map<EaPackageNode, { html: string; images: EaRtfImage[] }>> {
+    const result = new Map<
+      EaPackageNode,
+      { html: string; images: EaRtfImage[] }
+    >();
+    const nodesWithDocuments = prepared
+      .map((page) => page.node)
+      .filter((node) => node.documents.length > 0);
+    if (nodesWithDocuments.length === 0) {
+      return result;
+    }
+
+    interface DocEntry {
+      id?: string;
+      skipReason?: string;
+      warningPage: string;
+    }
+    const entriesByNode = new Map<EaPackageNode, DocEntry[]>();
+    const tasks: Array<{ id: string; base64: string }> = [];
+    let totalBytes = 0;
+    let counter = 0;
+
+    for (const node of nodesWithDocuments) {
+      const entries: DocEntry[] = [];
+      for (const document of node.documents) {
+        const warningPage = document.ownerName || node.name;
+        const size = await readModelDocumentUncompressedSize(document.base64);
+        let skipReason: string | undefined;
+        if (size !== null && size > MAX_SINGLE_DOC_BYTES) {
+          skipReason = `Model document exceeds the ${MAX_SINGLE_DOC_BYTES} byte per-document limit`;
+        } else if (size !== null && totalBytes + size > MAX_TOTAL_RTF_BYTES) {
+          skipReason = `Model documents exceed the ${MAX_TOTAL_RTF_BYTES} byte total limit`;
+        }
+        if (skipReason) {
+          entries.push({ skipReason, warningPage });
+          continue;
+        }
+        if (size !== null) {
+          totalBytes += size;
+        }
+        const id = `doc-${counter}`;
+        counter += 1;
+        entries.push({ id, warningPage });
+        tasks.push({ id, base64: document.base64 });
+      }
+      entriesByNode.set(node, entries);
+    }
+
+    const converted = await convertModelDocuments(tasks, MAX_SINGLE_DOC_BYTES);
+
+    for (const node of nodesWithDocuments) {
+      let html = '';
+      const images: EaRtfImage[] = [];
+      for (const entry of entriesByNode.get(node) ?? []) {
+        if (entry.skipReason) {
+          warnings.push({ page: entry.warningPage, reason: entry.skipReason });
+          html += '<p></p>';
+          continue;
+        }
+        const convertedDoc = entry.id ? converted.get(entry.id) : undefined;
+        if (
+          convertedDoc &&
+          !convertedDoc.error &&
+          typeof convertedDoc.html === 'string'
+        ) {
+          html += convertedDoc.html;
+          if (convertedDoc.images) {
+            images.push(...convertedDoc.images);
+          }
+        } else {
+          warnings.push({
+            page: entry.warningPage,
+            reason: convertedDoc?.error ?? 'Failed to convert model document',
+          });
+          html += '<p></p>';
+        }
+      }
+      result.set(node, { html, images });
+    }
+
+    return result;
   }
 
   /** Most recent successful EA import in this space with the same root signature. */

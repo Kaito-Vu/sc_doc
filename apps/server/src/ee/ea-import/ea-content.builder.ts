@@ -216,6 +216,61 @@ export function decodeModelDocument(
 }
 
 /**
+ * Cheaply read the uncompressed size of a `modeldocument` payload (the single
+ * `str.dat` entry) without decompressing it, for budget accounting when
+ * documents are converted in parallel. Returns `null` for anything invalid.
+ */
+export function readModelDocumentUncompressedSize(
+  base64: string,
+): Promise<number | null> {
+  return new Promise<number | null>((resolve) => {
+    if (typeof base64 !== 'string' || base64.trim().length === 0) {
+      resolve(null);
+      return;
+    }
+    const buffer = Buffer.from(base64, 'base64');
+    if (buffer.length === 0) {
+      resolve(null);
+      return;
+    }
+    yauzl.fromBuffer(
+      buffer,
+      { lazyEntries: true, validateEntrySizes: true },
+      (error, zipfile) => {
+        if (error || !zipfile) {
+          resolve(null);
+          return;
+        }
+        let settled = false;
+        const done = (value: number | null): void => {
+          if (settled) {
+            return;
+          }
+          settled = true;
+          try {
+            zipfile.close();
+          } catch {
+            // ignore close errors
+          }
+          resolve(value);
+        };
+        zipfile.on('entry', (entry) => {
+          const name = entry.fileName;
+          if (name === 'str.dat' || name.endsWith('/str.dat')) {
+            done(entry.uncompressedSize);
+          } else {
+            zipfile.readEntry();
+          }
+        });
+        zipfile.on('error', () => done(null));
+        zipfile.on('end', () => done(null));
+        zipfile.readEntry();
+      },
+    );
+  });
+}
+
+/**
  * Resolve a deterministic, linear order of activities from the
  * `DataAssociation` edges. Unresolved edges are ignored; activities not part
  * of the chain are appended in document order.

@@ -92,6 +92,42 @@ function escapeHtml(value: string): string {
     .replace(/'/g, '&#39;');
 }
 
+/**
+ * Char-code constants + predicates for the hot scanning loops. Comparing
+ * `charCodeAt` integers is markedly faster than indexing single-char strings
+ * (which allocates) or running a regex `.test()` per character.
+ */
+const CH_BACKSLASH = 92;
+const CH_OPEN_BRACE = 123;
+const CH_CLOSE_BRACE = 125;
+const CH_QUOTE = 39;
+const CH_STAR = 42;
+const CH_DASH = 45;
+const CH_SPACE = 32;
+const CH_TAB = 9;
+const CH_CR = 13;
+const CH_LF = 10;
+
+function isAsciiLetter(code: number): boolean {
+  return (code >= 65 && code <= 90) || (code >= 97 && code <= 122);
+}
+
+function isDigit(code: number): boolean {
+  return code >= 48 && code <= 57;
+}
+
+function isHexDigit(code: number): boolean {
+  return (
+    (code >= 48 && code <= 57) ||
+    (code >= 65 && code <= 70) ||
+    (code >= 97 && code <= 102)
+  );
+}
+
+function isWhitespace(code: number): boolean {
+  return code === CH_SPACE || code === CH_CR || code === CH_LF || code === CH_TAB;
+}
+
 function decodeHexByte(hex: string): string {
   const byte = parseInt(hex, 16);
   if (!Number.isFinite(byte) || byte < 0 || byte > 0xff) {
@@ -158,28 +194,24 @@ export function eaRtfImagePlaceholder(index: number): string {
 
 /** Destination control word of the group opening at `openIndex`, if any. */
 function readGroupDestination(rtf: string, openIndex: number): string | null {
+  const length = rtf.length;
   let i = openIndex + 1;
-  if (rtf[i] !== '\\') {
+  if (rtf.charCodeAt(i) !== CH_BACKSLASH) {
     return null;
   }
   i += 1;
-  if (rtf[i] === '*') {
+  if (rtf.charCodeAt(i) === CH_STAR) {
     i += 1;
-    while (
-      rtf[i] === ' ' ||
-      rtf[i] === '\r' ||
-      rtf[i] === '\n' ||
-      rtf[i] === '\t'
-    ) {
+    while (i < length && isWhitespace(rtf.charCodeAt(i))) {
       i += 1;
     }
-    if (rtf[i] !== '\\') {
+    if (rtf.charCodeAt(i) !== CH_BACKSLASH) {
       return null;
     }
     i += 1;
   }
   const start = i;
-  while (i < rtf.length && /[A-Za-z]/.test(rtf[i])) {
+  while (i < length && isAsciiLetter(rtf.charCodeAt(i))) {
     i += 1;
   }
   return i === start ? null : rtf.slice(start, i);
@@ -187,16 +219,17 @@ function readGroupDestination(rtf: string, openIndex: number): string | null {
 
 /** Index of the `}` matching the group opened at `openIndex`, or -1. */
 function findGroupEnd(rtf: string, openIndex: number): number {
+  const length = rtf.length;
   let depth = 0;
-  for (let i = openIndex; i < rtf.length; i += 1) {
-    const ch = rtf[i];
-    if (ch === '\\') {
+  for (let i = openIndex; i < length; i += 1) {
+    const code = rtf.charCodeAt(i);
+    if (code === CH_BACKSLASH) {
       i += 1;
       continue;
     }
-    if (ch === '{') {
+    if (code === CH_OPEN_BRACE) {
       depth += 1;
-    } else if (ch === '}') {
+    } else if (code === CH_CLOSE_BRACE) {
       depth -= 1;
       if (depth === 0) {
         return i;
@@ -213,29 +246,31 @@ function readControlWord(
   limit: number,
 ): { word: string; next: number } {
   let i = backslashIndex + 1;
-  if (rtf[i] === '*') {
+  const first = rtf.charCodeAt(i);
+  if (first === CH_STAR) {
     return { word: '', next: Math.min(i + 1, limit) };
   }
-  if (rtf[i] === "'") {
+  if (first === CH_QUOTE) {
     return { word: '', next: Math.min(i + 3, limit) };
   }
   const start = i;
-  while (i < limit && /[A-Za-z]/.test(rtf[i])) {
+  while (i < limit && isAsciiLetter(rtf.charCodeAt(i))) {
     i += 1;
   }
   const word = rtf.slice(start, i);
   if (word.length === 0) {
     return { word: '', next: Math.min(i + 1, limit) };
   }
-  if (rtf[i] === '-' || /[0-9]/.test(rtf[i] ?? '')) {
-    if (rtf[i] === '-') {
+  const paramStart = rtf.charCodeAt(i);
+  if (paramStart === CH_DASH || isDigit(paramStart)) {
+    if (paramStart === CH_DASH) {
       i += 1;
     }
-    while (i < limit && /[0-9]/.test(rtf[i])) {
+    while (i < limit && isDigit(rtf.charCodeAt(i))) {
       i += 1;
     }
   }
-  if (rtf[i] === ' ') {
+  if (rtf.charCodeAt(i) === CH_SPACE) {
     i += 1;
   }
   return { word, next: i };
@@ -246,18 +281,18 @@ function collectHexDigits(rtf: string, from: number, limit: number): string {
   let i = from;
   let hex = '';
   while (i < limit) {
-    const ch = rtf[i];
-    if (ch === '\\') {
+    const code = rtf.charCodeAt(i);
+    if (code === CH_BACKSLASH) {
       i = readControlWord(rtf, i, limit).next;
       continue;
     }
-    if (ch === '{') {
+    if (code === CH_OPEN_BRACE) {
       const end = findGroupEnd(rtf, i);
       i = end < 0 ? limit : end + 1;
       continue;
     }
-    if (/[0-9a-fA-F]/.test(ch)) {
-      hex += ch;
+    if (isHexDigit(code)) {
+      hex += rtf[i];
     }
     i += 1;
   }
@@ -324,12 +359,12 @@ function findPictGroup(
 ): { start: number; end: number } | null {
   let i = from;
   while (i < to) {
-    const ch = rtf[i];
-    if (ch === '\\') {
+    const code = rtf.charCodeAt(i);
+    if (code === CH_BACKSLASH) {
       i = readControlWord(rtf, i, to).next;
       continue;
     }
-    if (ch === '{') {
+    if (code === CH_OPEN_BRACE) {
       if (readGroupDestination(rtf, i) === 'pict') {
         const end = findGroupEnd(rtf, i);
         return { start: i, end: end < 0 ? to : end };
@@ -347,45 +382,55 @@ function findPictGroup(
  * supported `\pngblip`/`\jpegblip` hex payloads onto `imageSink` (when given)
  * and replace the group (or its `shppict`/`nonshppict` wrapper) with a stable
  * placeholder. Malformed or unsupported pictures are dropped, never thrown.
+ *
+ * Copies untouched spans in bulk (a single `indexOf`/`slice` per group) so the
+ * common no-image document is returned unchanged without a full copy.
  */
 function stripPictGroups(rtf: string, imageSink?: EaRtfImage[]): string {
+  if (rtf.indexOf('pict') === -1) {
+    return rtf;
+  }
+  const length = rtf.length;
   let out = '';
+  let last = 0;
   let i = 0;
   let imageIndex = 0;
-  const length = rtf.length;
   while (i < length) {
-    const ch = rtf[i];
-    if (ch === '{') {
-      const destination = readGroupDestination(rtf, i);
-      const isPict = destination === 'pict';
-      const isWrapper =
-        destination !== null &&
-        RTF_IMAGE_WRAPPER_DESTINATIONS.has(destination);
-      if (isPict || isWrapper) {
-        const end = findGroupEnd(rtf, i);
-        if (end >= 0) {
-          let image: EaRtfImage | null = null;
-          if (isPict) {
-            image = extractPictImage(rtf, i, end);
-          } else {
-            const pict = findPictGroup(rtf, i + 1, end);
-            if (pict) {
-              image = extractPictImage(rtf, pict.start, pict.end);
-            }
+    const brace = rtf.indexOf('{', i);
+    if (brace < 0) {
+      break;
+    }
+    const destination = readGroupDestination(rtf, brace);
+    const isPict = destination === 'pict';
+    const isWrapper =
+      destination !== null &&
+      RTF_IMAGE_WRAPPER_DESTINATIONS.has(destination);
+    if (isPict || isWrapper) {
+      const end = findGroupEnd(rtf, brace);
+      if (end >= 0) {
+        let image: EaRtfImage | null = null;
+        if (isPict) {
+          image = extractPictImage(rtf, brace, end);
+        } else {
+          const pict = findPictGroup(rtf, brace + 1, end);
+          if (pict) {
+            image = extractPictImage(rtf, pict.start, pict.end);
           }
-          if (image && imageSink) {
-            imageSink.push(image);
-            out += eaRtfImagePlaceholder(imageIndex);
-            imageIndex += 1;
-          }
-          i = end + 1;
-          continue;
         }
+        out += rtf.slice(last, brace);
+        if (image && imageSink) {
+          imageSink.push(image);
+          out += eaRtfImagePlaceholder(imageIndex);
+          imageIndex += 1;
+        }
+        i = end + 1;
+        last = i;
+        continue;
       }
     }
-    out += ch;
-    i += 1;
+    i = brace + 1;
   }
+  out += rtf.slice(last);
   return out;
 }
 
@@ -575,10 +620,18 @@ function convert(rtf: string): string {
         const code = param < 0 ? param + 65536 : param;
         addText(String.fromCharCode(code));
         let cursor = i;
-        while (cursor < length && (rtf[cursor] === '\r' || rtf[cursor] === '\n')) {
+        while (cursor < length) {
+          const c = rtf.charCodeAt(cursor);
+          if (c !== CH_CR && c !== CH_LF) {
+            break;
+          }
           cursor += 1;
         }
-        if (cursor + 1 < length && rtf[cursor] === '\\' && rtf[cursor + 1] === "'") {
+        if (
+          cursor + 1 < length &&
+          rtf.charCodeAt(cursor) === CH_BACKSLASH &&
+          rtf.charCodeAt(cursor + 1) === CH_QUOTE
+        ) {
           i = Math.min(cursor + 4, length);
         }
         break;
@@ -713,10 +766,10 @@ function convert(rtf: string): string {
 
   while (i < length) {
     if (skipLevel >= 0) {
-      const ch = rtf[i];
-      if (ch === '{') {
+      const code = rtf.charCodeAt(i);
+      if (code === CH_OPEN_BRACE) {
         depth += 1;
-      } else if (ch === '}') {
+      } else if (code === CH_CLOSE_BRACE) {
         depth -= 1;
         if (depth < skipLevel) {
           skipLevel = -1;
@@ -726,71 +779,75 @@ function convert(rtf: string): string {
       continue;
     }
 
-    const ch = rtf[i];
+    const code = rtf.charCodeAt(i);
 
-    if (ch === '{') {
+    if (code === CH_OPEN_BRACE) {
       depth += 1;
       i += 1;
       continue;
     }
-    if (ch === '}') {
+    if (code === CH_CLOSE_BRACE) {
       depth -= 1;
       i += 1;
       continue;
     }
-    if (ch === '\\') {
+    if (code === CH_BACKSLASH) {
       i += 1;
       if (i >= length) {
         break;
       }
-      const next = rtf[i];
-      if (/[A-Za-z]/.test(next)) {
+      const nextCode = rtf.charCodeAt(i);
+      if (isAsciiLetter(nextCode)) {
         let cursor = i;
-        while (cursor < length && /[A-Za-z]/.test(rtf[cursor])) {
+        while (cursor < length && isAsciiLetter(rtf.charCodeAt(cursor))) {
           cursor += 1;
         }
         const word = rtf.slice(i, cursor);
         let param: number | undefined;
-        if (rtf[cursor] === '-' || /[0-9]/.test(rtf[cursor] ?? '')) {
+        const paramCode = rtf.charCodeAt(cursor);
+        if (paramCode === CH_DASH || isDigit(paramCode)) {
           const numberStart = cursor;
-          if (rtf[cursor] === '-') {
+          if (paramCode === CH_DASH) {
             cursor += 1;
           }
-          while (cursor < length && /[0-9]/.test(rtf[cursor])) {
+          while (cursor < length && isDigit(rtf.charCodeAt(cursor))) {
             cursor += 1;
           }
           const parsed = parseInt(rtf.slice(numberStart, cursor), 10);
           param = Number.isFinite(parsed) ? parsed : undefined;
         }
-        if (rtf[cursor] === ' ') {
+        if (rtf.charCodeAt(cursor) === CH_SPACE) {
           cursor += 1;
         }
         i = cursor;
         handleControlWord(word, param);
-      } else if (next === "'") {
+      } else if (nextCode === CH_QUOTE) {
         const hex = rtf.slice(i + 1, i + 3);
         i += 3;
         addText(decodeHexByte(hex));
       } else {
         i += 1;
-        handleControlSymbol(next);
+        handleControlSymbol(rtf[i - 1]);
       }
       continue;
     }
-    if (ch === '\r' || ch === '\n') {
+    if (code === CH_CR || code === CH_LF) {
       i += 1;
       continue;
     }
 
     let cursor = i;
-    while (
-      cursor < length &&
-      rtf[cursor] !== '\\' &&
-      rtf[cursor] !== '{' &&
-      rtf[cursor] !== '}' &&
-      rtf[cursor] !== '\r' &&
-      rtf[cursor] !== '\n'
-    ) {
+    while (cursor < length) {
+      const c = rtf.charCodeAt(cursor);
+      if (
+        c === CH_BACKSLASH ||
+        c === CH_OPEN_BRACE ||
+        c === CH_CLOSE_BRACE ||
+        c === CH_CR ||
+        c === CH_LF
+      ) {
+        break;
+      }
       cursor += 1;
     }
     if (cursor === i) {

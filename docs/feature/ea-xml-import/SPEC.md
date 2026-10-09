@@ -264,6 +264,7 @@ mechanical wiring.
 | `ea-xmi.parser.ts` | Pure XMI → `EaPackageNode[]` (no Nest deps). |
 | `ea-bpmn.parser.ts` | Pure BPMN 2.0 XML → `EaPackageNode[]` (no Nest deps). |
 | `ea-native.parser.ts` | Pure EA native table XML → `EaPackageNode[]` (no Nest deps). |
+| `ea-convert.pool.ts` / `ea-convert.worker.ts` | Parallel worker-thread pool for Model Document conversion (no Nest deps). |
 | `rtf-to-html.ts` | Pure RTF → HTML (no Nest deps). |
 | `dto/ea-import.dto.ts` | Multipart field DTO. |
 | `types/ea-import.types.ts` | Parser/service types. |
@@ -346,12 +347,38 @@ limit to **30 MB**.
 Re-importing the same EA root package (same root signature) into the same
 space is **detected**: the worker creates nothing and sets `metadata.skipped`
 + `metadata.duplicate` (plus `replacedPageIds` = the existing tree's root
-pages). The client then shows a **Replace / Skip** confirm dialog:
-Choose **Replace** to re-upload the same file with `replace=1` (the new tree is
-imported, then the previous tree is force-deleted and the old task's signature
-cleared); choose **Skip** to do nothing. Idempotency applies to the
-XMI/native/HTML-report paths; the HTML-report path (§14) always creates new
-pages.
+pages). The client then shows a **Replace / Keep both / Skip** dialog:
+Choose **Replace** to re-upload the same file with `mode=replace` (the new tree
+is imported, then the previous tree is force-deleted and the old task's
+signature cleared); choose **Keep both** (`mode=keep`) to import an additional
+copy alongside the existing pages; choose **Skip** to do nothing. Idempotency
+applies to the XMI/native/HTML-report paths; the HTML-report path (§14) always
+creates new pages.
+
+### 5.4 Performance
+
+The dominant cost is the RTF→HTML conversion of the Model Documents (a
+`NKHQ_QLTKQT.xml` sample decodes to ~62 MB of RTF across 32 documents). Two
+implemented optimisations, measured on that sample:
+
+- **RTF scan** (`rtf-to-html.ts`): the hot loops use `charCodeAt` integer
+  comparisons instead of per-char regex/`[i]` string indexing, and the
+  `\pict` pre-pass returns the input untouched when it contains no `pict`
+  (bulk `indexOf`/`slice` instead of a char-by-char copy). `rtfToHtml` went
+  from ~2.2 s to ~0.4 s; the full document conversion from ~3.5 s to ~0.74 s.
+- **Parallel conversion** (`ea-convert.pool.ts` + `ea-convert.worker.ts`):
+  documents are independent, so they are converted across a `worker_threads`
+  pool (≈`min(4, cores−1)` workers, round-robin; override with
+  `EA_IMPORT_CONVERT_CONCURRENCY`). The pool falls back to in-process
+  conversion if a worker cannot start (tests / unbundled runs). The per-document
+  and total byte budgets are enforced up-front with a cheap size pre-scan
+  (`readModelDocumentUncompressedSize`, central-directory only) since workers do
+  not share a running budget. Result: ~2.2× faster on top of the RTF fix, with
+  byte-identical output.
+
+`processHTML` (cheerio + `htmlToJson`/tiptap) and `createYdoc` (Yjs encode) stay
+on the main worker thread — they are JS-only libraries and cheap relative to the
+RTF work.
 
 ## 6. Core change budget (explicit)
 
@@ -379,7 +406,8 @@ to `true`; the server `@RequireFeature` remains the authoritative gate.)
 ```
 POST /pages/import-ea            (multipart/form-data)
   fields: spaceId (uuid, required)
-          replace ('1' to replace an existing import; default '0')
+          mode ('replace' to replace an existing import, 'keep' to import an
+                additional copy; omitted to auto-detect duplicates)
   file:   .xml | .xmi | .zip (required, <= 30 MB)
 headers: Authorization (JWT)
 response 200: FileTask {

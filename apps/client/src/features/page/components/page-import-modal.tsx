@@ -4,6 +4,7 @@ import {
   SimpleGrid,
   FileButton,
   Group,
+  Stack,
   Text,
   Tooltip,
 } from "@mantine/core";
@@ -23,6 +24,7 @@ import {
   importZip,
 } from "@/features/page/services/page-service.ts";
 import { importEaXml } from "@/ee/ea-import/services/ea-import-service.ts";
+import type { EaImportMode } from "@/ee/ea-import/services/ea-import-service.ts";
 import { modals } from "@mantine/modals";
 import { notifications } from "@mantine/notifications";
 import { treeDataAtom } from "@/features/page/tree/atoms/tree-data-atom.ts";
@@ -101,7 +103,7 @@ function ImportFormatSelection({ spaceId, onClose }: ImportFormatSelection) {
   const eaFileRef = useRef<() => void>(null);
   const pendingEaFileRef = useRef<File | null>(null);
   const handleEaUploadRef = useRef<
-    ((file: File, replace?: boolean) => Promise<void>) | null
+    ((file: File, mode?: EaImportMode) => Promise<void>) | null
   >(null);
 
   const canUseConfluence = useHasFeature(Feature.CONFLUENCE_IMPORT);
@@ -188,26 +190,41 @@ function ImportFormatSelection({ spaceId, onClose }: ImportFormatSelection) {
           setFileTaskId(null);
           notifications.hide("import");
           const pendingFile = pendingEaFileRef.current;
-          modals.openConfirmModal({
+          const run = (mode: EaImportMode) => {
+            modals.closeAll();
+            if (pendingFile) {
+              void handleEaUploadRef.current?.(pendingFile, mode);
+            }
+          };
+          modals.open({
             title: t("Package already imported"),
-            children: (
-              <Text size="sm">
-                {t(
-                  "This Enterprise Architect package was already imported into this space. Replace the existing pages with a fresh import, or skip?",
-                )}
-              </Text>
-            ),
             centered: true,
-            labels: {
-              confirm: t("Replace"),
-              cancel: t("Skip"),
-            },
-            confirmProps: { color: "red" },
-            onConfirm: () => {
-              if (pendingFile) {
-                void handleEaUploadRef.current?.(pendingFile, true);
-              }
-            },
+            children: (
+              <Stack gap="lg">
+                <Text size="sm">
+                  {t(
+                    "This Enterprise Architect package was already imported into this space. Choose how to proceed:",
+                  )}
+                </Text>
+                <Stack gap="xs">
+                  <Button
+                    variant="default"
+                    onClick={() => run("keep")}
+                  >
+                    {t("Keep both")}
+                  </Button>
+                  <Button
+                    variant="default"
+                    onClick={() => modals.closeAll()}
+                  >
+                    {t("Skip")}
+                  </Button>
+                  <Button color="red" onClick={() => run("replace")}>
+                    {t("Replace")}
+                  </Button>
+                </Stack>
+              </Stack>
+            ),
           });
           return;
         }
@@ -383,7 +400,7 @@ function ImportFormatSelection({ spaceId, onClose }: ImportFormatSelection) {
     }
   };
 
-  const handleEaUpload = async (selectedFile: File, replace = false) => {
+  const handleEaUpload = async (selectedFile: File, mode?: EaImportMode) => {
     if (!selectedFile) {
       return;
     }
@@ -413,7 +430,7 @@ function ImportFormatSelection({ spaceId, onClose }: ImportFormatSelection) {
         autoClose: false,
       });
 
-      const task = await importEaXml(selectedFile, spaceId, replace);
+      const task = await importEaXml(selectedFile, spaceId, mode);
 
       notifications.update({
         id: "import",

@@ -25,7 +25,7 @@ import { Feature } from '../../common/features';
 import { RequireFeature } from '../common/decorators/require-feature.decorator';
 import * as bytes from 'bytes';
 import * as path from 'path';
-import { EaImportService } from './ea-import.service';
+import { EaImportMode, EaImportService } from './ea-import.service';
 import { EA_IMPORT_MAX_FILE_SIZE } from './ea-import.constants';
 
 const VALID_FILE_EXTENSIONS = ['.xml', '.xmi', '.zip'];
@@ -83,7 +83,9 @@ export class EaImportController {
     }
 
     const spaceId = file.fields?.spaceId?.value;
-    const replace = file.fields?.replace?.value === '1';
+    const rawMode = file.fields?.mode?.value;
+    const mode: EaImportMode | undefined =
+      rawMode === 'replace' || rawMode === 'keep' ? rawMode : undefined;
 
     if (!spaceId) {
       throw new BadRequestException('spaceId is required');
@@ -99,7 +101,7 @@ export class EaImportController {
       user.id,
       spaceId,
       workspace.id,
-      replace,
+      mode,
     );
   }
 }

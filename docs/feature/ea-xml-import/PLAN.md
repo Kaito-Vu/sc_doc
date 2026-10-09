@@ -173,13 +173,13 @@ visually confirm Vietnamese + tables.
 - **Async**: EE-owned BullMQ queue `{ea-import-queue}` (`ea-import.constants.ts`,
   `ea-import.processor.ts`) + `file_tasks` row (source `ea`) + existing
   `POST /file-tasks/info` polling — file limit raised to **30 MB**. See SPEC §5.3.
-- **Idempotent re-import with Replace/Skip**: `ea-import.util.ts`
+- **Idempotent re-import with Replace / Keep both / Skip**: `ea-import.util.ts`
   `eaRootSignature`; the worker detects a re-import when a successful
   `file_tasks` row with the same root signature exists in the space and sets
   `metadata.skipped` + `metadata.duplicate`. The client shows a **Replace /
-  Skip** confirm dialog; Replace re-uploads with `replace=1`, and the worker
-  then imports the fresh tree and force-deletes the previous one (clearing the
-  old task's signature).
+  Keep both / Skip** dialog; Replace (`mode=replace`) imports the fresh tree and
+  force-deletes the previous one (clearing the old task's signature), Keep both
+  (`mode=keep`) imports an additional copy alongside it.
 - **RTF `\pict` → attachments**: `rtf-to-html.ts` pict pre-pass +
   `eaRtfImagePlaceholder`; `decodeModelDocument`/`buildDocumentsHtml` take an
   image sink; the service uploads via `EaAttachmentService` and inlines.
@@ -188,6 +188,11 @@ visually confirm Vietnamese + tables.
   container + one child page per report page, images via
   `ImportAttachmentService`. Best-effort (flat, no idempotency, untested against
   a real EA report).
+- **Performance**: `rtf-to-html.ts` hot loops rewritten around `charCodeAt`
+  (+ no-pict fast path); Model Documents converted in parallel across a
+  `worker_threads` pool (`ea-convert.pool.ts` + `ea-convert.worker.ts`, env
+  `EA_IMPORT_CONVERT_CONCURRENCY`, inline fallback) with an up-front size
+  pre-scan. ~7× total on the `NKHQ_QLTKQT.xml` sample (see SPEC §5.4).
 
 ## 6. Out of scope (v1)
 

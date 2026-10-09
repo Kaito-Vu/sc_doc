@@ -1,14 +1,18 @@
 import api from "@/lib/api-client";
 import { IFileTask } from "@/features/file-task/types/file-task.types.ts";
 
+export type EaImportMode = "replace" | "keep";
+
 export async function importEaXml(
   file: File,
   spaceId: string,
-  replace = false,
+  mode?: EaImportMode,
 ): Promise<IFileTask> {
   const formData = new FormData();
   formData.append("spaceId", spaceId);
-  formData.append("replace", replace ? "1" : "0");
+  if (mode) {
+    formData.append("mode", mode);
+  }
   formData.append("file", file);
 
   const req = await api.post<IFileTask>("/pages/import-ea", formData, {

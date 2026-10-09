@@ -24,6 +24,16 @@ describe('rtfToHtml', () => {
     expect(html).toContain('<p><strong>Bold part</strong> and plain.</p>');
   });
 
+  it('drops fonttbl/stylesheet groups and keeps the body text', () => {
+    const rtf =
+      '{\\rtf1\\ansi{\\fonttbl{\\f0 Times New Roman;}}{\\stylesheet{\\s0 Normal;}}\\pard Hello \\b world\\b0\\par}';
+    const html = rtfToHtml(rtf);
+    expect(html).toContain('Hello');
+    expect(html).toContain('<strong>world</strong>');
+    expect(html).not.toContain('Times New Roman');
+    expect(html).not.toContain('Normal');
+  });
+
   it('converts table rows', () => {
     const rtf =
       '{\\rtf1\\ansi\\trowd\\cellx1000\\cellx2000\\intbl A\\cell B\\cell\\row}';

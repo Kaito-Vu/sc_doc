@@ -14,7 +14,7 @@ export class EaImportProcessor extends WorkerHost implements OnModuleDestroy {
     if (job.name === EA_IMPORT_JOB) {
       await this.eaImportService.processEaImportTask(
         job.data.fileTaskId,
-        job.data.replace === true,
+        job.data.mode,
       );
     }
   }
