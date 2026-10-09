@@ -23,7 +23,10 @@ reliability/security) resolved the earlier open questions:
 Import an **Enterprise Architect XMI export** (`.xml`/`.xmi`) into Docmost. One
 XML file is one exported **package/topic** containing sub-packages; each
 sub-package becomes a Docmost page, preserving the package hierarchy. The feature
-lives entirely under `ee/` and touches only a minimal set of core files.
+lives entirely under `ee/` and touches only a minimal set of core files. EA
+**BPMN 2.0** exports (`<bpmn:definitions>`) are also accepted and mapped to one
+page per `bpmn:process` (see §2.4). EA's **native XML** package export
+(database-shaped `<Package>/<Table name="t_*">`, see §2.5) is accepted too.
 
 Sample analyzed: `TN_11.tmp.xml` (EA XMI 1.1, exporter "Enterprise Architect
 2.5", encoding `windows-1252`, 383 KB).
@@ -98,8 +101,64 @@ whose text is **base64 of a ZIP** containing a single `str.dat`, which is **RTF*
 - **Package 3 (UI)** has no RTF. Two `CustomDiagram` wireframes whose
   `UML:DiagramElement` carries only an integer `ImageID`
   (`2000954772`, `144733693`) and a `subject` → an **unnamed `Boundary`
-  ClassifierRole`. The PNG bytes live in EA's `.qea/.eap` image table, which XMI
+  ClassifierRole**. The PNG bytes live in EA's `.qea/.eap` image table, which XMI
   export omits (`UML:Image` = 0). **Verdict: not recoverable from this file.**
+
+### 2.4 BPMN 2.0 exports (`.xml`)
+
+EA can also publish a package as **BPMN 2.0 XML** (root `<bpmn:definitions>`)
+rather than an XMI/UML model. This is a distinct schema, detected by the parser
+(`isBpmnDocument`) and routed to a dedicated parser (`ea-bpmn.parser.ts`).
+
+- Each `bpmn:process` becomes **one root page** (BPMN has no packages). The page
+  name comes from the process `name`, else the owning `bpmn:participant` name,
+  else the definitions `name`.
+- `bpmn:laneSet`/`bpmn:lane` + `flowNodeRef` → lanes and lane membership.
+- Flow nodes (`task`/`userTask`/…/`startEvent`/`endEvent`/gateways/`subProcess`)
+  → ordered steps; `bpmn:sequenceFlow` (`sourceRef`/`targetRef`/`name`) → edges.
+- Content is synthesized with the same flow builder as the XMI path
+  (`buildFlowHtml`: provenance callout, lanes table, step list, best-effort
+  Mermaid). `bpmndi:BPMNDiagram`/`BPMNShape` are recorded as diagrams.
+- An empty `<bpmn:definitions>` (no `bpmn:process`) yields no pages.
+
+### 2.5 Native XML (database table) exports (`.xml`)
+
+EA's **Export Package to XML** (not XMI) writes a database-shaped document whose
+root is `<Package name="…">` and whose body is a set of `<Table name="t_*">`
+rows (`t_package`, `t_object`, `t_connector`, `t_diagram`,
+`t_diagramobjects`, `t_document`, `t_xref`, `t_image`). It is detected by
+`isEaNativeDocument` (root `<Package>` + a `t_*` table in the first 8 KB) and
+routed to `ea-native.parser.ts`, which reconstructs the same `EaPackageNode[]`
+contract used by the XMI/BPMN paths:
+
+- `t_package` rows → the page tree (`PACKAGE_ID`/`PARENT_ID`; a package whose
+  `PARENT_ID` is absent is a root). Sibling order = `TPOS` → leading name
+  integer → document order.
+- `t_object` rows → flow elements: `ActivityPartition` → lane; `Activity`
+  (and `Class`, when the package has a lane or the class is stereotyped
+  `InputData`) → step. Lane membership via `PARENTID`.
+- `t_connector` rows (`Dependency`, e.g. BPMN `DataAssociation`) between two
+  flow elements of the same package → edges (`START_OBJECT_ID` → `END_OBJECT_ID`,
+  honoring `DIRECTION`).
+- `t_document.BINCONTENT` (base64 ZIP → `str.dat` RTF) → Model Document content;
+  the owning package is resolved from the `DOCNAME` path (`package::doc`), and
+  concatenated in `SEQUENCE` order.
+- `t_diagram` (+ `t_diagramobjects`) → diagrams: `diagramId` = `DIAGRAM_ID`,
+  `subjectIds` = member `OBJECT_ID`s, `imageId` from `OBJECTSTYLE`
+  (`ImageID=…`). The image bytes live in **`t_image.IMAGE`**
+  (`dt:dt="bin.base64"`, PNG/JPEG), which the native export *does* include:
+  they are decoded, MIME-sniffed and attached as `EaDiagram.embeddedImage`, so
+  wireframe pages embed the real image with no companion ZIP or HTML report
+  (§13). Diagrams without an image (e.g. the synthesized BPMN flow) keep the
+  name-list + limitation callout.
+- `t_xref` (`NAME=Stereotypes`) resolves object stereotypes (e.g. `InputData`).
+
+Content synthesis reuses the XMI builders (`buildDocumentsHtml`,
+`buildFlowHtml`, `buildDiagramHtml`, `buildContainerHtml`), so native
+exports get the same RTF→HTML, flow and diagram treatment. The BPMN flow of the
+`NKHQ_QLTKQT.xml` sample is such a native export: package `2. Luồng màn hình`
+(`t_diagram.DIAGRAM_TYPE=Analysis`, `MDGDgm=BPMN2.0::Business Process`) yields a
+synthesized flow page from 1 lane, 59 flow nodes and 68 connectors.
 
 ## 3. Page mapping
 
@@ -144,7 +203,9 @@ Rules:
 - **Reject input containing `<!DOCTYPE` / `<!ENTITY`** before parsing (EA XMI
   never needs DTDs) — cheap XXE/billion-laughs defense.
 - Walk `Model/Namespace.ownedElement` recursively; index each element's tagged
-  values by `tag`; read `modeldocument` wherever present.
+  values by `tag`; read `modeldocument` wherever present — on elements **and**
+  on `UML:Diagram` nodes (e.g. wireframe screen descriptions), the latter
+  attached to the owning package so no document is dropped.
 - Read diagrams and their `UML:DiagramElement` `subject`/`ImageID`/`SOID`/`EOID`.
 - Never throw on one bad document — record a warning and continue.
 
@@ -201,6 +262,8 @@ mechanical wiring.
 | `ea-import.controller.ts` | `@UseGuards(JwtAuthGuard) @Controller('pages')`, `@Post('import-ea') @RequireFeature(Feature.EA_IMPORT)`, `@UseInterceptors(FileInterceptor)`, multipart limits, space ability check. |
 | `ea-import.service.ts` | Orchestration: parse → build page tree → convert → insert → emit/audit. |
 | `ea-xmi.parser.ts` | Pure XMI → `EaPackageNode[]` (no Nest deps). |
+| `ea-bpmn.parser.ts` | Pure BPMN 2.0 XML → `EaPackageNode[]` (no Nest deps). |
+| `ea-native.parser.ts` | Pure EA native table XML → `EaPackageNode[]` (no Nest deps). |
 | `rtf-to-html.ts` | Pure RTF → HTML (no Nest deps). |
 | `dto/ea-import.dto.ts` | Multipart field DTO. |
 | `types/ea-import.types.ts` | Parser/service types. |
@@ -280,10 +343,15 @@ limit to **30 MB**.
 | Images | ≤ 200 / ≤ 8 MB each / ≤ 64 MB total |
 | ZIP entries / uncompressed bytes | 2,000 / 64 MB |
 
-Re-importing the same EA root package (same `xmi:id` signature) into the same
-space is **skipped**: the worker creates nothing and sets `metadata.skipped`.
-Idempotency applies to the XMI path; the HTML-report path (§14) always creates
-new pages.
+Re-importing the same EA root package (same root signature) into the same
+space is **detected**: the worker creates nothing and sets `metadata.skipped`
++ `metadata.duplicate` (plus `replacedPageIds` = the existing tree's root
+pages). The client then shows a **Replace / Skip** confirm dialog:
+Choose **Replace** to re-upload the same file with `replace=1` (the new tree is
+imported, then the previous tree is force-deleted and the old task's signature
+cleared); choose **Skip** to do nothing. Idempotency applies to the
+XMI/native/HTML-report paths; the HTML-report path (§14) always creates new
+pages.
 
 ## 6. Core change budget (explicit)
 
@@ -311,6 +379,7 @@ to `true`; the server `@RequireFeature` remains the authoritative gate.)
 ```
 POST /pages/import-ea            (multipart/form-data)
   fields: spaceId (uuid, required)
+          replace ('1' to replace an existing import; default '0')
   file:   .xml | .xmi | .zip (required, <= 30 MB)
 headers: Authorization (JWT)
 response 200: FileTask {
@@ -318,7 +387,8 @@ response 200: FileTask {
   errorMessage, creatorId, spaceId, workspaceId, metadata, createdAt, updatedAt
 }
   -> poll POST /file-tasks/info { fileTaskId } until status is success|failed
-  -> metadata: { eaRootId, pageIds?, rootPageIds?, pageCount, warnings?, skipped? }
+  -> metadata: { eaRootId, pageIds?, rootPageIds?, pageCount, warnings?,
+                 skipped?, duplicate?, replacedPageIds? }
 errors: 400 invalid file/type, 403 no space edit ability / feature not licensed,
         413 file too large
 ```
@@ -345,9 +415,10 @@ page ids, warnings and the `skipped` flag).
 
 ## 11. Limits & non-goals (Phase 1)
 
-- Wireframe/diagram images are supported via **companion assets** (§13). When a
-  bare `.xml`/`.xmi` is uploaded (no assets), diagram pages fall back to the
-  name list + limitation callout.
+- Wireframe/diagram images: for **native XML** exports they are embedded
+  (`t_image.IMAGE`) and imported automatically; for XMI/BPMN exports they come
+  via **companion assets** (§13). Only when neither is present do diagram pages
+  fall back to the name list + limitation callout.
 - Mermaid flow is best-effort; wrong-diagram risk mitigated by the
   all-connectors-resolve gate.
 - No inline RTF images (`\pict`); dropped in v1 (Phase 2 → attachments).
@@ -372,10 +443,11 @@ page ids, warnings and the `skipped` flag).
 
 ### 13.1 Why a ZIP
 
-Enterprise Architect does not embed diagram images in a plain XMI package
-export by default. The documented, deterministic way to get them is EA's export
-that emits an **`Images/` folder next to the XMI**, with one file per diagram
-named after the diagram's **`xmi:id`** (e.g.
+Enterprise Architect does not embed diagram images in a plain **XMI** package
+export by default. (A **native XML** export *does* — see §2.5, so no ZIP is
+needed there.) For XMI, the documented, deterministic way to get them is EA's
+export that emits an **`Images/` folder next to the XMI**, with one file per
+diagram named after the diagram's **`xmi:id`** (e.g.
 `Images/EAID_3891F93B_2CD5_48ea_8C4E_A663C9F46FA8.png`). PNG and SVG are
 supported by EA; SVG is recommended.
 

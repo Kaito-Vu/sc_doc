@@ -50,7 +50,20 @@ Date: 2026-10-09
      names/`subject`/`ImageID`/`SOID`/`EOID`.
    - On any single-document failure: push a warning, continue (never throw).
 
-3. `ee/ea-import/rtf-to-html.ts`
+3. `ee/ea-import/ea-bpmn.parser.ts` / `ee/ea-import/ea-native.parser.ts`
+   - `ea-bpmn.parser.ts`: `<bpmn:definitions>` → one root per `bpmn:process`
+     (lanes, flow nodes, `sequenceFlow`, `BPMNDiagram`).
+   - `ea-native.parser.ts`: EA **native table XML** (`<Package>` +
+     `t_package`/`t_object`/`t_connector`/`t_diagram`/`t_diagramobjects`/
+     `t_document`/`t_xref`) → the same `EaPackageNode[]`: packages by
+     `PACKAGE_ID`/`PARENT_ID`, lanes (`ActivityPartition`), steps
+     (`Activity`/`Class`), edges (`t_connector`), Model Documents
+     (`t_document.BINCONTENT` → base64 ZIP → `str.dat` RTF, owner from the
+     `DOCNAME` path) and diagrams (`t_diagram` + `t_diagramobjects`).
+   - `ea-xml.util.ts` holds the shared hardened parser + node helpers;
+     `isEaNativeDocument`/`isBpmnDocument` route in `parseDocument`.
+
+4. `ee/ea-import/rtf-to-html.ts`
    - Tokenizer for control words/groups/text; `\uN` decimal (negative →
      `+65536`) with exactly-one-fallback skip; `\'hh` fallback decode.
    - Escapes `\\ \{ \} \~ \- \tab`; `\par`/`\plain`/`\pard`; `\b \i \ul`
@@ -61,10 +74,16 @@ Date: 2026-10-09
    - Drop `\pict`/`\object`/`\htmltag`; escape all text; whitelist output tags.
    - `rtfToHtml(rtf: string): string`; on exception return a safe stub marker.
 
-4. Tests:
+5. Tests:
    - `ea-xmi.parser.spec.ts`: trimmed fixture (not the 383 KB sample) → 1 root,
      5 children, 3 documents, 2 wireframe diagrams, `tpos` order; plus XXE
      (`<!DOCTYPE`) rejection + malformed-base64 stub.
+   - `ea-bpmn.parser.spec.ts`: detection + one page per `bpmn:process` (lanes,
+     activities, sequence flows, diagrams); empty definitions → no pages.
+   - `ea-native.parser.spec.ts`: trimmed table fixture → package tree (ordered
+     by `TPOS`), lane membership, activities/classes, connectors, diagrams and
+     a Model Document (owner resolved from `DOCNAME`); detection excludes
+     XMI/BPMN.
    - `rtf-to-html.spec.ts`: headings (bold numbered), paragraphs, a table,
      Vietnamese `\uNNNN` round-trip (`Theo dõi`, `Dữ liệu đầu vào`), script
      escaping (`<script>` in text stays inert).
@@ -154,9 +173,13 @@ visually confirm Vietnamese + tables.
 - **Async**: EE-owned BullMQ queue `{ea-import-queue}` (`ea-import.constants.ts`,
   `ea-import.processor.ts`) + `file_tasks` row (source `ea`) + existing
   `POST /file-tasks/info` polling — file limit raised to **30 MB**. See SPEC §5.3.
-- **Idempotent re-import**: `ea-import.util.ts` `eaRootSignature`; the worker
-  skips a re-import when a successful `file_tasks` row with the same root
-  signature exists in the space (`metadata.skipped`). XMI path only.
+- **Idempotent re-import with Replace/Skip**: `ea-import.util.ts`
+  `eaRootSignature`; the worker detects a re-import when a successful
+  `file_tasks` row with the same root signature exists in the space and sets
+  `metadata.skipped` + `metadata.duplicate`. The client shows a **Replace /
+  Skip** confirm dialog; Replace re-uploads with `replace=1`, and the worker
+  then imports the fresh tree and force-deletes the previous one (clearing the
+  old task's signature).
 - **RTF `\pict` → attachments**: `rtf-to-html.ts` pict pre-pass +
   `eaRtfImagePlaceholder`; `decodeModelDocument`/`buildDocumentsHtml` take an
   image sink; the service uploads via `EaAttachmentService` and inlines.
@@ -177,12 +200,15 @@ visually confirm Vietnamese + tables.
 
 See SPEC §13. Delivered in the same EE module:
 
+- **Native XML**: `t_image.IMAGE` (base64 PNG/JPEG) is decoded and attached as
+  `EaDiagram.embeddedImage` — wireframe images import automatically, no ZIP.
 - `.zip` input containing the XMI + an EA `Images/` folder (files named by
   diagram `xmi:id`); plus a best-effort scan for base64 images embedded in a
   `UML:Diagram`.
-- `ea-asset.util.ts` (`isZipBuffer`, `normalizeAssetKey`, `mimeTypeForImageExt`,
-  `extractEaZip`, `resolveImageForDiagram`).
+- `ea-asset.util.ts` (`isZipBuffer`, `normalizeAssetKey`, `sniffImageMime`,
+  `imageExtForMime`, `extractEaZip`, `resolveImageForDiagram`).
 - `ea-attachment.service.ts` (`uploadImage` → storage + `attachments` row +
   `<img>` HTML, same pipeline as the ZIP import).
-- Parser records `EaDiagram.diagramId`; builders embed matched images.
+- Parser records `EaDiagram.diagramId`; builders embed matched/embedded images
+  (and only show the "not embedded" callout when a diagram has no image).
 - Client accepts `.xml/.xmi/.zip`.

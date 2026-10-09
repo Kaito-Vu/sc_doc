@@ -67,6 +67,64 @@ export function mimeTypeForImageExt(ext: string): string {
   }
 }
 
+const EXT_BY_MIME: Record<string, string> = {
+  'image/png': '.png',
+  'image/jpeg': '.jpg',
+  'image/gif': '.gif',
+  'image/webp': '.webp',
+  'image/svg+xml': '.svg',
+};
+
+/** File extension (with dot) for a sniffed image MIME type. */
+export function imageExtForMime(mimeType: string): string {
+  return EXT_BY_MIME[String(mimeType ?? '').toLowerCase()] ?? '.png';
+}
+
+/**
+ * Sniff an image MIME type from its magic bytes. Returns `undefined` for
+ * anything that is not a supported raster/vector image. Never throws.
+ */
+export function sniffImageMime(buffer: Buffer): string | undefined {
+  if (!Buffer.isBuffer(buffer) || buffer.length === 0) {
+    return undefined;
+  }
+  if (
+    buffer.length >= 8 &&
+    buffer[0] === 0x89 &&
+    buffer[1] === 0x50 &&
+    buffer[2] === 0x4e &&
+    buffer[3] === 0x47
+  ) {
+    return 'image/png';
+  }
+  if (
+    buffer.length >= 3 &&
+    buffer[0] === 0xff &&
+    buffer[1] === 0xd8 &&
+    buffer[2] === 0xff
+  ) {
+    return 'image/jpeg';
+  }
+  if (buffer.length >= 6) {
+    const signature = buffer.subarray(0, 6).toString('latin1');
+    if (signature === 'GIF87a' || signature === 'GIF89a') {
+      return 'image/gif';
+    }
+  }
+  if (
+    buffer.length >= 12 &&
+    buffer.subarray(0, 4).toString('latin1') === 'RIFF' &&
+    buffer.subarray(8, 12).toString('latin1') === 'WEBP'
+  ) {
+    return 'image/webp';
+  }
+  const head = buffer.subarray(0, 256).toString('utf-8').trimStart().toLowerCase();
+  if (head.startsWith('<svg') || head.startsWith('<?xml')) {
+    return 'image/svg+xml';
+  }
+  return undefined;
+}
+
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }

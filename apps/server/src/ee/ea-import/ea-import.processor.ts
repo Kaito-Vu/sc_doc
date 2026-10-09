@@ -12,7 +12,10 @@ export class EaImportProcessor extends WorkerHost implements OnModuleDestroy {
 
   async process(job: Job): Promise<void> {
     if (job.name === EA_IMPORT_JOB) {
-      await this.eaImportService.processEaImportTask(job.data.fileTaskId);
+      await this.eaImportService.processEaImportTask(
+        job.data.fileTaskId,
+        job.data.replace === true,
+      );
     }
   }
 

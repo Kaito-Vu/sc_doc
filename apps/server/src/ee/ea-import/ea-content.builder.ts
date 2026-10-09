@@ -360,14 +360,19 @@ export function buildDiagramHtml(
 ): string {
   let html = callout(PROVENANCE_CALLOUT);
   html += `<h2>${escapeHtml(node.name)}</h2>`;
+  let missingImage = false;
   for (const diagram of node.diagrams) {
     const image = imageHtmlById?.get(diagram.diagramId ?? diagram.name);
     html += `<p><strong>${escapeHtml(diagram.name)}</strong></p>`;
     if (image) {
       html += image;
+    } else {
+      missingImage = true;
     }
   }
-  html += callout(WIREFRAME_NOTE);
+  if (missingImage) {
+    html += callout(WIREFRAME_NOTE);
+  }
   return html;
 }
 

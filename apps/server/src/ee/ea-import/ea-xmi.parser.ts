@@ -1,5 +1,3 @@
-import { XMLParser } from 'fast-xml-parser';
-import * as iconv from 'iconv-lite';
 import {
   EaActivity,
   EaDiagram,
@@ -11,7 +9,19 @@ import {
   EaParseResult,
   EaParseWarning,
 } from './types/ea-import.types';
-import { mimeTypeForImageExt, normalizeAssetKey } from './ea-asset.util';
+import { normalizeAssetKey, sniffImageMime } from './ea-asset.util';
+import {
+  FxpNode,
+  attributeOf,
+  childrenOf,
+  createXmlParser,
+  decodeBuffer,
+  findChildren,
+  firstChild,
+  normalizeName,
+  tagOf,
+  textOf,
+} from './ea-xml.util';
 
 /**
  * Pure Enterprise Architect XMI -> package tree parser. No Nest / DB
@@ -19,71 +29,7 @@ import { mimeTypeForImageExt, normalizeAssetKey } from './ea-asset.util';
  * only structural problems (DTD/entity declarations, unparseable XML) throw.
  */
 
-type FxpNode = Record<string, any>;
-
-const XML_DECL_ENCODING = /<\?xml[^>]*encoding\s*=\s*["']([^"']+)["']/i;
 const NESTED_PACKAGE_SKIP = new Set(['UML:Package', 'UML:Collaboration']);
-
-function decodeBuffer(buffer: Buffer): string {
-  const head = buffer.slice(0, 256).toString('latin1');
-  const match = XML_DECL_ENCODING.exec(head);
-  const encoding = match && match[1] ? match[1].trim().toLowerCase() : 'utf-8';
-  try {
-    return iconv.decode(buffer, encoding);
-  } catch {
-    return buffer.toString('utf-8');
-  }
-}
-
-function tagOf(node: FxpNode): string | undefined {
-  for (const key of Object.keys(node)) {
-    if (key !== ':@') {
-      return key;
-    }
-  }
-  return undefined;
-}
-
-function childrenOf(node: FxpNode): FxpNode[] {
-  const tag = tagOf(node);
-  if (!tag || tag === '#text') {
-    return [];
-  }
-  const value = node[tag];
-  return Array.isArray(value) ? value : [];
-}
-
-function attributeOf(node: FxpNode, name: string): string | undefined {
-  const attrs = node[':@'];
-  if (!attrs) {
-    return undefined;
-  }
-  const value = attrs['@_' + name];
-  return value === undefined || value === null ? undefined : String(value);
-}
-
-function textOf(node: FxpNode): string {
-  let text = '';
-  for (const child of childrenOf(node)) {
-    if (tagOf(child) === '#text') {
-      const value = child['#text'];
-      if (typeof value === 'string') {
-        text += value;
-      } else if (value !== undefined && value !== null) {
-        text += String(value);
-      }
-    }
-  }
-  return text;
-}
-
-function findChildren(nodes: FxpNode[], tag: string): FxpNode[] {
-  return nodes.filter((node) => tagOf(node) === tag);
-}
-
-function firstChild(nodes: FxpNode[], tag: string): FxpNode | undefined {
-  return nodes.find((node) => tagOf(node) === tag);
-}
 
 function taggedValues(element: FxpNode): Map<string, string> {
   const map = new Map<string, string>();
@@ -124,10 +70,6 @@ function modelDocumentOf(element: FxpNode): string | undefined {
     }
   }
   return undefined;
-}
-
-function normalizeName(name: string): string {
-  return name.normalize('NFC');
 }
 
 function parseNumeric(value: string | undefined): number | undefined {
@@ -327,39 +269,6 @@ function decodeBase64Blob(raw: string): Buffer | undefined {
   }
 }
 
-function sniffImageMime(buffer: Buffer): string | undefined {
-  if (
-    buffer.length >= 8 &&
-    buffer[0] === 0x89 &&
-    buffer[1] === 0x50 &&
-    buffer[2] === 0x4e &&
-    buffer[3] === 0x47
-  ) {
-    return 'image/png';
-  }
-  if (buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) {
-    return 'image/jpeg';
-  }
-  if (buffer.length >= 6) {
-    const signature = buffer.subarray(0, 6).toString('latin1');
-    if (signature === 'GIF87a' || signature === 'GIF89a') {
-      return 'image/gif';
-    }
-  }
-  if (
-    buffer.length >= 12 &&
-    buffer.subarray(0, 4).toString('latin1') === 'RIFF' &&
-    buffer.subarray(8, 12).toString('latin1') === 'WEBP'
-  ) {
-    return 'image/webp';
-  }
-  const head = buffer.subarray(0, 256).toString('utf-8').trimStart().toLowerCase();
-  if (head.startsWith('<svg') || head.startsWith('<?xml')) {
-    return 'image/svg+xml';
-  }
-  return undefined;
-}
-
 /**
  * Best-effort, conservative scan of a single diagram subtree for an embedded
  * base64 image. Looks first for `data:image/...;base64,` blobs anywhere in the
@@ -523,6 +432,23 @@ function attachDiagrams(
         // best-effort: a malformed embedded image is simply ignored
       }
       owner.diagrams.push(entry);
+
+      // A diagram can carry its own `modeldocument` (e.g. an EA wireframe
+      // screen description). Import it as content of the owning package so it
+      // is never dropped, exactly like documents attached to elements.
+      try {
+        const base64 = modelDocumentOf(diagram);
+        if (base64) {
+          owner.documents.push({
+            ownerId,
+            ownerName: name || owner.name,
+            order: owner.documents.length,
+            base64,
+          });
+        }
+      } catch {
+        // best-effort: a malformed document on a diagram is ignored
+      }
     } catch (error) {
       warnings.push({
         page: name,
@@ -544,17 +470,7 @@ export function parseEaXmi(buffer: Buffer): EaParseResult {
     );
   }
 
-  const parser = new XMLParser({
-    ignoreAttributes: false,
-    attributeNamePrefix: '@_',
-    preserveOrder: true,
-    trimValues: true,
-    parseTagValue: false,
-    parseAttributeValue: false,
-    htmlEntities: true,
-    processEntities: true,
-    allowBooleanAttributes: true,
-  });
+  const parser = createXmlParser();
 
   const parsed = parser.parse(text) as FxpNode[];
   const warnings: EaParseWarning[] = [];

@@ -32,6 +32,8 @@ import {
 } from '../../integrations/import/utils/file.utils';
 import { StorageService } from '../../integrations/storage/storage.service';
 import { parseEaXmi } from './ea-xmi.parser';
+import { isBpmnDocument, parseEaBpmn } from './ea-bpmn.parser';
+import { isEaNativeDocument, parseEaNative } from './ea-native.parser';
 import {
   EaImageAsset,
   EaPackageNode,
@@ -84,6 +86,8 @@ export interface EaImportMetadata {
   pageCount: number;
   warnings?: EaParseWarning[];
   skipped?: boolean;
+  duplicate?: boolean;
+  replacedPageIds?: string[];
 }
 
 interface PreparedPage {
@@ -132,6 +136,7 @@ export class EaImportService {
     userId: string,
     spaceId: string,
     workspaceId: string,
+    replace = false,
   ): Promise<FileTask> {
     const fileExtension = path.extname(file.filename).toLowerCase();
     const baseName = sanitizeFileName(
@@ -167,7 +172,7 @@ export class EaImportService {
       .returningAll()
       .executeTakeFirstOrThrow();
 
-    await this.eaImportQueue.add(EA_IMPORT_JOB, { fileTaskId });
+    await this.eaImportQueue.add(EA_IMPORT_JOB, { fileTaskId, replace });
 
     return fileTask;
   }
@@ -176,7 +181,10 @@ export class EaImportService {
    * Worker entry point: read the stored file, run the import, then record the
    * result on the task and remove the stored file.
    */
-  async processEaImportTask(fileTaskId: string): Promise<void> {
+  async processEaImportTask(
+    fileTaskId: string,
+    replace = false,
+  ): Promise<void> {
     const fileTask = await this.db
       .selectFrom('fileTasks')
       .selectAll()
@@ -213,6 +221,7 @@ export class EaImportService {
         spaceId: fileTask.spaceId,
         creatorId: fileTask.creatorId,
         fileTask,
+        replace,
       });
 
       await this.db
@@ -273,22 +282,28 @@ export class EaImportService {
   }
 
   /**
-   * Parse an XMI buffer, surfacing parse failures with a clear message.
+   * Parse an EA export buffer, dispatching on whether it is a native EA table
+   * export, BPMN 2.0 XML or an XMI/UML model, and surfacing parse failures
+   * with a clear message.
    */
-  private parseXmi(buffer: Buffer): EaParseResult {
+  private parseDocument(buffer: Buffer): EaParseResult {
     try {
-      return parseEaXmi(buffer);
+      if (isEaNativeDocument(buffer)) {
+        return parseEaNative(buffer);
+      }
+      return isBpmnDocument(buffer) ? parseEaBpmn(buffer) : parseEaXmi(buffer);
     } catch (error) {
       throw new Error(
-        `Invalid Enterprise Architect XMI file: ${errorMessage(error)}`,
+        `Invalid Enterprise Architect file: ${errorMessage(error)}`,
       );
     }
   }
 
   /**
-   * Parse the XMI (optionally from a companion ZIP), skip the import when the
-   * same EA root package was already imported into this space, otherwise build
-   * and insert the page tree.
+   * Parse the EA export (optionally from a companion ZIP). When the same EA
+   * root package was already imported into this space the import is skipped,
+   * unless `replace` is set — in which case the previously imported page tree
+   * is deleted after the fresh import commits.
    */
   private async runImport(opts: {
     buffer: Buffer;
@@ -297,8 +312,9 @@ export class EaImportService {
     spaceId: string;
     creatorId: string;
     fileTask: FileTask;
+    replace: boolean;
   }): Promise<{ result: EaImportResult; metadata: EaImportMetadata }> {
-    const { buffer, fileName, workspaceId, spaceId, creatorId } = opts;
+    const { buffer, fileName, workspaceId, spaceId, creatorId, replace } = opts;
 
     let parsed: EaParseResult;
     let byKey = new Map<string, EaImageAsset>();
@@ -333,7 +349,7 @@ export class EaImportService {
         };
       }
 
-      parsed = this.parseXmi(inspection.xmi);
+      parsed = this.parseDocument(inspection.xmi);
       byKey = new Map(
         inspection.images.map((image) => [
           normalizeAssetKey(image.fileName),
@@ -341,49 +357,60 @@ export class EaImportService {
         ]),
       );
     } else {
-      parsed = this.parseXmi(buffer);
+      parsed = this.parseDocument(buffer);
     }
 
     const warnings: EaParseWarning[] = [...parsed.warnings];
 
     if (parsed.roots.length === 0) {
-      throw new Error('No Enterprise Architect packages found');
+      throw new Error('No importable Enterprise Architect content found');
     }
 
     const eaRootId = eaRootSignature(parsed.roots);
 
-    if (eaRootId) {
-      const existingImport = await this.db
-        .selectFrom('fileTasks')
-        .select(['id'])
-        .where('source', '=', EA_SOURCE)
-        .where('status', '=', FileTaskStatus.Success)
-        .where('spaceId', '=', spaceId)
-        .where('workspaceId', '=', workspaceId)
-        .where(sql<boolean>`metadata->>'eaRootId' = ${eaRootId}`)
-        .limit(1)
-        .executeTakeFirst();
+    const existingImport = eaRootId
+      ? await this.findExistingImport(spaceId, workspaceId, eaRootId)
+      : undefined;
 
-      if (existingImport) {
-        this.logger.log(
-          `Skipping EA import: root signature ${eaRootId} already imported in space ${spaceId}`,
-        );
-        return {
-          result: {
-            pageIds: [],
-            rootPageIds: [],
-            pageCount: 0,
-            warnings: [
-              {
-                page: '',
-                reason: 'EA package already imported in this space',
-              },
-            ],
-          },
-          metadata: { eaRootId, pageCount: 0, skipped: true },
-        };
-      }
+    if (existingImport && !replace) {
+      this.logger.log(
+        `Skipping EA import: root signature ${eaRootId} already imported in space ${spaceId}`,
+      );
+      return {
+        result: {
+          pageIds: [],
+          rootPageIds: [],
+          pageCount: 0,
+          warnings: [
+            {
+              page: '',
+              reason: 'EA package already imported in this space',
+            },
+          ],
+        },
+        metadata: {
+          eaRootId,
+          pageCount: 0,
+          skipped: true,
+          duplicate: true,
+          replacedPageIds: this.metadataStringArray(
+            existingImport.metadata,
+            'rootPageIds',
+            'pageIds',
+          ),
+        },
+      };
     }
+
+    const replacedRootPageIds =
+      existingImport && replace
+        ? this.metadataStringArray(
+            existingImport.metadata,
+            'rootPageIds',
+            'pageIds',
+          )
+        : [];
+    const replacedTaskId = existingImport && replace ? existingImport.id : null;
 
     // Flatten the package tree breadth-first so parents are always prepared
     // (and inserted) before their children.
@@ -410,7 +437,7 @@ export class EaImportService {
     }
 
     if (prepared.length === 0) {
-      throw new Error('No Enterprise Architect packages found');
+      throw new Error('No importable Enterprise Architect content found');
     }
 
     if (prepared.length > MAX_PAGES) {
@@ -460,6 +487,15 @@ export class EaImportService {
           imageBudget,
           warnings,
         );
+        // A page can carry both documents and diagrams (e.g. a wireframe
+        // description attached to the diagram plus its exported image); keep
+        // the diagram images instead of dropping them.
+        for (const diagram of node.diagrams) {
+          const image = imageHtmlById.get(diagram.diagramId ?? diagram.name);
+          if (image) {
+            html += image;
+          }
+        }
       } else if (
         node.activities.length > 0 ||
         node.edges.length > 0 ||
@@ -547,6 +583,14 @@ export class EaImportService {
       },
     });
 
+    if (replacedRootPageIds.length > 0 || replacedTaskId) {
+      await this.replaceExistingImport(
+        replacedRootPageIds,
+        replacedTaskId,
+        workspaceId,
+      );
+    }
+
     this.logger.log(
       `Imported ${pageIds.length} EA pages (${warnings.length} warnings)`,
     );
@@ -566,6 +610,81 @@ export class EaImportService {
         warnings,
       },
     };
+  }
+
+  /** Most recent successful EA import in this space with the same root signature. */
+  private async findExistingImport(
+    spaceId: string,
+    workspaceId: string,
+    eaRootId: string,
+  ): Promise<{ id: string; metadata: any } | undefined> {
+    if (!eaRootId) {
+      return undefined;
+    }
+    return this.db
+      .selectFrom('fileTasks')
+      .select(['id', 'metadata'])
+      .where('source', '=', EA_SOURCE)
+      .where('status', '=', FileTaskStatus.Success)
+      .where('spaceId', '=', spaceId)
+      .where('workspaceId', '=', workspaceId)
+      .where(sql<boolean>`metadata->>'eaRootId' = ${eaRootId}`)
+      .orderBy('createdAt', 'desc')
+      .limit(1)
+      .executeTakeFirst();
+  }
+
+  /** First non-empty string array among the given metadata keys. */
+  private metadataStringArray(
+    metadata: any,
+    ...keys: string[]
+  ): string[] {
+    for (const key of keys) {
+      const value = metadata?.[key];
+      if (Array.isArray(value)) {
+        const ids = value.filter((id): id is string => typeof id === 'string');
+        if (ids.length > 0) {
+          return ids;
+        }
+      }
+    }
+    return [];
+  }
+
+  /**
+   * Replace semantics: delete the previously imported page tree, then neutralize
+   * the old task's signature so future imports are not flagged as duplicates.
+   * Runs after the new tree is committed; failures are logged, never thrown.
+   */
+  private async replaceExistingImport(
+    rootPageIds: string[],
+    taskId: string | null,
+    workspaceId: string,
+  ): Promise<void> {
+    for (const rootPageId of rootPageIds) {
+      try {
+        await this.pageService.forceDelete(rootPageId, workspaceId);
+      } catch (error) {
+        this.logger.error(
+          `Failed to delete replaced EA page ${rootPageId}`,
+          error instanceof Error ? error.stack : undefined,
+        );
+      }
+    }
+    if (taskId) {
+      try {
+        await this.db
+          .updateTable('fileTasks')
+          .set({ metadata: sql`metadata - 'eaRootId'` as any })
+          .where('id', '=', taskId)
+          .execute();
+      } catch (error) {
+        this.logger.error(
+          `Failed to clear replaced EA task signature ${taskId}`,
+          error instanceof Error ? error.stack : undefined,
+        );
+      }
+    }
   }
 
   /**

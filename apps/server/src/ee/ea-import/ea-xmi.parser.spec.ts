@@ -99,4 +99,34 @@ describe('parseEaXmi', () => {
     const xml = '<?xml version="1.0"?><!DOCTYPE foo [<!ENTITY x "y">]><XMI/>';
     expect(() => parseEaXmi(Buffer.from(xml, 'utf-8'))).toThrow();
   });
+
+  it('imports a modeldocument attached to a diagram (wireframe description)', () => {
+    const xml = [
+      '<?xml version="1.0"?>',
+      '<XMI xmi.version="1.1" xmlns:UML="omg.org/UML1.3">',
+      '<XMI.content>',
+      '<UML:Model name="EA Model" xmi.id="MX_1">',
+      '<UML:Namespace.ownedElement>',
+      '<UML:Package name="3. Giao diện" xmi.id="EAPK_1"><UML:Namespace.ownedElement/></UML:Package>',
+      '</UML:Namespace.ownedElement>',
+      '</UML:Model>',
+      '<UML:Diagram name="Win A" xmi.id="D1" diagramType="CustomDiagram" owner="EAPK_1">',
+      '<UML:ModelElement.taggedValue>',
+      '<UML:TaggedValue tag="package" value="EAPK_1"/>',
+      '<UML:TaggedValue tag="modeldocument" xmlns:dt="urn:schemas-microsoft-com:datatypes" dt:dt="bin.base64" type="ModelDocument">',
+      DOC_BASE64,
+      '</UML:TaggedValue>',
+      '</UML:ModelElement.taggedValue>',
+      '<UML:Diagram.element/>',
+      '</UML:Diagram>',
+      '</XMI.content>',
+      '</XMI>',
+    ].join('');
+    const result = parseEaXmi(Buffer.from(xml, 'utf-8'));
+    const root = result.roots[0];
+    expect(root.diagrams).toHaveLength(1);
+    expect(root.documents).toHaveLength(1);
+    expect(root.documents[0].base64).toBe(DOC_BASE64);
+    expect(root.documents[0].ownerName).toBe('Win A');
+  });
 });

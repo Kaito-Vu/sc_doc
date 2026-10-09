@@ -23,6 +23,7 @@ import {
   importZip,
 } from "@/features/page/services/page-service.ts";
 import { importEaXml } from "@/ee/ea-import/services/ea-import-service.ts";
+import { modals } from "@mantine/modals";
 import { notifications } from "@mantine/notifications";
 import { treeDataAtom } from "@/features/page/tree/atoms/tree-data-atom.ts";
 import { useAtom } from "jotai";
@@ -98,6 +99,10 @@ function ImportFormatSelection({ spaceId, onClose }: ImportFormatSelection) {
   const confluenceFileRef = useRef<() => void>(null);
   const zipFileRef = useRef<() => void>(null);
   const eaFileRef = useRef<() => void>(null);
+  const pendingEaFileRef = useRef<File | null>(null);
+  const handleEaUploadRef = useRef<
+    ((file: File, replace?: boolean) => Promise<void>) | null
+  >(null);
 
   const canUseConfluence = useHasFeature(Feature.CONFLUENCE_IMPORT);
   const canUseDocx = useHasFeature(Feature.DOCX_IMPORT);
@@ -177,6 +182,35 @@ function ImportFormatSelection({ spaceId, onClose }: ImportFormatSelection) {
       try {
         const fileTask = await getFileTaskById(fileTaskId);
         const status = fileTask.status;
+
+        if ((fileTask.metadata as any)?.duplicate === true) {
+          clearInterval(intervalId);
+          setFileTaskId(null);
+          notifications.hide("import");
+          const pendingFile = pendingEaFileRef.current;
+          modals.openConfirmModal({
+            title: t("Package already imported"),
+            children: (
+              <Text size="sm">
+                {t(
+                  "This Enterprise Architect package was already imported into this space. Replace the existing pages with a fresh import, or skip?",
+                )}
+              </Text>
+            ),
+            centered: true,
+            labels: {
+              confirm: t("Replace"),
+              cancel: t("Skip"),
+            },
+            confirmProps: { color: "red" },
+            onConfirm: () => {
+              if (pendingFile) {
+                void handleEaUploadRef.current?.(pendingFile, true);
+              }
+            },
+          });
+          return;
+        }
 
         if ((fileTask.metadata as any)?.skipped === true) {
           notifications.update({
@@ -349,7 +383,7 @@ function ImportFormatSelection({ spaceId, onClose }: ImportFormatSelection) {
     }
   };
 
-  const handleEaUpload = async (selectedFile: File) => {
+  const handleEaUpload = async (selectedFile: File, replace = false) => {
     if (!selectedFile) {
       return;
     }
@@ -365,6 +399,8 @@ function ImportFormatSelection({ spaceId, onClose }: ImportFormatSelection) {
       return;
     }
 
+    pendingEaFileRef.current = selectedFile;
+
     try {
       onClose();
 
@@ -377,7 +413,7 @@ function ImportFormatSelection({ spaceId, onClose }: ImportFormatSelection) {
         autoClose: false,
       });
 
-      const task = await importEaXml(selectedFile, spaceId);
+      const task = await importEaXml(selectedFile, spaceId, replace);
 
       notifications.update({
         id: "import",
@@ -407,6 +443,7 @@ function ImportFormatSelection({ spaceId, onClose }: ImportFormatSelection) {
       });
     }
   };
+  handleEaUploadRef.current = handleEaUpload;
 
   // @ts-ignore
   return (

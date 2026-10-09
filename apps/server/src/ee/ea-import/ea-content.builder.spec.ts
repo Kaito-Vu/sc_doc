@@ -150,6 +150,9 @@ describe('buildDiagramHtml', () => {
       '<img src="/api/files/att-1/d.png" data-attachment-id="att-1" width="800" data-align="center">';
     const html = buildDiagramHtml(node, new Map([['D1', imageHtml]]));
     expect(html).toContain(imageHtml);
+    expect(html).not.toContain(
+      'Wireframe images are not embedded in the EA export.',
+    );
   });
 });
 

@@ -58,7 +58,7 @@ export class EaImportController {
     let file = null;
     try {
       file = await req.file({
-        limits: { fileSize: maxSize, fields: 1, files: 1 },
+        limits: { fileSize: maxSize, fields: 2, files: 1 },
       });
     } catch (err: any) {
       this.logger.error(err.message);
@@ -83,6 +83,7 @@ export class EaImportController {
     }
 
     const spaceId = file.fields?.spaceId?.value;
+    const replace = file.fields?.replace?.value === '1';
 
     if (!spaceId) {
       throw new BadRequestException('spaceId is required');
@@ -98,6 +99,7 @@ export class EaImportController {
       user.id,
       spaceId,
       workspace.id,
+      replace,
     );
   }
 }
