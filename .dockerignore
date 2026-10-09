@@ -1,8 +1,32 @@
-**/node_modules
-**/.git
-**/dist
-/data
-**/.env*
+# --- Version control / editors / tooling -----------------------------------
+.git
+.gitignore
+.vscode
+.idea
+.github
+.claude
+.codegraph
+.gitnexus
 **/.nx
+
+# --- Docker / CI metadata (not needed inside the image) --------------------
+Dockerfile
+Dockerfile.*
+docker-compose*.yml
+/*.md
+
+# --- Docs & samples --------------------------------------------------------
+docs
+samples
 _ee_dist_extract/
-samples/
+
+# --- Dependencies & build output -------------------------------------------
+**/node_modules
+**/dist
+
+# --- Local runtime data & secrets ------------------------------------------
+/data
+data
+**/.env*
+**/*.log
+**/coverage
