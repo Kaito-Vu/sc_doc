@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  Body,
   Controller,
   ForbiddenException,
   HttpCode,
@@ -23,10 +24,16 @@ import { FileInterceptor } from '../../common/interceptors/file.interceptor';
 import { EnvironmentService } from '../../integrations/environment/environment.service';
 import { Feature } from '../../common/features';
 import { RequireFeature } from '../common/decorators/require-feature.decorator';
+import { IsUUID } from 'class-validator';
 import * as bytes from 'bytes';
 import * as path from 'path';
 import { EaImportMode, EaImportService } from './ea-import.service';
 import { EA_IMPORT_MAX_FILE_SIZE } from './ea-import.constants';
+
+class EaCancelDto {
+  @IsUUID()
+  fileTaskId: string;
+}
 
 const VALID_FILE_EXTENSIONS = ['.xml', '.xmi', '.zip'];
 
@@ -102,6 +109,31 @@ export class EaImportController {
       spaceId,
       workspace.id,
       mode,
+    );
+  }
+
+  @HttpCode(HttpStatus.OK)
+  @Post('import-ea/active')
+  @RequireFeature(Feature.EA_IMPORT)
+  async activeImports(
+    @AuthUser() user: User,
+    @AuthWorkspace() workspace: Workspace,
+  ) {
+    return this.eaImportService.listActive(user.id, workspace.id);
+  }
+
+  @HttpCode(HttpStatus.OK)
+  @Post('import-ea/cancel')
+  @RequireFeature(Feature.EA_IMPORT)
+  async cancelImport(
+    @Body() dto: EaCancelDto,
+    @AuthUser() user: User,
+    @AuthWorkspace() workspace: Workspace,
+  ) {
+    await this.eaImportService.cancelEaImport(
+      dto.fileTaskId,
+      user.id,
+      workspace.id,
     );
   }
 }

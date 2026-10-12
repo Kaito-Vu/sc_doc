@@ -38,7 +38,7 @@ overrides:
   yaml@>=2.0.0 <2.8.3: 2.8.3
   path-to-regexp@^8: 8.4.0
   brace-expansion@^5: 5.0.9
-  '@xmldom/xmldom': 0.8.13
+  '@xmldom/xmldom': 0.9.12
   handlebars: 4.7.9
   axios: 1.18.1
   langsmith: 0.7.0
@@ -54,6 +54,7 @@ overrides:
   js-yaml@>=3.0.0 <3.15.2: 3.15.2
   js-yaml@>=4.0.0 <4.3.2: 4.3.2
   smol-toml@<1.7.1: 1.7.1
+  proxy-addr: 2.0.8
 
 shamefullyHoist: true
 minimumReleaseAge: 4320

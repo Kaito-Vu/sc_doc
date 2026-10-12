@@ -26,6 +26,7 @@ const Spaces = lazy(() => import("@/pages/settings/space/spaces.tsx"));
 const AccountPreferences = lazy(
   () => import("@/pages/settings/account/account-preferences.tsx"),
 );
+import SpaceAccessGuard from "@/ee/space-access/space-access-guard.tsx";
 const SpaceHome = lazy(() => import("@/pages/space/space-home.tsx"));
 const PageRedirect = lazy(() => import("@/pages/page/page-redirect.tsx"));
 const InviteSignup = lazy(() => import("@/pages/auth/invite-signup.tsx"));
@@ -159,13 +160,15 @@ export default function App() {
             path={"/templates/:templateId"}
             element={<TemplateEditor />}
           />
-          <Route path={"/s/:spaceSlug"} element={<SpaceHome />} />
-          <Route path={"/s/:spaceSlug/trash"} element={<SpaceTrash />} />
+          <Route element={<SpaceAccessGuard />}>
+            <Route path={"/s/:spaceSlug"} element={<SpaceHome />} />
+            <Route path={"/s/:spaceSlug/trash"} element={<SpaceTrash />} />
+            <Route
+              path={"/s/:spaceSlug/p/:pageSlug"}
+              element={<Page />}
+            />
+          </Route>
           <Route path={"/review/:pageSlug"} element={<ReviewPage />} />
-          <Route
-            path={"/s/:spaceSlug/p/:pageSlug"}
-            element={<Page />}
-          />
 
           <Route path={"/base/:pageId"} element={<BasePage />} />
 

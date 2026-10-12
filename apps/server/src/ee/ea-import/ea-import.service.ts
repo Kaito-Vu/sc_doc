@@ -1,4 +1,9 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { MultipartFile } from '@fastify/multipart';
 import { InjectKysely } from 'nestjs-kysely';
 import { KyselyDB } from '@docmost/db/types/kysely.types';
@@ -60,7 +65,11 @@ import {
 import { EaAttachmentService } from './ea-attachment.service';
 import { EaHtmlReportService } from './ea-html-report.service';
 import { eaRtfImagePlaceholder } from './rtf-to-html';
-import { EA_IMPORT_JOB, EA_IMPORT_QUEUE } from './ea-import.constants';
+import {
+  EA_IMPORT_JOB,
+  EA_IMPORT_QUEUE,
+  EA_STATUS_CANCELED,
+} from './ea-import.constants';
 import { eaRootSignature } from './ea-import.util';
 
 const EA_SOURCE = 'ea';
@@ -100,6 +109,12 @@ interface PreparedPage {
   title: string;
   content: any;
   ydoc: Buffer | null;
+}
+
+class EaImportCanceledError extends Error {
+  constructor() {
+    super('EA import canceled');
+  }
 }
 
 function errorMessage(error: unknown): string {
@@ -175,7 +190,11 @@ export class EaImportService {
       .returningAll()
       .executeTakeFirstOrThrow();
 
-    await this.eaImportQueue.add(EA_IMPORT_JOB, { fileTaskId, mode });
+    await this.eaImportQueue.add(
+      EA_IMPORT_JOB,
+      { fileTaskId, mode },
+      { jobId: fileTaskId },
+    );
 
     return fileTask;
   }
@@ -201,7 +220,8 @@ export class EaImportService {
 
     if (
       fileTask.status === FileTaskStatus.Success ||
-      fileTask.status === FileTaskStatus.Failed
+      fileTask.status === FileTaskStatus.Failed ||
+      fileTask.status === EA_STATUS_CANCELED
     ) {
       this.logger.log(`EA import task ${fileTaskId} already processed`);
       return;
@@ -240,11 +260,85 @@ export class EaImportService {
 
       await this.deleteStoredFile(fileTask.filePath);
     } catch (error) {
-      await this.markTaskFailed(fileTaskId, errorMessage(error));
+      if (error instanceof EaImportCanceledError) {
+        this.logger.log(`EA import task ${fileTaskId} canceled`);
+      } else {
+        await this.markTaskFailed(fileTaskId, errorMessage(error));
+      }
       if (fileTask.filePath) {
         await this.deleteStoredFile(fileTask.filePath);
       }
-      throw error;
+      if (!(error instanceof EaImportCanceledError)) {
+        throw error;
+      }
+    }
+  }
+
+  /** Active (processing) EA imports of a user, so the client can resume tracking after a reload. */
+  async listActive(userId: string, workspaceId: string): Promise<FileTask[]> {
+    return this.db
+      .selectFrom('fileTasks')
+      .selectAll()
+      .where('source', '=', EA_SOURCE)
+      .where('type', '=', FileTaskType.Import)
+      .where('status', '=', FileTaskStatus.Processing)
+      .where('creatorId', '=', userId)
+      .where('workspaceId', '=', workspaceId)
+      .orderBy('createdAt', 'asc')
+      .execute();
+  }
+
+  /**
+   * Cancel a processing import. The worker notices on its next checkpoint (a
+   * status guard on the progress update) and stops before pages are committed.
+   */
+  async cancelEaImport(
+    fileTaskId: string,
+    userId: string,
+    workspaceId: string,
+  ): Promise<void> {
+    const canceled = await this.db
+      .updateTable('fileTasks')
+      .set({ status: EA_STATUS_CANCELED, updatedAt: new Date() })
+      .where('id', '=', fileTaskId)
+      .where('source', '=', EA_SOURCE)
+      .where('creatorId', '=', userId)
+      .where('workspaceId', '=', workspaceId)
+      .where('status', '=', FileTaskStatus.Processing)
+      .returning('filePath')
+      .executeTakeFirst();
+    if (!canceled) {
+      throw new NotFoundException('No running import found');
+    }
+
+    // Still waiting in the queue: drop it, the worker will never see it.
+    const job = await this.eaImportQueue.getJob(fileTaskId);
+    if (job && (await job.isWaiting())) {
+      await job.remove().catch(() => undefined);
+      if (canceled.filePath) {
+        await this.deleteStoredFile(canceled.filePath);
+      }
+    }
+  }
+
+  /**
+   * Record progress (0-100) in the task metadata. The update only matches
+   * while the task is still processing, so a canceled task aborts the import.
+   */
+  private async checkpoint(taskId: string, progress: number): Promise<void> {
+    const row = await this.db
+      .updateTable('fileTasks')
+      .set({
+        metadata: sql`coalesce(metadata, '{}'::jsonb) || ${JSON.stringify({
+          progress: Math.round(progress),
+        })}::jsonb` as any,
+      })
+      .where('id', '=', taskId)
+      .where('status', '=', FileTaskStatus.Processing)
+      .returning('id')
+      .executeTakeFirst();
+    if (!row) {
+      throw new EaImportCanceledError();
     }
   }
 
@@ -265,6 +359,7 @@ export class EaImportService {
           updatedAt: new Date(),
         })
         .where('id', '=', fileTaskId)
+        .where('status', '=', FileTaskStatus.Processing)
         .execute();
     } catch (error) {
       this.logger.error('Failed to mark EA import task as failed', error);
@@ -318,6 +413,8 @@ export class EaImportService {
     mode?: EaImportMode;
   }): Promise<{ result: EaImportResult; metadata: EaImportMetadata }> {
     const { buffer, fileName, workspaceId, spaceId, creatorId, mode } = opts;
+    const taskId = opts.fileTask.id;
+    await this.checkpoint(taskId, 2);
 
     let parsed: EaParseResult;
     let byKey = new Map<string, EaImageAsset>();
@@ -335,6 +432,7 @@ export class EaImportService {
         const result = await this.htmlReportService.importHtmlReport({
           buffer,
           fileTask: opts.fileTask,
+          onProgress: (pct) => this.checkpoint(taskId, pct),
           spaceId,
           workspaceId,
           creatorId,
@@ -363,6 +461,7 @@ export class EaImportService {
       parsed = this.parseDocument(buffer);
     }
 
+    await this.checkpoint(taskId, 10);
     const warnings: EaParseWarning[] = [...parsed.warnings];
 
     if (parsed.roots.length === 0) {
@@ -451,10 +550,12 @@ export class EaImportService {
     }
 
     const documentContent = await this.convertDocuments(prepared, warnings);
+    await this.checkpoint(taskId, 25);
 
     const imageBudget = { count: 0, bytes: 0 };
 
-    for (const page of prepared) {
+    for (const [index, page] of prepared.entries()) {
+      await this.checkpoint(taskId, 25 + (65 * index) / prepared.length);
       const { node } = page;
       const isRoot = node.parentId === null;
       const stripped = isRoot
@@ -534,6 +635,9 @@ export class EaImportService {
 
     const pageIds: string[] = [];
     const rootPageIds: string[] = [];
+
+    // Last cancellable point: the transaction below commits all pages at once.
+    await this.checkpoint(taskId, 92);
 
     await executeTx(this.db, async (trx) => {
       for (const page of prepared) {

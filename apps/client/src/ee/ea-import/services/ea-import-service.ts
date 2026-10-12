@@ -23,3 +23,12 @@ export async function importEaXml(
 
   return req.data;
 }
+
+export async function getActiveEaImports(): Promise<IFileTask[]> {
+  const req = await api.post<IFileTask[]>("/pages/import-ea/active");
+  return req.data;
+}
+
+export async function cancelEaImport(fileTaskId: string): Promise<void> {
+  await api.post("/pages/import-ea/cancel", { fileTaskId });
+}

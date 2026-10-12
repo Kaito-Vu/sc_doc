@@ -91,6 +91,7 @@ export class EaHtmlReportService {
     spaceId: string;
     workspaceId: string;
     creatorId: string;
+    onProgress?: (percent: number) => Promise<void>;
   }): Promise<EaHtmlReportResult> {
     const { buffer, fileTask, spaceId, workspaceId, creatorId } = opts;
 
@@ -142,7 +143,8 @@ export class EaHtmlReportService {
         ydoc: Buffer | null;
       }> = [];
 
-      for (const page of pages) {
+      for (const [index, page] of pages.entries()) {
+        await opts.onProgress?.(10 + (80 * index) / pages.length);
         const pageId = v7();
         const html = page.html.toString('utf-8');
         const fallback = fileStem(page.relativePath) || 'Untitled';

@@ -24,6 +24,7 @@ import {
   importZip,
 } from "@/features/page/services/page-service.ts";
 import { importEaXml } from "@/ee/ea-import/services/ea-import-service.ts";
+import { trackEaImport } from "@/ee/ea-import/ea-import-tracker.tsx";
 import type { EaImportMode } from "@/ee/ea-import/services/ea-import-service.ts";
 import { modals } from "@mantine/modals";
 import { notifications } from "@mantine/notifications";
@@ -432,18 +433,8 @@ function ImportFormatSelection({ spaceId, onClose }: ImportFormatSelection) {
 
       const task = await importEaXml(selectedFile, spaceId, mode);
 
-      notifications.update({
-        id: "import",
-        title: t("Importing pages"),
-        message: t(
-          "Page import is in progress. You can check back later if this takes longer.",
-        ),
-        loading: true,
-        withCloseButton: true,
-        autoClose: false,
-      });
-
-      setFileTaskId(task.id);
+      notifications.hide("import");
+      trackEaImport(task, selectedFile);
 
       eaFileRef.current?.();
     } catch (err) {
