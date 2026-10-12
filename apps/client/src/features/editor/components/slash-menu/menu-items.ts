@@ -12,6 +12,7 @@ import {
   IconLetterH,
   IconInfoCircle,
   IconLayoutKanban,
+  IconLayoutNavbar,
   IconList,
   IconListNumbers,
   IconMath,
@@ -40,6 +41,7 @@ import {
   CommandProps,
   SlashMenuGroupedItemsType,
 } from "@/features/editor/components/slash-menu/types";
+import type { Editor } from "@tiptap/core";
 import { uploadImageAction } from "@/features/editor/components/image/upload-image-action.tsx";
 import { uploadVideoAction } from "@/features/editor/components/video/upload-video-action.tsx";
 import { uploadAudioAction } from "@/features/editor/components/audio/upload-audio-action.tsx";
@@ -468,6 +470,15 @@ const CommandGroups: SlashMenuGroupedItemsType = {
         editor.chain().focus().deleteRange(range).setDetails().run(),
     },
     {
+      title: "Tabs",
+      description: "Insert a multi-tab content block.",
+      searchTerms: ["tabs", "tabbed", "multi", "panel"],
+      icon: IconLayoutNavbar,
+      disable: (editor) => !editor.can().insertTabs(),
+      command: ({ editor, range }: CommandProps) =>
+        editor.chain().focus().deleteRange(range).insertTabs().run(),
+    },
+    {
       title: "Callout",
       description: "Insert callout notice.",
       searchTerms: [
@@ -866,9 +877,11 @@ const CommandGroups: SlashMenuGroupedItemsType = {
 
 export const getSuggestionItems = ({
   query,
+  editor,
   excludeItems,
 }: {
   query: string;
+  editor?: Editor;
   excludeItems?: Set<string>;
 }): SlashMenuGroupedItemsType => {
   const search = query.toLowerCase();
@@ -887,6 +900,7 @@ export const getSuggestionItems = ({
   for (const [group, items] of Object.entries(CommandGroups)) {
     const filteredItems = items.filter((item) => {
       if (excludeItems?.has(item.title)) return false;
+      if (editor && item.disable?.(editor)) return false;
       const translatedTitle = i18n.t(item.title);
       const translatedDescription = i18n.t(item.description);
       return (

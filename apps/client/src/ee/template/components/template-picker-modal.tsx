@@ -37,6 +37,8 @@ type TemplatePickerModalProps = {
   initialSpaceId?: string;
   /** When set alongside initialSpaceId, the created page becomes a child of this page. */
   initialParentPageId?: string;
+  /** Receives the chosen template instead of creating a page from it. */
+  onUse?: (template: ITemplate) => void;
 };
 
 type TemplateSection = {
@@ -50,6 +52,7 @@ export default function TemplatePickerModal({
   onClose,
   initialSpaceId,
   initialParentPageId,
+  onUse,
 }: TemplatePickerModalProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -122,6 +125,11 @@ export default function TemplatePickerModal({
   };
 
   const handleQuickUse = (tpl: ITemplate) => {
+    if (onUse) {
+      onUse(tpl);
+      handleClose();
+      return;
+    }
     if (initialSpaceId) {
       createInInitialSpace(tpl);
       return;
@@ -135,6 +143,11 @@ export default function TemplatePickerModal({
   };
 
   const handlePreviewUse = () => {
+    if (onUse && previewTemplate) {
+      onUse(previewTemplate);
+      handleClose();
+      return;
+    }
     if (initialSpaceId && previewTemplate) {
       createInInitialSpace(previewTemplate);
       return;
