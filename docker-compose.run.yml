@@ -61,10 +61,10 @@ services:
     security_opt:
       - no-new-privileges:true
     volumes:
-      - docmost:/app/data/storage
+      - ./data/docmost:/app/data/storage
     logging: *default-logging
     healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:3000/api/health"]
+      test: ["CMD", "/nodejs/bin/node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
       interval: 30s
       timeout: 5s
       start_period: 30s
@@ -78,7 +78,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
     restart: unless-stopped
     volumes:
-      - db_data:/var/lib/postgresql
+      - ./data/db:/var/lib/postgresql
     logging: *default-logging
     security_opt:
       - no-new-privileges:true
@@ -94,7 +94,7 @@ services:
     command: ["redis-server", "--appendonly", "yes", "--maxmemory-policy", "noeviction"]
     restart: unless-stopped
     volumes:
-      - redis_data:/data
+      - ./data/redis:/data
     logging: *default-logging
     security_opt:
       - no-new-privileges:true

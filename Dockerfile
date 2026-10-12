@@ -48,44 +48,45 @@ COPY . .
 RUN pnpm build
 
 # ---------------------------------------------------------------------------
-# installer: production runtime image.
+# prod: assemble /app (built output + production-only node_modules).
+# Runs on the full base image because it needs pnpm; nothing from this stage
+# except /app reaches the final image.
 # ---------------------------------------------------------------------------
-FROM base AS installer
+FROM base AS prod
 
 ENV NODE_ENV=production
 
-RUN apt-get update \
-  && apt-get install -y --no-install-recommends curl bash tini ca-certificates \
-  && rm -rf /var/lib/apt/lists/*
-
 WORKDIR /app
 
-# Copy built apps
 COPY --from=builder /app/apps/server/dist ./apps/server/dist
 COPY --from=builder /app/apps/client/dist ./apps/client/dist
 COPY --from=builder /app/apps/server/package.json ./apps/server/package.json
 
-# Copy built workspace packages
 COPY --from=builder /app/packages/editor-ext/dist ./packages/editor-ext/dist
 COPY --from=builder /app/packages/editor-ext/package.json ./packages/editor-ext/package.json
 COPY --from=builder /app/packages/base-formula/dist ./packages/base-formula/dist
 COPY --from=builder /app/packages/base-formula/package.json ./packages/base-formula/package.json
 
-# Copy root workspace manifests + patches required by the filtered prod install
 COPY --from=builder /app/package.json /app/package.json
 COPY --from=builder /app/pnpm-lock.yaml /app/pnpm-lock.yaml
 COPY --from=builder /app/pnpm-workspace.yaml /app/pnpm-workspace.yaml
 COPY --from=builder /app/patches /app/patches
 
-# Install production deps for the server (and its workspace deps) as root,
-# then drop the global package manager and hand the tree to the node user.
-RUN --mount=type=cache,id=pnpm-store,target=/pnpm-store,sharing=locked,uid=1000,gid=1000 \
-  pnpm --filter "./apps/server..." install --frozen-lockfile --prod --store-dir=/pnpm-store \
-  && mkdir -p /app/data/storage \
-  && npm uninstall -g pnpm \
-  && chown -R node:node /app
+RUN --mount=type=cache,id=pnpm-store,target=/pnpm-store,sharing=locked,uid=1000,gid=1000   pnpm --filter "./apps/server..." install --frozen-lockfile --prod --store-dir=/pnpm-store   && mkdir -p /app/data/storage   && chown -R 1000:1000 /app
 
-USER node
+# ---------------------------------------------------------------------------
+# installer: distroless runtime (no shell, no package manager, no apt/curl).
+# Must stay on the same Node major as `base` — native addons are built there.
+# uid 1000 matches the old `node` user, so existing storage volumes keep
+# working. Run with `init: true` (compose) for PID 1 signal/zombie handling.
+# ---------------------------------------------------------------------------
+FROM gcr.io/distroless/nodejs${NODE_VERSION}-debian13 AS installer
+
+ENV NODE_ENV=production
+
+COPY --from=prod --chown=1000:1000 /app /app
+
+USER 1000:1000
 
 VOLUME ["/app/data/storage"]
 
@@ -94,10 +95,7 @@ EXPOSE 3000
 # Set CWD to apps/server so relative storage resolves correctly (/app/data/storage)
 WORKDIR /app/apps/server
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=5 \
-  CMD curl -fsS http://127.0.0.1:3000/api/health || exit 1
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=5   CMD ["/nodejs/bin/node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
 
-# tini as PID 1 reaps zombies and forwards signals to Node.
-ENTRYPOINT ["/usr/bin/tini", "--"]
-
-CMD ["node", "dist/main"]
+# Image entrypoint is already `node`.
+CMD ["dist/main"]
