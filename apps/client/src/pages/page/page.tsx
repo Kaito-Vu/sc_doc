@@ -185,6 +185,7 @@ function PageContent({ pageSlug }: { pageSlug: string | undefined }) {
             title={page.title}
             content={page.content}
             slugId={page.slugId}
+            spaceId={page.spaceId}
             spaceSlug={page?.space?.slug}
             editable={canEdit}
             creator={page.creator}

@@ -28,7 +28,6 @@ import { IsUUID } from 'class-validator';
 import * as bytes from 'bytes';
 import * as path from 'path';
 import { EaImportMode, EaImportService } from './ea-import.service';
-import { EA_IMPORT_MAX_FILE_SIZE } from './ea-import.constants';
 
 class EaCancelDto {
   @IsUUID()
@@ -57,10 +56,8 @@ export class EaImportController {
     @AuthUser() user: User,
     @AuthWorkspace() workspace: Workspace,
   ) {
-    const maxSize = Math.min(
-      bytes(this.environmentService.getFileImportSizeLimit()),
-      bytes(EA_IMPORT_MAX_FILE_SIZE),
-    );
+    const sizeLimit = this.environmentService.getFileImportSizeLimit();
+    const maxSize = bytes(sizeLimit);
 
     let file = null;
     try {
@@ -71,7 +68,7 @@ export class EaImportController {
       this.logger.error(err.message);
       if (err?.statusCode === 413) {
         throw new BadRequestException(
-          `File too large. Exceeds the ${EA_IMPORT_MAX_FILE_SIZE} import limit`,
+          `File too large. Exceeds the ${sizeLimit} import limit`,
         );
       }
       throw new BadRequestException('Failed to upload file');

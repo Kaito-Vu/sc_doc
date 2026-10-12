@@ -36,9 +36,8 @@ import {
   getFileTaskFolderPath,
 } from '../../integrations/import/utils/file.utils';
 import { StorageService } from '../../integrations/storage/storage.service';
-import { parseEaXmi } from './ea-xmi.parser';
-import { isBpmnDocument, parseEaBpmn } from './ea-bpmn.parser';
-import { isEaNativeDocument, parseEaNative } from './ea-native.parser';
+import { generateJitteredKeyBetween } from 'fractional-indexing-jittered';
+import { runEaCpuJobs } from './ea-cpu.pool';
 import {
   EaImageAsset,
   EaPackageNode,
@@ -77,6 +76,27 @@ const EA_SOURCE = 'ea';
 /** Duplicate-import resolution chosen by the user in the client dialog. */
 export type EaImportMode = 'replace' | 'keep';
 
+const IMAGE_UPLOAD_CONCURRENCY = 4;
+const INSERT_BATCH = 20;
+/** Parse on a worker thread above this size; smaller files parse faster inline. */
+const PARSE_WORKER_MIN_BYTES = 512 * 1024;
+
+/** Run `fn` over `items` with at most `limit` in flight. */
+async function mapLimit<T>(
+  items: T[],
+  limit: number,
+  fn: (item: T) => Promise<void>,
+): Promise<void> {
+  let next = 0;
+  await Promise.all(
+    Array.from({ length: Math.min(limit, items.length) }, async () => {
+      while (next < items.length) {
+        await fn(items[next++]);
+      }
+    }),
+  );
+}
+
 const MAX_PAGES = 300;
 const MAX_TOTAL_RTF_BYTES = 96 * 1024 * 1024;
 const MAX_SINGLE_DOC_BYTES = 32 * 1024 * 1024;
@@ -105,6 +125,7 @@ export interface EaImportMetadata {
 interface PreparedPage {
   node: EaPackageNode;
   id: string;
+  slugId: string;
   parentPageId: string | null;
   title: string;
   content: any;
@@ -380,21 +401,22 @@ export class EaImportService {
   }
 
   /**
-   * Parse an EA export buffer, dispatching on whether it is a native EA table
-   * export, BPMN 2.0 XML or an XMI/UML model, and surfacing parse failures
-   * with a clear message.
+   * Parse an EA export buffer (native EA table export, BPMN 2.0 XML or XMI/UML)
+   * on a worker thread so a large file does not block the API event loop,
+   * surfacing parse failures with a clear message.
    */
-  private parseDocument(buffer: Buffer): EaParseResult {
-    try {
-      if (isEaNativeDocument(buffer)) {
-        return parseEaNative(buffer);
-      }
-      return isBpmnDocument(buffer) ? parseEaBpmn(buffer) : parseEaXmi(buffer);
-    } catch (error) {
+  private async parseDocument(buffer: Buffer): Promise<EaParseResult> {
+    const result = (
+      await runEaCpuJobs([{ kind: 'parse', id: 'parse', buffer }], undefined, {
+        forceWorkers: buffer.length > PARSE_WORKER_MIN_BYTES,
+      })
+    ).get('parse');
+    if (!result?.parsed) {
       throw new Error(
-        `Invalid Enterprise Architect file: ${errorMessage(error)}`,
+        `Invalid Enterprise Architect file: ${result?.error ?? 'parse failed'}`,
       );
     }
+    return result.parsed;
   }
 
   /**
@@ -450,7 +472,7 @@ export class EaImportService {
         };
       }
 
-      parsed = this.parseDocument(inspection.xmi);
+      parsed = await this.parseDocument(inspection.xmi);
       byKey = new Map(
         inspection.images.map((image) => [
           normalizeAssetKey(image.fileName),
@@ -458,14 +480,17 @@ export class EaImportService {
         ]),
       );
     } else {
-      parsed = this.parseDocument(buffer);
+      parsed = await this.parseDocument(buffer);
     }
 
     await this.checkpoint(taskId, 10);
     const warnings: EaParseWarning[] = [...parsed.warnings];
 
     if (parsed.roots.length === 0) {
-      throw new Error('No importable Enterprise Architect content found');
+      const reason = parsed.warnings[0]?.reason;
+      throw new Error(
+        `No importable Enterprise Architect content found${reason ? ` (${reason})` : ''}`,
+      );
     }
 
     const eaRootId = eaRootSignature(parsed.roots);
@@ -519,16 +544,20 @@ export class EaImportService {
     // (and inserted) before their children.
     const prepared: PreparedPage[] = [];
     const pageIdByNode = new Map<EaPackageNode, string>();
+    const slugIdByNode = new Map<EaPackageNode, string>();
     const queue: Array<{ node: EaPackageNode; parent: EaPackageNode | null }> =
       parsed.roots.map((node) => ({ node, parent: null }));
 
     while (queue.length > 0) {
       const { node, parent } = queue.shift()!;
       const id = v7();
+      const slugId = generateSlugId();
       pageIdByNode.set(node, id);
+      slugIdByNode.set(node, slugId);
       prepared.push({
         node,
         id,
+        slugId,
         parentPageId: parent ? pageIdByNode.get(parent) ?? null : null,
         title: '',
         content: null,
@@ -554,8 +583,12 @@ export class EaImportService {
 
     const imageBudget = { count: 0, bytes: 0 };
 
-    for (const [index, page] of prepared.entries()) {
-      await this.checkpoint(taskId, 25 + (65 * index) / prepared.length);
+    // Phase A (I/O bound): build each page's HTML, uploading its images.
+    const htmlByPage = new Map<string, { html: string; title: string }>();
+    let built = 0;
+    await mapLimit(prepared, IMAGE_UPLOAD_CONCURRENCY, async (page) => {
+      await this.checkpoint(taskId, 25 + (35 * built) / prepared.length);
+      built += 1;
       const { node } = page;
       const isRoot = node.parentId === null;
       const stripped = isRoot
@@ -606,31 +639,48 @@ export class EaImportService {
       } else if (node.diagrams.length > 0) {
         html = buildDiagramHtml(node, imageHtmlById);
       } else {
-        html = buildContainerHtml(node, stripped.code);
+        html = buildContainerHtml(
+          node,
+          stripped.code,
+          node.children.map((child) => ({
+            id: pageIdByNode.get(child)!,
+            slugId: slugIdByNode.get(child)!,
+            title: (child.name || 'Untitled').normalize('NFC'),
+            creatorId,
+          })),
+        );
       }
+      htmlByPage.set(page.id, { html, title });
+      page.title = title;
+    });
 
-      try {
-        const prosemirrorJson = await this.importService.processHTML(html);
-        const content = stripDuplicateLeadingHeading(prosemirrorJson, title);
-        page.title = title;
-        page.content = content;
-        page.ydoc = await this.importService.createYdoc(content);
-      } catch (error) {
+    // Phase B (CPU bound): HTML -> ProseMirror -> Yjs on worker threads.
+    let converted = 0;
+    const pageResults = await runEaCpuJobs(
+      prepared.map((page) => ({
+        kind: 'page' as const,
+        id: page.id,
+        html: htmlByPage.get(page.id)!.html,
+        title: htmlByPage.get(page.id)!.title,
+      })),
+      async () => {
+        converted += 1;
+        await this.checkpoint(taskId, 60 + (30 * converted) / prepared.length);
+      },
+    );
+    for (const page of prepared) {
+      const result = pageResults.get(page.id);
+      if (result?.error) {
         warnings.push({
-          page: title,
-          reason: `Failed to convert page content: ${errorMessage(error)}`,
+          page: page.title,
+          reason: `Failed to convert page content: ${result.error}`,
         });
-        page.title = title;
-        page.content = {
-          type: 'doc',
-          content: [{ type: 'paragraph', content: [] }],
-        };
-        try {
-          page.ydoc = await this.importService.createYdoc(page.content);
-        } catch {
-          page.ydoc = null;
-        }
       }
+      page.content = result?.content ?? {
+        type: 'doc',
+        content: [{ type: 'paragraph', content: [] }],
+      };
+      page.ydoc = result?.ydoc ? Buffer.from(result.ydoc) : null;
     }
 
     const pageIds: string[] = [];
@@ -640,16 +690,24 @@ export class EaImportService {
     await this.checkpoint(taskId, 92);
 
     await executeTx(this.db, async (trx) => {
+      // New parents have no children yet, so only the first root needs a DB
+      // lookup; every other position is chained in memory.
+      const lastPosition = new Map<string | null, string>();
+      const rows: InsertablePage[] = [];
       for (const page of prepared) {
-        const position = await this.pageService.nextPagePosition(
-          spaceId,
-          page.parentPageId ?? undefined,
-          trx,
-        );
+        const key = page.parentPageId;
+        const previous = lastPosition.get(key);
+        const position =
+          previous !== undefined
+            ? generateJitteredKeyBetween(previous, null)
+            : key === null
+              ? await this.pageService.nextPagePosition(spaceId, undefined, trx)
+              : generateJitteredKeyBetween(null, null);
+        lastPosition.set(key, position);
 
-        const insertable: InsertablePage = {
+        rows.push({
           id: page.id,
-          slugId: generateSlugId(),
+          slugId: page.slugId,
           title: page.title,
           content: page.content,
           textContent: jsonToText(page.content),
@@ -660,13 +718,18 @@ export class EaImportService {
           creatorId,
           lastUpdatedById: creatorId,
           parentPageId: page.parentPageId,
-        };
-
-        await trx.insertInto('pages').values(insertable).execute();
+        });
         pageIds.push(page.id);
         if (page.parentPageId === null) {
           rootPageIds.push(page.id);
         }
+      }
+      // Parents precede children (BFS order), so chunked inserts satisfy the FK.
+      for (let i = 0; i < rows.length; i += INSERT_BATCH) {
+        await trx
+          .insertInto('pages')
+          .values(rows.slice(i, i + INSERT_BATCH))
+          .execute();
       }
     });
 

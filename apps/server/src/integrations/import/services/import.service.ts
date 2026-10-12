@@ -50,7 +50,15 @@ export class ImportService {
     userId: string,
     spaceId: string,
     workspaceId: string,
+    parentPageId?: string,
   ) {
+    if (parentPageId) {
+      const parent = await this.pageRepo.findById(parentPageId);
+      if (!parent || parent.spaceId !== spaceId || parent.deletedAt) {
+        throw new BadRequestException('Invalid parent page');
+      }
+    }
+
     const file = await filePromise;
     const fileBuffer = await file.toBuffer();
     const fileExtension = path.extname(file.filename).toLowerCase();
@@ -111,10 +119,14 @@ export class ImportService {
 
     if (prosemirrorJson) {
       try {
-        const pagePosition = await this.getNewPagePosition(spaceId);
+        const pagePosition = await this.getNewPagePosition(
+          spaceId,
+          parentPageId,
+        );
 
         createdPage = await this.pageRepo.insertPage({
           ...(pageId ? { id: pageId } : {}),
+          parentPageId: parentPageId ?? null,
           slugId: generateSlugId(),
           title: pageTitle,
           content: prosemirrorJson,

@@ -1,5 +1,6 @@
 import * as yauzl from 'yauzl';
 import * as iconv from 'iconv-lite';
+import { v7 } from 'uuid';
 import { rtfToHtml } from './rtf-to-html';
 import {
   EaActivity,
@@ -435,21 +436,32 @@ export function buildDiagramHtml(
  * Container page content: the original EA name as a caption when a code prefix
  * was stripped, plus a short child summary.
  */
+export interface EaChildLink {
+  id: string;
+  slugId: string;
+  title: string;
+  creatorId: string;
+}
+
+function pageMentionHtml(link: EaChildLink): string {
+  return `<span data-type="mention" data-id="${v7()}" data-entity-type="page" data-entity-id="${link.id}" data-label="${escapeHtml(link.title)}" data-slug-id="${link.slugId}" data-creator-id="${link.creatorId}">${escapeHtml(link.title)}</span>`;
+}
+
 export function buildContainerHtml(
   node: EaPackageNode,
   code: string | null,
+  childLinks: EaChildLink[] = [],
 ): string {
   let html = '';
   if (code) {
     html += `<p><em>${escapeHtml(node.name)}</em></p>`;
   }
 
-  const children = node.children;
-  if (children.length > 0) {
+  if (childLinks.length > 0) {
     html += `<p>${escapeHtml(
-      String(children.length),
-    )} sub-sections:</p><ul>${children
-      .map((child) => `<li>${escapeHtml(child.name)}</li>`)
+      String(childLinks.length),
+    )} sub-sections:</p><ul>${childLinks
+      .map((link) => `<li><p>${pageMentionHtml(link)}</p></li>`)
       .join('')}</ul>`;
   } else {
     html += '<p></p>';

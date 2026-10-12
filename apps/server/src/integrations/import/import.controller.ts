@@ -95,6 +95,7 @@ export class ImportController {
       user.id,
       spaceId,
       workspace.id,
+      file.fields?.parentPageId?.value,
     );
 
     const ext = path.extname(file.filename).toLowerCase();

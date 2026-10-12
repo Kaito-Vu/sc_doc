@@ -406,7 +406,7 @@ function ImportFormatSelection({ spaceId, onClose }: ImportFormatSelection) {
       return;
     }
 
-    const maxEaFileSize = bytes("30mb");
+    const maxEaFileSize = getFileImportSizeLimit();
     if (selectedFile.size > maxEaFileSize) {
       notifications.show({
         color: "red",

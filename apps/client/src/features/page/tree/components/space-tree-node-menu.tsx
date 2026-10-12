@@ -15,6 +15,7 @@ import {
   IconTrash,
 } from "@tabler/icons-react";
 
+import { ImportSubPageMenuItem } from "@/ee/import-subpage/import-subpage-menu-item.tsx";
 import ExportModal from "@/components/common/export-modal";
 import MovePageModal from "@/features/page/components/move-page-modal.tsx";
 import CopyPageModal from "@/features/page/components/copy-page-modal.tsx";
@@ -225,6 +226,8 @@ export function NodeMenu({ node, canEdit }: NodeMenuProps) {
               >
                 {t("Copy to space")}
               </Menu.Item>
+
+              <ImportSubPageMenuItem node={node} />
 
               <Menu.Divider />
               <Menu.Item
