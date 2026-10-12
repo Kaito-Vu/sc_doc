@@ -1,0 +1,164 @@
+# ---------------------------------------------------------------------------
+# Docmost stack — RUN variant (no build; uses a pre-built/loaded image).
+#
+# For servers without internet access:
+#   1. On a dev machine:  docker build --platform linux/amd64 -t sc_doc:latest .
+#                         docker save sc_doc:latest | gzip > sc_doc.tar.gz
+#   2. On the server:     gunzip -c sc_doc.tar.gz | docker load
+#   3. Start:             docker compose -f docker-compose.run.yml up -d
+# Third-party images (postgres, redis, seaweedfs) must be loaded the same way.
+#
+# All secrets and tunables live in `.env` (git-ignored), NOT in this file.
+# Bootstrap once with:
+#   cp .env.example .env   # then fill in the values
+# ---------------------------------------------------------------------------
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  docmost:
+    image: ${DOCMOST_IMAGE:-sc_doc:latest}
+    pull_policy: never
+    init: true
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      seaweedfs:
+        condition: service_healthy
+      seaweedfs-init:
+        condition: service_completed_successfully
+    environment:
+      NODE_ENV: production
+      APP_URL: ${APP_URL:?set APP_URL in .env}
+      APP_SECRET: ${APP_SECRET:?set APP_SECRET in .env}
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-docmost}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@db:5432/${POSTGRES_DB:-docmost}"
+      REDIS_URL: redis://redis:6379
+      STORAGE_DRIVER: ${STORAGE_DRIVER:-s3}
+      AWS_S3_ENDPOINT: ${AWS_S3_ENDPOINT:-http://seaweedfs:8333}
+      AWS_S3_BUCKET: ${AWS_S3_BUCKET:-docmost}
+      AWS_S3_REGION: ${AWS_S3_REGION:-us-east-1}
+      AWS_S3_FORCE_PATH_STYLE: "${AWS_S3_FORCE_PATH_STYLE:-true}"
+      AWS_S3_ACCESS_KEY_ID: ${SEAWEEDFS_ACCESS_KEY:?set SEAWEEDFS_ACCESS_KEY in .env}
+      AWS_S3_SECRET_ACCESS_KEY: ${SEAWEEDFS_SECRET_KEY:?set SEAWEEDFS_SECRET_KEY in .env}
+      MAIL_DRIVER: ${MAIL_DRIVER:-smtp}
+      MAIL_FROM_ADDRESS: ${MAIL_FROM_ADDRESS:-}
+      MAIL_FROM_NAME: ${MAIL_FROM_NAME:-E-Doc}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_SECURE: "${SMTP_SECURE:-false}"
+      TZ: ${TZ:-Asia/Ho_Chi_Minh}
+    ports:
+      - "${DOCMOST_PORT:-8888}:3000"
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - docmost:/app/data/storage
+    logging: *default-logging
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      retries: 5
+
+  db:
+    image: postgres:18
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-docmost}
+      POSTGRES_USER: ${POSTGRES_USER:-docmost}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    restart: unless-stopped
+    volumes:
+      - db_data:/var/lib/postgresql
+    logging: *default-logging
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  redis:
+    image: redis:8
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory-policy", "noeviction"]
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    logging: *default-logging
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  seaweedfs:
+    image: chrislusf/seaweedfs:4.48
+    restart: unless-stopped
+    entrypoint: ["sh", "-c"]
+    # Exposed to the host on loopback only, for administration. The Docmost
+    # service reaches SeaweedFS over the internal compose network.
+    ports:
+      - "127.0.0.1:${SEAWEEDFS_MASTER_PORT:-9333}:9333"
+      - "127.0.0.1:${SEAWEEDFS_S3_PORT:-8686}:8888"
+    command:
+      - |
+        mkdir -p /etc/seaweedfs
+        cat > /etc/seaweedfs/s3.json <<'EOF'
+        {
+          "identities": [
+            {
+              "name": "docmost",
+              "credentials": [
+                {
+                  "accessKey": "${SEAWEEDFS_ACCESS_KEY}",
+                  "secretKey": "${SEAWEEDFS_SECRET_KEY}"
+                }
+              ],
+              "actions": ["Read", "Write", "List", "Tagging", "Admin"]
+            }
+          ]
+        }
+        EOF
+        exec weed server -dir=/data -s3 -s3.port=8333 -s3.config=/etc/seaweedfs/s3.json -ip=seaweedfs -master.volumeSizeLimitMB=1024
+    volumes:
+      - ./data/seaweedfs:/data
+    logging: *default-logging
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:9333/cluster/status"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  seaweedfs-init:
+    image: chrislusf/seaweedfs:4.48
+    restart: "no"
+    depends_on:
+      seaweedfs:
+        condition: service_healthy
+    entrypoint: ["sh", "-c"]
+    command:
+      - |
+        weed shell -master=seaweedfs:9333 -c "s3.bucket.create -name ${AWS_S3_BUCKET:-docmost}" || true
+    logging: *default-logging
+
+volumes:
+  docmost:
+  db_data:
+  redis_data:
