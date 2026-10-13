@@ -40,6 +40,7 @@ import { StorageService } from '../../integrations/storage/storage.service';
 import { generateJitteredKeyBetween } from 'fractional-indexing-jittered';
 import { runEaCpuJobs } from './ea-cpu.pool';
 import {
+  EaDiagram,
   EaImageAsset,
   EaPackageNode,
   EaParseWarning,
@@ -65,6 +66,7 @@ import {
 import { EaAttachmentService } from './ea-attachment.service';
 import { EaHtmlReportService } from './ea-html-report.service';
 import { eaRtfImagePlaceholder } from './rtf-to-html';
+import { buildWireframeDrawioSvg, drawioNodeHtml } from './ea-wireframe';
 import {
   EA_IMPORT_JOB,
   EA_IMPORT_QUEUE,
@@ -104,6 +106,8 @@ const MAX_SINGLE_DOC_BYTES = 32 * 1024 * 1024;
 const MAX_IMAGES = 200;
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 const MAX_TOTAL_IMAGE_BYTES = 64 * 1024 * 1024;
+/** Same file name the editor's draw.io macro saves. */
+const DRAWIO_FILE_NAME = 'diagram.drawio.svg';
 
 export interface EaImportResult {
   pageIds: string[];
@@ -1007,13 +1011,25 @@ export class EaImportService {
     }
 
     for (const diagram of node.diagrams) {
+      const key = diagram.diagramId ?? diagram.name;
       const asset =
         resolveImageForDiagram(diagram, byKey) ?? diagram.embeddedImage;
       if (!asset) {
+        if (diagram.wireframe?.length && !imageHtmlById.has(key)) {
+          const html = await this.uploadWireframeDrawio(
+            diagram,
+            pageId,
+            pageTitle,
+            context,
+            warnings,
+          );
+          if (html) {
+            imageHtmlById.set(key, html);
+          }
+        }
         continue;
       }
 
-      const key = diagram.diagramId ?? diagram.name;
       if (imageHtmlById.has(key)) {
         continue;
       }
@@ -1063,6 +1079,46 @@ export class EaImportService {
     }
 
     return imageHtmlById;
+  }
+
+  /**
+   * Turn a diagram's Wireframing controls into an editable draw.io node.
+   * Returns null (with a warning) when the upload fails.
+   */
+  private async uploadWireframeDrawio(
+    diagram: EaDiagram,
+    pageId: string,
+    pageTitle: string,
+    context: { workspaceId: string; spaceId: string; creatorId: string },
+    warnings: EaParseWarning[],
+  ): Promise<string | null> {
+    try {
+      const buffer = Buffer.from(
+        buildWireframeDrawioSvg(diagram.wireframe ?? []),
+        'utf-8',
+      );
+      const uploaded = await this.attachmentService.uploadImage({
+        buffer,
+        fileName: DRAWIO_FILE_NAME,
+        mimeType: 'image/svg+xml',
+        pageId,
+        workspaceId: context.workspaceId,
+        spaceId: context.spaceId,
+        creatorId: context.creatorId,
+      });
+      return drawioNodeHtml({
+        src: uploaded.apiFilePath,
+        attachmentId: uploaded.attachmentId,
+        fileName: DRAWIO_FILE_NAME,
+        size: buffer.length,
+      });
+    } catch (error) {
+      warnings.push({
+        page: pageTitle,
+        reason: `Failed to convert wireframe ${diagram.name} to draw.io: ${errorMessage(error)}`,
+      });
+      return null;
+    }
   }
 
   /**

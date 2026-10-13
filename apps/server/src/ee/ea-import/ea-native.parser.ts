@@ -7,7 +7,13 @@ import {
   EaPackageNode,
   EaParseResult,
   EaParseWarning,
+  EaWireframeShape,
 } from './types/ea-import.types';
+import {
+  EaWireframeControl,
+  toWireframeShape,
+  wireframeControl,
+} from './ea-wireframe';
 import {
   imageExtForMime,
   normalizeAssetKey,
@@ -397,12 +403,31 @@ function attachDocuments(
   }
 }
 
+/** Wireframing controls by `OBJECT_ID` (stereotype from the row or `t_xref`). */
+function readWireframeControls(root: FxpNode): Map<string, EaWireframeControl> {
+  const stereotypes = readStereotypes(readTable(root, 't_xref'));
+  const controls = new Map<string, EaWireframeControl>();
+  for (const row of readTable(root, 't_object')) {
+    const id = row.get('OBJECT_ID');
+    const control = wireframeControl(
+      row.get('STEREOTYPE') || stereotypes.get(row.get('EA_GUID') ?? ''),
+      row.get('NAME'),
+      row.get('NOTE'),
+    );
+    if (id && control) {
+      controls.set(id, control);
+    }
+  }
+  return controls;
+}
+
 function attachDiagrams(
   root: FxpNode,
   byPackageId: Map<string, EaPackageNode>,
   warnings: EaParseWarning[],
   imagesById: Map<string, EaImageAsset>,
 ): void {
+  const controls = readWireframeControls(root);
   const objectsByDiagram = new Map<string, Row[]>();
   for (const row of readTable(root, 't_diagramobjects')) {
     const diagramId = row.get('DIAGRAM_ID') ?? '';
@@ -428,11 +453,23 @@ function attachDiagrams(
 
     const diagramId = row.get('DIAGRAM_ID') ?? '';
     const subjectIds: string[] = [];
+    const wireframe: EaWireframeShape[] = [];
     let imageId: number | undefined;
     for (const entry of objectsByDiagram.get(diagramId) ?? []) {
       const objectId = entry.get('OBJECT_ID');
       if (objectId && !subjectIds.includes(objectId)) {
         subjectIds.push(objectId);
+      }
+      const control = objectId ? controls.get(objectId) : undefined;
+      const shape =
+        control &&
+        toWireframeShape(
+          control,
+          `Left=${entry.get('RECTLEFT')};Top=${entry.get('RECTTOP')};Right=${entry.get('RECTRIGHT')};Bottom=${entry.get('RECTBOTTOM')};`,
+          entry.get('OBJECTSTYLE') ?? '',
+        );
+      if (shape) {
+        wireframe.push(shape);
       }
       const match = /ImageID=(-?\d+)/.exec(entry.get('OBJECTSTYLE') ?? '');
       if (match) {
@@ -446,6 +483,9 @@ function attachDiagrams(
     const diagram: EaDiagram = { name, ownerId: node.id, subjectIds };
     if (diagramId) {
       diagram.diagramId = diagramId;
+    }
+    if (wireframe.length > 0) {
+      diagram.wireframe = wireframe;
     }
     if (imageId !== undefined) {
       diagram.imageId = imageId;

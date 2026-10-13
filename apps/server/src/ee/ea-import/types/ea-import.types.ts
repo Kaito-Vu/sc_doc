@@ -17,6 +17,19 @@ export interface EaRtfImage {
   buffer: Buffer;
 }
 
+/** One EA Wireframing control placed on a diagram (diagram coordinates). */
+export interface EaWireframeShape {
+  /** Stereotype, e.g. `WireframeButton`. */
+  kind: string;
+  text: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  fontSize?: number;
+  bold?: boolean;
+}
+
 export interface EaDiagram {
   name: string;
   ownerId: string;
@@ -24,6 +37,8 @@ export interface EaDiagram {
   subjectIds: string[];
   diagramId?: string;
   embeddedImage?: EaImageAsset;
+  /** Wireframing controls, converted to draw.io when the diagram has no image. */
+  wireframe?: EaWireframeShape[];
 }
 
 export interface EaFlowEdge {

@@ -8,8 +8,14 @@ import {
   EaPackageNode,
   EaParseResult,
   EaParseWarning,
+  EaWireframeShape,
 } from './types/ea-import.types';
 import { normalizeAssetKey, sniffImageMime } from './ea-asset.util';
+import {
+  EaWireframeControl,
+  toWireframeShape,
+  wireframeControl,
+} from './ea-wireframe';
 import {
   FxpNode,
   attributeOf,
@@ -366,10 +372,40 @@ function findEmbeddedImage(
   return dataUriResult ?? rawResult;
 }
 
+/**
+ * Wireframing controls anywhere in the model (packages, collaborations, ...)
+ * by `xmi.id`. The stereotype sits in the `stereotype` tag, the
+ * `UML:ModelElement.stereotype` child or the `$ea_xref_property` tag.
+ */
+function collectWireframeControls(
+  nodes: FxpNode[],
+  out: Map<string, EaWireframeControl>,
+): void {
+  for (const node of nodes) {
+    const id = attributeOf(node, 'xmi.id');
+    if (id) {
+      const tagged = taggedValues(node);
+      const xref = /@STEREO;Name=([^;]*);/.exec(
+        tagged.get('$ea_xref_property') ?? '',
+      );
+      const control = wireframeControl(
+        tagged.get('stereotype') ?? stereotypeOf(node) ?? xref?.[1],
+        attributeOf(node, 'name'),
+        tagged.get('documentation'),
+      );
+      if (control) {
+        out.set(id, control);
+      }
+    }
+    collectWireframeControls(childrenOf(node), out);
+  }
+}
+
 function attachDiagrams(
   diagramNodes: FxpNode[],
   nodesById: Map<string, EaPackageNode>,
   warnings: EaParseWarning[],
+  controls: Map<string, EaWireframeControl>,
 ): void {
   for (const diagram of diagramNodes) {
     const name = normalizeName(attributeOf(diagram, 'name') ?? '');
@@ -387,6 +423,7 @@ function attachDiagrams(
       }
 
       const subjectIds: string[] = [];
+      const wireframe: EaWireframeShape[] = [];
       let imageId: number | undefined;
       const diagramElement = firstChild(childrenOf(diagram), 'UML:Diagram.element');
       if (diagramElement) {
@@ -399,6 +436,13 @@ function attachDiagrams(
             subjectIds.push(subject);
           }
           const style = attributeOf(entry, 'style') ?? '';
+          const control = subject ? controls.get(subject) : undefined;
+          const shape =
+            control &&
+            toWireframeShape(control, attributeOf(entry, 'geometry') ?? '', style);
+          if (shape) {
+            wireframe.push(shape);
+          }
           const imageMatch = /ImageID=(-?\d+)/.exec(style);
           if (imageMatch) {
             const parsed = parseInt(imageMatch[1], 10);
@@ -417,6 +461,9 @@ function attachDiagrams(
       }
 
       const entry: EaDiagram = { name, ownerId, subjectIds };
+      if (wireframe.length > 0) {
+        entry.wireframe = wireframe;
+      }
       if (imageId !== undefined) {
         entry.imageId = imageId;
       }
@@ -545,7 +592,14 @@ export function parseEaXmi(buffer: Buffer): EaParseResult {
     }
   }
 
-  attachDiagrams(findChildren(childrenOf(content), 'UML:Diagram'), nodesById, warnings);
+  const controls = new Map<string, EaWireframeControl>();
+  collectWireframeControls(childrenOf(content), controls);
+  attachDiagrams(
+    findChildren(childrenOf(content), 'UML:Diagram'),
+    nodesById,
+    warnings,
+    controls,
+  );
 
   roots.sort((a, b) => a.order - b.order || a.name.localeCompare(b.name));
   return { roots, warnings };

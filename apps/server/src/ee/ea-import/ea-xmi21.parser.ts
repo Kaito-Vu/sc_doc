@@ -5,7 +5,13 @@ import {
   EaPackageNode,
   EaParseResult,
   EaParseWarning,
+  EaWireframeShape,
 } from './types/ea-import.types';
+import {
+  EaWireframeControl,
+  toWireframeShape,
+  wireframeControl,
+} from './ea-wireframe';
 import {
   FxpNode,
   attributeOf,
@@ -112,12 +118,21 @@ export function parseEaXmi21(buffer: Buffer): EaParseResult {
 
   // Package sort position lives in the EA extension (`<element><model tpos>`).
   const tposById = new Map<string, number>();
+  // Wireframing controls by id: stereotype + visible text.
+  const controlById = new Map<string, EaWireframeControl>();
   const elementsNode = firstChild(extChildren, 'elements');
   for (const el of findChildren(elementsNode ? childrenOf(elementsNode) : [], 'element')) {
     const id = attributeOf(el, 'xmi:idref');
     const m = firstChild(childrenOf(el), 'model');
     const tpos = m ? parseInt(attributeOf(m, 'tpos') ?? '', 10) : NaN;
     if (id && Number.isFinite(tpos)) tposById.set(id, tpos);
+    const props = firstChild(childrenOf(el), 'properties');
+    const control = wireframeControl(
+      props && attributeOf(props, 'stereotype'),
+      attributeOf(el, 'name'),
+      props && attributeOf(props, 'documentation'),
+    );
+    if (id && control) controlById.set(id, control);
   }
 
   const nodesById = new Map<string, EaPackageNode>();
@@ -176,12 +191,19 @@ export function parseEaXmi21(buffer: Buffer): EaParseResult {
       continue;
     }
     const subjectIds: string[] = [];
+    const wireframe: EaWireframeShape[] = [];
     const els = firstChild(parts, 'elements');
     for (const e of findChildren(els ? childrenOf(els) : [], 'element')) {
       const subject = attributeOf(e, 'subject');
       if (subject && !subjectIds.includes(subject)) subjectIds.push(subject);
+      const control = subject ? controlById.get(subject) : undefined;
+      const shape =
+        control &&
+        toWireframeShape(control, attributeOf(e, 'geometry') ?? '', attributeOf(e, 'style') ?? '');
+      if (shape) wireframe.push(shape);
     }
     const entry: EaDiagram = { name, ownerId, subjectIds };
+    if (wireframe.length > 0) entry.wireframe = wireframe;
     const diagramId = attributeOf(diagram, 'xmi:id');
     if (diagramId) entry.diagramId = diagramId;
     owner.diagrams.push(entry);
