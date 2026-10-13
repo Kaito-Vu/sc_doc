@@ -25,22 +25,28 @@ export class DocxExportController {
   @Post('docx-export')
   @RequireFeature(Feature.DOCX_EXPORT)
   async export(
-    @Body() body: { pageId: string },
+    @Body()
+    body: { pageId: string; includeChildren?: boolean; singleFile?: boolean },
     @AuthUser() user: User,
     @Res() res: FastifyReply,
   ) {
-    const buffer = await this.docxExportService.exportPageToDocx(
+    const { buffer, ext, title } = await this.docxExportService.exportPages(
       body.pageId,
       user,
+      body,
     );
-    const fileName = sanitizeFileName('export.docx', { preserveSpaces: true });
+    const fileName = sanitizeFileName(`${title}.${ext}`, {
+      preserveSpaces: true,
+    });
     res.header(
       'Content-Disposition',
       `attachment; filename="${encodeURIComponent(fileName)}"`,
     );
     res.header(
       'Content-Type',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      ext === 'zip'
+        ? 'application/zip'
+        : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     );
     res.send(buffer);
   }

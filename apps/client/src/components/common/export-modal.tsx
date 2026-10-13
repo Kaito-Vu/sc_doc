@@ -38,6 +38,7 @@ export default function ExportModal({
   const [format, setFormat] = useState<ExportFormat>(ExportFormat.Markdown);
   const [includeChildren, setIncludeChildren] = useState<boolean>(false);
   const [includeAttachments, setIncludeAttachments] = useState<boolean>(false);
+  const [singleFile, setSingleFile] = useState<boolean>(true);
   const [isExporting, setIsExporting] = useState<boolean>(false);
   const { t } = useTranslation();
   const upgradeLabel = useUpgradeLabel();
@@ -50,7 +51,7 @@ export default function ExportModal({
     try {
       if (type === "page") {
         if (format === ExportFormat.Docx) {
-          await exportPageToDocx({ pageId: id });
+          await exportPageToDocx({ pageId: id, includeChildren, singleFile });
         } else {
           await exportPage({
             pageId: id,
@@ -112,7 +113,7 @@ export default function ExportModal({
             />
           </Group>
 
-          {type === "page" && !isDocx && (
+          {type === "page" && (
             <>
               <Divider my="sm" />
 
@@ -128,17 +129,36 @@ export default function ExportModal({
                 />
               </Group>
 
-              <Group justify="space-between" wrap="nowrap" mt="md">
-                <div>
-                  <Text size="md">{t("Include attachments")}</Text>
-                </div>
-                <Switch
-                  onChange={(event) =>
-                    setIncludeAttachments(event.currentTarget.checked)
-                  }
-                  checked={includeAttachments}
-                />
-              </Group>
+              {isDocx && includeChildren && (
+                <Group justify="space-between" wrap="nowrap" mt="md">
+                  <Text size="md">{t("Subpages as")}</Text>
+                  <Select
+                    data={[
+                      { value: "single", label: t("Single file") },
+                      { value: "multiple", label: t("Multiple files (.zip)") },
+                    ]}
+                    value={singleFile ? "single" : "multiple"}
+                    onChange={(v) => setSingleFile(v !== "multiple")}
+                    allowDeselect={false}
+                    withCheckIcon={false}
+                    styles={{ wrapper: { maxWidth: 200 } }}
+                  />
+                </Group>
+              )}
+
+              {!isDocx && (
+                <Group justify="space-between" wrap="nowrap" mt="md">
+                  <div>
+                    <Text size="md">{t("Include attachments")}</Text>
+                  </div>
+                  <Switch
+                    onChange={(event) =>
+                      setIncludeAttachments(event.currentTarget.checked)
+                    }
+                    checked={includeAttachments}
+                  />
+                </Group>
+              )}
             </>
           )}
 

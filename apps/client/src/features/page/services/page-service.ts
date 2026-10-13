@@ -132,7 +132,11 @@ export async function exportPage(data: IExportPageParams): Promise<void> {
   saveAs(req.data, decodedFileName);
 }
 
-export async function exportPageToDocx(data: { pageId: string }): Promise<void> {
+export async function exportPageToDocx(data: {
+  pageId: string;
+  includeChildren?: boolean;
+  singleFile?: boolean;
+}): Promise<void> {
   const req = await api.post("/docx-export", data, {
     responseType: "blob",
   });
