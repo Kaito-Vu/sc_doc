@@ -23,6 +23,7 @@ import {
   normalizeName,
   tagOf,
 } from './ea-xml.util';
+import { splitMultiItems } from './ea-import.util';
 
 /**
  * Enterprise Architect XMI 2.1 (`<xmi:XMI xmi:version="2.1">`) -> package tree.
@@ -210,5 +211,6 @@ export function parseEaXmi21(buffer: Buffer): EaParseResult {
   }
 
   roots.sort((a, b) => a.order - b.order || a.name.localeCompare(b.name));
+  splitMultiItems(roots);
   return { roots, warnings };
 }

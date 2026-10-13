@@ -68,12 +68,15 @@ describe('parseEaXmi', () => {
     expect(first.documents[0].ownerName).toBe('1. First doc');
     expect(first.documents[0].base64).toBe(DOC_BASE64);
 
+    // Several diagrams under one package become one child page each.
     expect(second.documents).toHaveLength(0);
-    expect(second.diagrams).toHaveLength(2);
-    expect(second.diagrams.map((d) => d.diagramId)).toEqual(['D1', 'D2']);
-    expect(second.diagrams.map((d) => d.imageId)).toEqual([12345, 67890]);
-    expect(second.diagrams.every((d) => d.ownerId === 'EAPK_B')).toBe(true);
-    expect(second.diagrams[0].subjectIds).toContain('EAID_subj1');
+    expect(second.diagrams).toHaveLength(0);
+    const diagrams = second.children.flatMap((c) => c.diagrams);
+    expect(second.children.every((c) => c.diagrams.length === 1)).toBe(true);
+    expect(diagrams.map((d) => d.diagramId)).toEqual(['D1', 'D2']);
+    expect(diagrams.map((d) => d.imageId)).toEqual([12345, 67890]);
+    expect(diagrams.every((d) => d.ownerId === 'EAPK_B')).toBe(true);
+    expect(diagrams[0].subjectIds).toContain('EAID_subj1');
 
     expect(result.warnings).toHaveLength(0);
   });

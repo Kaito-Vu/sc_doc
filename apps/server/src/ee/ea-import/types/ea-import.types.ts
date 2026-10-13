@@ -30,6 +30,12 @@ export interface EaWireframeShape {
   bold?: boolean;
 }
 
+/** Elements and connectors actually drawn on a collaboration/activity diagram. */
+export interface EaDiagramGraph {
+  nodes: Array<{ id: string; name: string }>;
+  edges: EaFlowEdge[];
+}
+
 export interface EaDiagram {
   name: string;
   ownerId: string;
@@ -39,6 +45,8 @@ export interface EaDiagram {
   embeddedImage?: EaImageAsset;
   /** Wireframing controls, converted to draw.io when the diagram has no image. */
   wireframe?: EaWireframeShape[];
+  /** Flow drawn on the diagram, rendered as a Mermaid flowchart. */
+  graph?: EaDiagramGraph;
 }
 
 export interface EaFlowEdge {

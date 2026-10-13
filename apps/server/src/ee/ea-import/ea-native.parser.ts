@@ -30,7 +30,7 @@ import {
   tagOf,
   textOf,
 } from './ea-xml.util';
-import { splitMultiDocuments } from './ea-import.util';
+import { splitMultiItems } from './ea-import.util';
 
 /**
  * Pure Enterprise Architect *native* XML (`.xml`) -> page tree parser.
@@ -371,18 +371,35 @@ function attachDocuments(
     }
   }
 
+  // The owning Document element (ELEMENTID -> t_object) gives the exact package
+  // and EA's displayed name; DOCNAME only carries "package::title" by name,
+  // which is ambiguous when packages share a name.
+  const objectByGuid = new Map<string, Row>();
+  for (const row of readTable(root, 't_object')) {
+    const guid = row.get('EA_GUID');
+    if (guid) {
+      objectByGuid.set(guid, row);
+    }
+  }
+
   let index = 0;
   for (const row of readTable(root, 't_document')) {
     const base64 = (row.get('BINCONTENT') ?? '').trim();
     const docName = normalizeName(row.get('DOCNAME') ?? '');
     const segments = docName.split('::');
-    const title = segments[segments.length - 1] || docName;
+    const owner = objectByGuid.get(row.get('ELEMENTID') ?? '');
+    const title =
+      normalizeName(owner?.get('NAME') ?? '') ||
+      segments[segments.length - 1] ||
+      docName;
     const packageName = segments.length >= 2 ? segments[segments.length - 2] : '';
     index += 1;
     if (!base64) {
       continue;
     }
-    const node = packageName ? byName.get(packageName) : undefined;
+    const node =
+      byPackageId.get(owner?.get('PACKAGE_ID') ?? '') ??
+      (packageName ? byName.get(packageName) : undefined);
     if (!node) {
       warnings.push({
         page: title,
@@ -401,7 +418,6 @@ function attachDocuments(
 
   for (const node of byPackageId.values()) {
     node.documents.sort((a, b) => a.order - b.order);
-    splitMultiDocuments(node);
   }
 }
 
@@ -536,6 +552,7 @@ export function parseEaNative(buffer: Buffer): EaParseResult {
   attachEdges(root, byPackageId, packageByObjectId);
   attachDocuments(root, byPackageId, warnings);
   attachDiagrams(root, byPackageId, warnings, readImages(root));
+  splitMultiItems(roots);
 
   return { roots, warnings };
 }

@@ -1,6 +1,7 @@
 import {
   EaActivity,
   EaDiagram,
+  EaDiagramGraph,
   EaDocumentPayload,
   EaFlowEdge,
   EaImageAsset,
@@ -28,7 +29,7 @@ import {
   tagOf,
   textOf,
 } from './ea-xml.util';
-import { splitMultiDocuments } from './ea-import.util';
+import { splitMultiItems } from './ea-import.util';
 
 /**
  * Pure Enterprise Architect XMI -> package tree parser. No Nest / DB
@@ -402,11 +403,64 @@ function collectWireframeControls(
   }
 }
 
+interface FlowModel {
+  elements: Map<string, string>;
+  connectors: Map<string, EaFlowEdge>;
+}
+
+/** Every flow-capable element (activity / class, not lanes) name and dependency, by `xmi.id`. */
+function collectFlowModel(nodes: FxpNode[], model: FlowModel): void {
+  for (const node of nodes) {
+    const tag = tagOf(node);
+    const id = attributeOf(node, 'xmi.id');
+    if (id && (tag === 'UML:ActionState' || tag === 'UML:Class')) {
+      const tagged = taggedValues(node);
+      const isLane =
+        stereotypeOf(node) === 'Lane' || tagged.get('ea_stype') === 'ActivityPartition';
+      if (!isLane) {
+        model.elements.set(id, normalizeName(attributeOf(node, 'name') ?? ''));
+      }
+    } else if (id && tag === 'UML:Dependency') {
+      const from = attributeOf(node, 'client');
+      const to = attributeOf(node, 'supplier');
+      if (from && to) {
+        const edge: EaFlowEdge = { from, to };
+        const label = normalizeName(attributeOf(node, 'name') ?? '');
+        if (label) {
+          edge.label = label;
+        }
+        model.connectors.set(id, edge);
+      }
+    }
+    collectFlowModel(childrenOf(node), model);
+  }
+}
+
+/** Graph of what a collaboration/activity diagram draws; undefined when it has no connected flow. */
+function diagramGraph(
+  diagram: FxpNode,
+  subjectIds: string[],
+  model: FlowModel,
+): EaDiagramGraph | undefined {
+  if (!/^(Collaboration|Activity)Diagram$/.test(attributeOf(diagram, 'diagramType') ?? '')) {
+    return undefined;
+  }
+  const nodes = subjectIds
+    .filter((id) => model.elements.has(id))
+    .map((id) => ({ id, name: model.elements.get(id)! }));
+  const present = new Set(nodes.map((n) => n.id));
+  const edges = subjectIds
+    .map((id) => model.connectors.get(id))
+    .filter((e): e is EaFlowEdge => !!e && present.has(e.from) && present.has(e.to));
+  return edges.length > 0 ? { nodes, edges } : undefined;
+}
+
 function attachDiagrams(
   diagramNodes: FxpNode[],
   nodesById: Map<string, EaPackageNode>,
   warnings: EaParseWarning[],
   controls: Map<string, EaWireframeControl>,
+  flow: FlowModel,
 ): void {
   for (const diagram of diagramNodes) {
     const name = normalizeName(attributeOf(diagram, 'name') ?? '');
@@ -470,6 +524,10 @@ function attachDiagrams(
       }
       if (diagramId) {
         entry.diagramId = diagramId;
+      }
+      const graph = diagramGraph(diagram, subjectIds, flow);
+      if (graph) {
+        entry.graph = graph;
       }
       try {
         const embedded = findEmbeddedImage(diagram, diagramId, name);
@@ -579,7 +637,6 @@ export function parseEaXmi(buffer: Buffer): EaParseResult {
       }
     }
     node.children.sort((a, b) => a.order - b.order || a.name.localeCompare(b.name));
-    splitMultiDocuments(node);
     return node;
   };
 
@@ -596,13 +653,17 @@ export function parseEaXmi(buffer: Buffer): EaParseResult {
 
   const controls = new Map<string, EaWireframeControl>();
   collectWireframeControls(childrenOf(content), controls);
+  const flow: FlowModel = { elements: new Map(), connectors: new Map() };
+  collectFlowModel(childrenOf(content), flow);
   attachDiagrams(
     findChildren(childrenOf(content), 'UML:Diagram'),
     nodesById,
     warnings,
     controls,
+    flow,
   );
 
   roots.sort((a, b) => a.order - b.order || a.name.localeCompare(b.name));
+  splitMultiItems(roots);
   return { roots, warnings };
 }

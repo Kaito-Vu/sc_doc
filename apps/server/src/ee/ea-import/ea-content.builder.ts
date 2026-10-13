@@ -4,6 +4,7 @@ import { v7 } from 'uuid';
 import { rtfToHtml } from './rtf-to-html';
 import {
   EaActivity,
+  EaDiagramGraph,
   EaPackageNode,
   EaParseWarning,
   EaRtfImage,
@@ -333,6 +334,20 @@ function sanitizeMermaidLabel(label: string): string {
   return cleaned || 'step';
 }
 
+/** Mermaid flowchart of the flow drawn on a diagram . */
+function buildGraphHtml(graph: EaDiagramGraph): string {
+  const lines = ['flowchart LR'];
+  graph.nodes.forEach((n, i) => {
+    lines.push(`  n${i}["${sanitizeMermaidLabel(n.name)}"]`);
+  });
+  const index = new Map(graph.nodes.map((n, i) => [n.id, i]));
+  for (const edge of graph.edges) {
+    const label = edge.label ? `|${sanitizeMermaidLabel(edge.label)}|` : '';
+    lines.push(`  n${index.get(edge.from)} -->${label} n${index.get(edge.to)}`);
+  }
+  return `<pre><code class="language-mermaid">${escapeHtml(lines.join('\n'))}</code></pre>`;
+}
+
 function buildLanesTable(node: EaPackageNode): string {
   const byId = new Map(node.activities.map((activity) => [activity.id, activity]));
   let rows = '';
@@ -363,6 +378,20 @@ export function buildFlowHtml(
   const byId = new Map(node.activities.map((activity) => [activity.id, activity]));
   let html = callout(PROVENANCE_CALLOUT);
   html += `<h2>${escapeHtml(node.name)}</h2>`;
+
+  // A diagram that draws its own connected flow is authoritative: the package
+  // may hold extra, undrawn elements, so skip the package-wide step list.
+  const drawn = node.diagrams.filter((d) => d.graph);
+  if (drawn.length > 0) {
+    for (const diagram of drawn) {
+      html += buildGraphHtml(diagram.graph!);
+      const image = imageHtmlById?.get(diagram.diagramId ?? diagram.name);
+      if (image) {
+        html += image;
+      }
+    }
+    return html;
+  }
 
   if (node.lanes.length > 0) {
     html += buildLanesTable(node);
@@ -420,9 +449,12 @@ export function buildDiagramHtml(
   for (const diagram of node.diagrams) {
     const image = imageHtmlById?.get(diagram.diagramId ?? diagram.name);
     html += `<p><strong>${escapeHtml(diagram.name)}</strong></p>`;
+    if (diagram.graph) {
+      html += buildGraphHtml(diagram.graph);
+    }
     if (image) {
       html += image;
-    } else {
+    } else if (!diagram.graph) {
       missingImage = true;
     }
   }

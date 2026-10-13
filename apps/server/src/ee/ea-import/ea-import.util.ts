@@ -58,26 +58,47 @@ export function isLegacyStubText(text: string | null | undefined): boolean {
 }
 
 /**
- * EA lists several Model Documents under a package as separate child items;
- * turn each into its own child page instead of concatenating them.
+ * EA lists several Model Documents / diagrams under a package as separate child
+ * items; turn each into its own child page instead of concatenating them. A
+ * document and diagram sharing a name (screen description + its image) stay
+ * together. Flow packages (lanes/activities) are left alone.
  */
-export function splitMultiDocuments(node: EaPackageNode): void {
-  if (node.documents.length < 2) {
+export function splitMultiItems(roots: EaPackageNode[]): void {
+  for (const node of flattenEaNodes(roots)) {
+    splitNode(node);
+  }
+}
+
+function splitNode(node: EaPackageNode): void {
+  if (node.activities.length || node.edges.length || node.lanes.length) {
     return;
   }
-  // EA's browser sorts siblings by name; tpos is unreliable for documents.
-  const docs = [...node.documents].sort((a, b) =>
-    a.ownerName.localeCompare(b.ownerName, undefined, { numeric: true }),
-  );
+  const free = new Set(node.diagrams);
+  const units: Array<Pick<EaPackageNode, 'name' | 'documents' | 'diagrams'>> =
+    node.documents.map((document) => {
+      const diagrams = node.diagrams.filter(
+        (d) => free.has(d) && d.name === document.ownerName,
+      );
+      diagrams.forEach((d) => free.delete(d));
+      return { name: document.ownerName, documents: [document], diagrams };
+    });
+  for (const diagram of free) {
+    units.push({ name: diagram.name, documents: [], diagrams: [diagram] });
+  }
+  if (units.length < 2) {
+    return;
+  }
+  // EA's browser sorts siblings by name; tpos is unreliable for these items.
+  units.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
   let order = Math.max(-1, ...node.children.map((c) => c.order)) + 1;
-  docs.forEach((document, i) => {
+  units.forEach((unit, i) => {
     node.children.push({
-      id: `${node.id}::doc-${i}`,
-      name: document.ownerName,
+      id: `${node.id}::item-${i}`,
+      name: unit.name,
       parentId: node.id,
       order: order++,
-      documents: [document],
-      diagrams: [],
+      documents: unit.documents,
+      diagrams: unit.diagrams,
       lanes: [],
       activities: [],
       edges: [],
@@ -85,4 +106,5 @@ export function splitMultiDocuments(node: EaPackageNode): void {
     });
   });
   node.documents = [];
+  node.diagrams = [];
 }
