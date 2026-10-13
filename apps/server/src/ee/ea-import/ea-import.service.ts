@@ -72,12 +72,18 @@ import {
   EA_IMPORT_QUEUE,
   EA_STATUS_CANCELED,
 } from './ea-import.constants';
-import { eaRootSignature } from './ea-import.util';
+import {
+  eaNodeHasContent,
+  eaRootSignature,
+  flattenEaNodes,
+  isLegacyStubText,
+  textHash,
+} from './ea-import.util';
 
 const EA_SOURCE = 'ea';
 
 /** Duplicate-import resolution chosen by the user in the client dialog. */
-export type EaImportMode = 'replace' | 'keep';
+export type EaImportMode = 'replace' | 'keep' | 'merge';
 
 const IMAGE_UPLOAD_CONCURRENCY = 4;
 const INSERT_BATCH = 20;
@@ -125,9 +131,19 @@ export interface EaImportMetadata {
   skipped?: boolean;
   duplicate?: boolean;
   replacedPageIds?: string[];
+  /** EA package GUID -> page id, cumulative across merges. */
+  pageMap?: Record<string, string>;
+  /** GUID -> text hash of pages still holding their import-time stub body. */
+  stubHashes?: Record<string, string>;
+  /** Duplicate prompt stats: how much of the file carries content. */
+  contentPages?: number;
+  stubPages?: number;
+  merge?: { added: number; filled: number; kept: number; skipped: number };
 }
 
 interface PreparedPage {
+  /** insert: new page; fill: empty stub gets content; keep/skip: untouched. */
+  action: 'insert' | 'fill' | 'keep' | 'skip';
   node: EaPackageNode;
   id: string;
   slugId: string;
@@ -536,6 +552,8 @@ export class EaImportService {
       this.logger.log(
         `Skipping EA import: root signature ${eaRootId} already imported in space ${spaceId}`,
       );
+      const allNodes = flattenEaNodes(parsed.roots);
+      const contentPages = allNodes.filter(eaNodeHasContent).length;
       return {
         result: {
           pageIds: [],
@@ -553,6 +571,8 @@ export class EaImportService {
           pageCount: 0,
           skipped: true,
           duplicate: true,
+          contentPages,
+          stubPages: allNodes.length - contentPages,
           replacedPageIds: this.metadataStringArray(
             existingImport.metadata,
             'rootPageIds',
@@ -581,13 +601,34 @@ export class EaImportService {
     const queue: Array<{ node: EaPackageNode; parent: EaPackageNode | null }> =
       parsed.roots.map((node) => ({ node, parent: null }));
 
+    // Merge: pages from earlier imports of this package are reused by GUID.
+    const merge =
+      existingImport && mode === 'merge'
+        ? await this.loadMergeTargets(
+            existingImport.metadata,
+            flattenEaNodes(parsed.roots),
+            spaceId,
+          )
+        : null;
+
     while (queue.length > 0) {
       const { node, parent } = queue.shift()!;
-      const id = v7();
-      const slugId = generateSlugId();
+      const hit = merge?.targets.get(node.id);
+      const id = hit?.id ?? v7();
+      const slugId = hit?.slugId ?? generateSlugId();
+      let action: PreparedPage['action'] = 'insert';
+      if (hit) {
+        const stubHash = merge!.stubHashes[node.id];
+        action = !eaNodeHasContent(node)
+          ? 'keep'
+          : stubHash !== undefined && textHash(hit.textContent) === stubHash
+            ? 'fill'
+            : 'skip';
+      }
       pageIdByNode.set(node, id);
       slugIdByNode.set(node, slugId);
       prepared.push({
+        action,
         node,
         id,
         slugId,
@@ -605,13 +646,27 @@ export class EaImportService {
       throw new Error('No importable Enterprise Architect content found');
     }
 
-    if (prepared.length > MAX_PAGES) {
+    // Only pages that are created or filled need converting; the rest of a
+    // merge export (title-only stubs, already-populated pages) is left alone.
+    const work = prepared.filter(
+      (page) => page.action === 'insert' || page.action === 'fill',
+    );
+    for (const page of prepared) {
+      if (page.action === 'skip') {
+        warnings.push({
+          page: page.node.name,
+          reason: 'Page already has content; it was not overwritten',
+        });
+      }
+    }
+
+    if (work.length > MAX_PAGES) {
       throw new Error(
-        `Import exceeds the ${MAX_PAGES} page limit (found ${prepared.length}); export a smaller EA package.`,
+        `Import exceeds the ${MAX_PAGES} page limit (found ${work.length}); export a smaller EA package.`,
       );
     }
 
-    const documentContent = await this.convertDocuments(prepared, warnings);
+    const documentContent = await this.convertDocuments(work, warnings);
     await this.checkpoint(taskId, 25);
     lap('documents converted');
 
@@ -620,8 +675,8 @@ export class EaImportService {
     // Phase A (I/O bound): build each page's HTML, uploading its images.
     const htmlByPage = new Map<string, { html: string; title: string }>();
     let built = 0;
-    await mapLimit(prepared, IMAGE_UPLOAD_CONCURRENCY, async (page) => {
-      await this.checkpoint(taskId, 25 + (35 * built) / prepared.length);
+    await mapLimit(work, IMAGE_UPLOAD_CONCURRENCY, async (page) => {
+      await this.checkpoint(taskId, 25 + (35 * built) / work.length);
       built += 1;
       const { node } = page;
       const isRoot = node.parentId === null;
@@ -693,7 +748,7 @@ export class EaImportService {
     // Phase B (CPU bound): HTML -> ProseMirror -> Yjs on worker threads.
     let converted = 0;
     const pageResults = await runEaCpuJobs(
-      prepared.map((page) => ({
+      work.map((page) => ({
         kind: 'page' as const,
         id: page.id,
         html: htmlByPage.get(page.id)!.html,
@@ -701,10 +756,10 @@ export class EaImportService {
       })),
       async () => {
         converted += 1;
-        await this.checkpoint(taskId, 60 + (30 * converted) / prepared.length);
+        await this.checkpoint(taskId, 60 + (30 * converted) / work.length);
       },
     );
-    for (const page of prepared) {
+    for (const page of work) {
       const result = pageResults.get(page.id);
       if (result?.error) {
         warnings.push({
@@ -721,6 +776,9 @@ export class EaImportService {
 
     const pageIds: string[] = [];
     const rootPageIds: string[] = [];
+    const filledIds: string[] = [];
+    const inserts = work.filter((page) => page.action === 'insert');
+    const insertedIds = new Set(inserts.map((page) => page.id));
 
     lap('pages converted');
 
@@ -729,10 +787,11 @@ export class EaImportService {
 
     await executeTx(this.db, async (trx) => {
       // New parents have no children yet, so only the first root needs a DB
-      // lookup; every other position is chained in memory.
+      // lookup; every other position is chained in memory. A merge can add
+      // children under a page that already exists, which needs a DB lookup too.
       const lastPosition = new Map<string | null, string>();
       const rows: InsertablePage[] = [];
-      for (const page of prepared) {
+      for (const page of inserts) {
         const key = page.parentPageId;
         const previous = lastPosition.get(key);
         const position =
@@ -744,7 +803,9 @@ export class EaImportService {
                   rootParentId ?? undefined,
                   trx,
                 )
-              : generateJitteredKeyBetween(null, null);
+              : !insertedIds.has(key)
+                ? await this.pageService.nextPagePosition(spaceId, key, trx)
+                : generateJitteredKeyBetween(null, null);
         lastPosition.set(key, position);
 
         rows.push({
@@ -773,14 +834,49 @@ export class EaImportService {
           .values(rows.slice(i, i + INSERT_BATCH))
           .execute();
       }
+
+      // Fill-only: the body is written only if the page is still its untouched stub.
+      for (const page of work) {
+        if (page.action !== 'fill') {
+          continue;
+        }
+        const stubHash = merge!.stubHashes[page.node.id];
+        const text = jsonToText(page.content);
+        const res = await trx
+          .updateTable('pages')
+          .set({
+            content: page.content,
+            textContent: text,
+            ydoc: page.ydoc,
+            lastUpdatedById: creatorId,
+            updatedAt: new Date(),
+          })
+          .where('id', '=', page.id)
+          .where('deletedAt', 'is', null)
+          .where(
+            sql<boolean>`md5(coalesce(text_content, '')) = ${stubHash}`,
+          )
+          .executeTakeFirst();
+        if (Number(res.numUpdatedRows) > 0) {
+          filledIds.push(page.id);
+        }
+      }
     });
 
     lap('pages inserted');
 
-    this.eventEmitter.emit(EventName.PAGE_CREATED, {
-      pageIds,
-      workspaceId,
-    });
+    if (pageIds.length > 0) {
+      this.eventEmitter.emit(EventName.PAGE_CREATED, {
+        pageIds,
+        workspaceId,
+      });
+    }
+    if (filledIds.length > 0) {
+      this.eventEmitter.emit(EventName.PAGE_UPDATED, {
+        pageIds: filledIds,
+        workspaceId,
+      });
+    }
 
     await this.auditService.log({
       event: AuditEvent.PAGE_IMPORTED,
@@ -803,23 +899,113 @@ export class EaImportService {
     }
 
     this.logger.log(
-      `Imported ${pageIds.length} EA pages (${warnings.length} warnings)`,
+      `Imported ${pageIds.length} EA pages, filled ${filledIds.length} (${warnings.length} warnings)`,
     );
+
+    // Cumulative page map + stub hashes let the next merge find these pages.
+    const pageMap = { ...merge?.pageMap };
+    const stubHashes = { ...merge?.stubHashes };
+    for (const page of inserts) {
+      pageMap[page.node.id] = page.id;
+      if (eaNodeHasContent(page.node)) {
+        delete stubHashes[page.node.id];
+      } else {
+        stubHashes[page.node.id] = textHash(jsonToText(page.content));
+      }
+    }
+    const filled = new Set(filledIds);
+    for (const page of work) {
+      if (filled.has(page.id)) {
+        delete stubHashes[page.node.id];
+      }
+    }
 
     return {
       result: {
         pageIds,
         rootPageIds,
-        pageCount: pageIds.length,
+        pageCount: pageIds.length + filledIds.length,
         warnings,
       },
       metadata: {
         eaRootId,
-        pageIds,
-        rootPageIds,
-        pageCount: pageIds.length,
+        pageIds: [...(merge?.pageIds ?? []), ...pageIds],
+        rootPageIds: [...(merge?.rootPageIds ?? []), ...rootPageIds],
+        pageCount: pageIds.length + filledIds.length,
         warnings,
+        pageMap,
+        stubHashes,
+        ...(merge && {
+          merge: {
+            added: pageIds.length,
+            filled: filledIds.length,
+            kept: prepared.filter((page) => page.action === 'keep').length,
+            skipped: prepared.filter((page) => page.action === 'skip').length,
+          },
+        }),
       },
+    };
+  }
+
+  /**
+   * Resolve which pages of the new export already exist from earlier imports of
+   * the same package, by EA GUID. Imports from before the page map was recorded
+   * are mapped through `pageIds`, which was written in the same breadth-first
+   * order as `flattenEaNodes`.
+   */
+  private async loadMergeTargets(
+    metadata: any,
+    nodes: EaPackageNode[],
+    spaceId: string,
+  ) {
+    let legacy = false;
+    let pageMap: Record<string, string> = metadata?.pageMap ?? {};
+    const pageIds = this.metadataStringArray(metadata, 'pageIds');
+    if (!metadata?.pageMap) {
+      legacy = true;
+      if (pageIds.length !== nodes.length) {
+        throw new Error(
+          'The previous import cannot be matched to this file (the package tree changed). Use Keep both or Replace.',
+        );
+      }
+      pageMap = Object.fromEntries(nodes.map((n, i) => [n.id, pageIds[i]]));
+    }
+
+    const mappedIds = Object.values(pageMap);
+    const rows = mappedIds.length
+      ? await this.db
+          .selectFrom('pages')
+          .select(['id', 'slugId', 'textContent'])
+          .where('spaceId', '=', spaceId)
+          .where('deletedAt', 'is', null)
+          .where('id', 'in', mappedIds)
+          .execute()
+      : [];
+    const byId = new Map(rows.map((row) => [row.id, row]));
+
+    const targets = new Map<
+      string,
+      { id: string; slugId: string; textContent: string | null }
+    >();
+    const stubHashes: Record<string, string> = { ...metadata?.stubHashes };
+    for (const [guid, id] of Object.entries(pageMap)) {
+      const row = byId.get(id);
+      if (!row) {
+        continue;
+      }
+      targets.set(guid, row);
+      // ponytail: legacy imports have no hashes; seed them from the stub-shaped body.
+      if (legacy && isLegacyStubText(row.textContent)) {
+        stubHashes[guid] = textHash(row.textContent);
+      }
+    }
+
+    return {
+      targets,
+      stubHashes,
+      pageMap,
+      pageIds,
+      rootPageIds: this.metadataStringArray(metadata, 'rootPageIds'),
     };
   }
 

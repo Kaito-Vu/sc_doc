@@ -89,7 +89,9 @@ export class EaImportController {
     const spaceId = file.fields?.spaceId?.value;
     const rawMode = file.fields?.mode?.value;
     const mode: EaImportMode | undefined =
-      rawMode === 'replace' || rawMode === 'keep' ? rawMode : undefined;
+      rawMode === 'replace' || rawMode === 'keep' || rawMode === 'merge'
+        ? rawMode
+        : undefined;
 
     if (!spaceId) {
       throw new BadRequestException('spaceId is required');

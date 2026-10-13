@@ -1,7 +1,7 @@
 import api from "@/lib/api-client";
 import { IFileTask } from "@/features/file-task/types/file-task.types.ts";
 
-export type EaImportMode = "replace" | "keep";
+export type EaImportMode = "replace" | "keep" | "merge";
 
 export async function importEaXml(
   file: File,

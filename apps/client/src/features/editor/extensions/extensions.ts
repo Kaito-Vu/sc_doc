@@ -125,6 +125,7 @@ import { countWords } from "alfaaz";
 import AutoJoiner from "@/features/editor/extensions/autojoiner.ts";
 import GlobalDragHandle from "@/features/editor/extensions/drag-handle.ts";
 import { CleanStyles } from "@/features/editor/extensions/clean-styles.ts";
+import { PlusBullet } from "@/ee/editor/plus-bullet-extension";
 import { TemplateSkeleton } from "@/ee/template/extensions/template-skeleton/template-skeleton-extension";
 import TemplateSkeletonView from "@/ee/template/extensions/template-skeleton/template-skeleton-view";
 import { mergeTemplateSkeletonItems } from "@/ee/template/extensions/template-skeleton/template-skeleton-slash-items";
@@ -248,6 +249,7 @@ export const mainExtensions = [
     multicolor: true,
   }),
   Typography,
+  PlusBullet,
   TrailingNode,
   GlobalDragHandle.configure({
     customNodes: ["transclusionSource", "transclusionReference", "tabPanel"],

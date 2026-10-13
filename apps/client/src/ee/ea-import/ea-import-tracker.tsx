@@ -174,6 +174,18 @@ export function EaImportTracker() {
             )}
           </Text>
           <Stack gap="xs">
+            <Button onClick={() => run("merge")}>
+              {t("Update (recommended)")}
+            </Button>
+            <Text size="xs" c="dimmed">
+              {t(
+                "Fills empty pages with the content in this file ({{content}} pages with content, {{stubs}} title-only pages). Pages that already have content are never overwritten.",
+                {
+                  content: (task.metadata as any)?.contentPages ?? 0,
+                  stubs: (task.metadata as any)?.stubPages ?? 0,
+                },
+              )}
+            </Text>
             <Button variant="default" onClick={() => run("keep")}>
               {t("Keep both")}
             </Button>
@@ -240,7 +252,12 @@ export function EaImportTracker() {
         ...done,
         color: "teal",
         title: t("Import complete"),
-        message: t("Your pages were successfully imported."),
+        message: meta?.merge
+          ? t(
+              "{{added}} added, {{filled}} filled, {{kept}} unchanged, {{skipped}} skipped (already had content).",
+              { ...meta.merge },
+            ) as string
+          : t("Your pages were successfully imported."),
         icon: <IconCheck size={18} />,
         autoClose: false,
       });

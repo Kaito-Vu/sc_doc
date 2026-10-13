@@ -161,6 +161,14 @@ function newParagraph(): Paragraph {
   return { runs: [], plain: '', allBold: true };
 }
 
+/** `->` `-->` → →, `<-` `<--` → ←, `<->` → ↔ (on already HTML-escaped text). */
+function toArrows(html: string): string {
+  return html
+    .replace(/&lt;-+&gt;/g, '↔')
+    .replace(/-+&gt;/g, '→')
+    .replace(/&lt;-+/g, '←');
+}
+
 function renderRuns(runs: TextRun[], stripBold: boolean): string {
   let html = '';
   for (const run of runs) {
@@ -168,7 +176,7 @@ function renderRuns(runs: TextRun[], stripBold: boolean): string {
       html += run.text;
       continue;
     }
-    let piece = escapeHtml(run.text);
+    let piece = toArrows(escapeHtml(run.text));
     if (run.background) {
       piece = `<mark data-color="${run.background}">${piece}</mark>`;
     }
@@ -528,6 +536,66 @@ function renderTable(rows: TableCell[][]): string {
   return html + '</table>';
 }
 
+/**
+ * Line-leading `+`/`-` run (1-6 of the same char) = bullet level. A space after
+ * it is optional, but then the next char must not be a digit or `>` (keeps
+ * `-5`, `+84…`, `->` and `-->` as plain text).
+ */
+const BULLET_RE = /^\s*(\+{1,6}|-{1,6})(?:\s+|(?=[^\s\d>+-]))/;
+
+/**
+ * Drop the first `n` text characters across runs, so a marker split by
+ * bold/italic/… formatting (`**++**++ x`) is still removed. Null if a raw run
+ * (image) sits inside the marker.
+ */
+function dropLeadingChars(runs: TextRun[], n: number): TextRun[] | null {
+  const rest: TextRun[] = [];
+  let left = n;
+  for (const run of runs) {
+    if (left > 0 && run.raw) {
+      return null;
+    }
+    if (left === 0 || run.raw) {
+      rest.push(run);
+      continue;
+    }
+    const text = run.text.slice(left);
+    left = Math.max(0, left - run.text.length);
+    if (text) {
+      rest.push({ ...run, text });
+    }
+  }
+  return rest;
+}
+
+/** Marker for `+`/`++` bullet lines in `out`; grouped into nested lists by `groupBullets`. */
+const LI_MARK = '\u0001';
+
+function groupBullets(out: string[]): string {
+  let html = '';
+  let depth = 0;
+  for (const chunk of out) {
+    const m = chunk.startsWith(LI_MARK)
+      ? /^\u0001(\d+)\u0001/.exec(chunk)
+      : null;
+    if (!m) {
+      html += '</li></ul>'.repeat(depth) + chunk;
+      depth = 0;
+      continue;
+    }
+    const level = Math.min(Number(m[1]), depth + 1);
+    const text = `<p>${chunk.slice(m[0].length)}</p>`;
+    if (level > depth) {
+      html += '<ul><li>';
+    } else {
+      html += '</li></ul>'.repeat(depth - level) + '</li><li>';
+    }
+    html += text;
+    depth = level;
+  }
+  return html + '</li></ul>'.repeat(depth);
+}
+
 function convert(rtf: string): string {
   if (typeof rtf !== 'string' || rtf.length === 0 || !rtf.includes('\\rtf')) {
     return '<p></p>';
@@ -607,7 +675,13 @@ function convert(rtf: string): string {
       return;
     }
     const heading = /^(\d+(?:\.\d+)*\.?)\s/.exec(plain);
-    if (allBold && heading) {
+    const bullet = BULLET_RE.exec(plain);
+    const rest = bullet ? dropLeadingChars(runs, bullet[0].length) : null;
+    if (bullet && rest) {
+      out.push(
+        `${LI_MARK}${bullet[1].length}${LI_MARK}${renderRuns(rest, false)}`,
+      );
+    } else if (allBold && heading) {
       const dots = (heading[1].match(/\./g) ?? []).length;
       const level = Math.min(Math.max(dots, 1), 6);
       out.push(`<h${level}>${renderRuns(runs, true)}</h${level}>`);
@@ -997,5 +1071,5 @@ function convert(rtf: string): string {
 
   closeTable();
   flushParagraph();
-  return out.join('');
+  return groupBullets(out);
 }

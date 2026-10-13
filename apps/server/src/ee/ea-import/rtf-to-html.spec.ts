@@ -17,6 +17,37 @@ describe('rtfToHtml', () => {
     expect(html).toContain('<h3>2.1.1. Sâu hơn</h3>');
   });
 
+  it('bullets without a space, but not -5 / +84 / -->', () => {
+    const html = rtfToHtml(
+      '{\\rtf1\\ansi +a\\par ++b\\par -5 +84 x\\par --> y\\par}',
+    );
+    expect(html).toBe(
+      '<ul><li><p>a</p><ul><li><p>b</p></li></ul></li></ul><p>-5 +84 x</p><p>→ y</p>',
+    );
+  });
+
+  it('bullets when the marker is split by bold/italic runs', () => {
+    const html = rtfToHtml(
+      '{\\rtf1\\ansi \\b ++\\b0\\i ++\\i0  hello\\par}',
+    );
+    expect(html).toBe('<ul><li><p>hello</p></li></ul>');
+  });
+
+  it('turns arrows anywhere', () => {
+    expect(rtfToHtml('{\\rtf1\\ansi a --> b <- c <-- d\\par}')).toBe(
+      '<p>a → b ← c ← d</p>',
+    );
+  });
+
+  it('turns +/++ lines into nested bullets and -> into an arrow', () => {
+    const html = rtfToHtml(
+      '{\\rtf1\\ansi + a -> b\\par -- c\\par - d\\par plain\\par}',
+    );
+    expect(html).toBe(
+      '<ul><li><p>a → b</p><ul><li><p>c</p></li></ul></li><li><p>d</p></li></ul><p>plain</p>',
+    );
+  });
+
   it('converts plain paragraphs and keeps inline bold', () => {
     const rtf =
       '{\\rtf1\\ansi This is normal.\\par\\b Bold part\\b0  and plain.\\par}';
