@@ -18,10 +18,44 @@ describe('rtfToHtml', () => {
   });
 
   it('converts plain paragraphs and keeps inline bold', () => {
-    const rtf = '{\\rtf1\\ansi This is normal.\\par\\b Bold part\\b0  and plain.\\par}';
+    const rtf =
+      '{\\rtf1\\ansi This is normal.\\par\\b Bold part\\b0  and plain.\\par}';
     const html = rtfToHtml(rtf);
     expect(html).toContain('<p>This is normal.</p>');
     expect(html).toContain('<p><strong>Bold part</strong> and plain.</p>');
+  });
+
+  it('keeps strikethrough, ended by \\strike0 or \\plain', () => {
+    const rtf =
+      '{\\rtf1\\ansi A \\strike gone\\strike0  B \\b\\strike X\\plain  C \\striked1 D\\striked0\\par}';
+    const html = rtfToHtml(rtf);
+    expect(html).toBe(
+      '<p>A <s>gone</s> B <strong><s>X</s></strong> C <s>D</s></p>',
+    );
+  });
+
+  it('keeps text colour and highlight from the colour table, skipping auto black/white', () => {
+    const rtf =
+      '{\\rtf1\\ansi{\\colortbl ;\\red255\\green255\\blue255;\\red0\\green0\\blue0;\\red255\\green0\\blue0;\\red135\\green206\\blue235;}' +
+      '\\cf2 plain \\cf3 red\\cf2  \\chcbpat4 sky\\chcbpat1  end\\par}';
+    const html = rtfToHtml(rtf);
+    expect(html).toBe(
+      '<p>plain <span style="color: #ff0000">red</span> <mark data-color="#87ceeb">sky</mark> end</p>',
+    );
+  });
+
+  it('folds vertically merged cells into rowspan', () => {
+    const row = (a: string, b: string, merge: string) =>
+      `\\trowd${merge}\\cellx1000\\cellx2000\\intbl ${a}\\cell ${b}\\cell\\row`;
+    const rtf =
+      '{\\rtf1\\ansi' +
+      row('A', 'B', '\\clvmgf') +
+      row('', 'C', '\\clvmrg') +
+      row('D', 'E', '') +
+      '}';
+    expect(rtfToHtml(rtf)).toBe(
+      '<table><tr><td rowspan="2">A</td><td>B</td></tr><tr><td>C</td></tr><tr><td>D</td><td>E</td></tr></table>',
+    );
   });
 
   it('drops fonttbl/stylesheet groups and keeps the body text', () => {

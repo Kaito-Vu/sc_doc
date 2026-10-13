@@ -14,6 +14,11 @@ interface TextRun {
   bold: boolean;
   italic: boolean;
   underline: boolean;
+  strike: boolean;
+  /** `#rrggbb` from `\cf`, null = automatic. */
+  color: string | null;
+  /** `#rrggbb` from `\cb`/`\chcbpat`/`\highlight`, null = none. */
+  background: string | null;
   raw?: boolean;
 }
 
@@ -23,9 +28,22 @@ interface Paragraph {
   allBold: boolean;
 }
 
+/** Vertical merge flag of a table cell: `\clvmgf` starts, `\clvmrg` continues. */
+const MERGE_NONE = 0;
+const MERGE_FIRST = 1;
+const MERGE_CONT = 2;
+
+interface TableCell {
+  html: string;
+  merge: number;
+}
+
 interface TableState {
-  rows: string[][];
-  row: string[];
+  rows: TableCell[][];
+  row: TableCell[];
+  /** Merge flag per cell of the current row, in `\cellx` order. */
+  merges: number[];
+  pendingMerge: number;
 }
 
 /** Destinations whose entire group must be dropped. */
@@ -125,7 +143,9 @@ function isHexDigit(code: number): boolean {
 }
 
 function isWhitespace(code: number): boolean {
-  return code === CH_SPACE || code === CH_CR || code === CH_LF || code === CH_TAB;
+  return (
+    code === CH_SPACE || code === CH_CR || code === CH_LF || code === CH_TAB
+  );
 }
 
 function decodeHexByte(hex: string): string {
@@ -149,6 +169,15 @@ function renderRuns(runs: TextRun[], stripBold: boolean): string {
       continue;
     }
     let piece = escapeHtml(run.text);
+    if (run.background) {
+      piece = `<mark data-color="${run.background}">${piece}</mark>`;
+    }
+    if (run.color) {
+      piece = `<span style="color: ${run.color}">${piece}</span>`;
+    }
+    if (run.strike) {
+      piece = `<s>${piece}</s>`;
+    }
     if (run.underline) {
       piece = `<u>${piece}</u>`;
     }
@@ -403,8 +432,7 @@ function stripPictGroups(rtf: string, imageSink?: EaRtfImage[]): string {
     const destination = readGroupDestination(rtf, brace);
     const isPict = destination === 'pict';
     const isWrapper =
-      destination !== null &&
-      RTF_IMAGE_WRAPPER_DESTINATIONS.has(destination);
+      destination !== null && RTF_IMAGE_WRAPPER_DESTINATIONS.has(destination);
     if (isPict || isWrapper) {
       const end = findGroupEnd(rtf, brace);
       if (end >= 0) {
@@ -445,6 +473,61 @@ export function rtfToHtml(rtf: string, imageSink?: EaRtfImage[]): string {
   }
 }
 
+/** Parse `{\colortbl ;\red..\green..\blue..;...}` into `#rrggbb` (null = auto). */
+function parseColorTable(rtf: string): (string | null)[] {
+  const match = /\{\\colortbl([^}]*)\}/.exec(rtf);
+  if (!match) {
+    return [];
+  }
+  return match[1].split(';').map((entry) => {
+    const channel = (name: string): number | null => {
+      const m = new RegExp(`\\\\${name}(\\d+)`).exec(entry);
+      return m ? Math.min(Number(m[1]), 255) : null;
+    };
+    const r = channel('red');
+    const g = channel('green');
+    const b = channel('blue');
+    if (r === null && g === null && b === null) {
+      return null;
+    }
+    return (
+      '#' +
+      [r, g, b].map((v) => (v ?? 0).toString(16).padStart(2, '0')).join('')
+    );
+  });
+}
+
+/**
+ * Render table rows, folding `\clvmgf`/`\clvmrg` vertical merges into
+ * `rowspan`. ponytail: cells are matched by index within the row, so rows
+ * that also merge horizontally may misalign; key by `\cellx` if that shows up.
+ */
+function renderTable(rows: TableCell[][]): string {
+  const covered = new Set<string>();
+  let html = '<table>';
+  rows.forEach((row, r) => {
+    html += '<tr>';
+    row.forEach((cell, c) => {
+      if (covered.has(`${r}:${c}`)) {
+        return;
+      }
+      let span = 1;
+      if (cell.merge === MERGE_FIRST) {
+        while (rows[r + span]?.[c]?.merge === MERGE_CONT) {
+          covered.add(`${r + span}:${c}`);
+          span += 1;
+        }
+      }
+      html +=
+        span > 1
+          ? `<td rowspan="${span}">${cell.html}</td>`
+          : `<td>${cell.html}</td>`;
+    });
+    html += '</tr>';
+  });
+  return html + '</table>';
+}
+
 function convert(rtf: string): string {
   if (typeof rtf !== 'string' || rtf.length === 0 || !rtf.includes('\\rtf')) {
     return '<p></p>';
@@ -461,6 +544,10 @@ function convert(rtf: string): string {
   let bold = false;
   let italic = false;
   let underline = false;
+  let strike = false;
+  let color: string | null = null;
+  let background: string | null = null;
+  const colors = parseColorTable(rtf);
 
   let paragraph = newParagraph();
   let table: TableState | null = null;
@@ -480,11 +567,22 @@ function convert(rtf: string): string {
       !last.raw &&
       last.bold === bold &&
       last.italic === italic &&
-      last.underline === underline
+      last.underline === underline &&
+      last.strike === strike &&
+      last.color === color &&
+      last.background === background
     ) {
       last.text += text;
     } else {
-      paragraph.runs.push({ text, bold, italic, underline });
+      paragraph.runs.push({
+        text,
+        bold,
+        italic,
+        underline,
+        strike,
+        color,
+        background,
+      });
     }
   };
 
@@ -494,6 +592,9 @@ function convert(rtf: string): string {
       bold,
       italic,
       underline,
+      strike,
+      color,
+      background,
       raw: true,
     });
   };
@@ -517,16 +618,7 @@ function convert(rtf: string): string {
 
   const closeTable = (): void => {
     if (table && table.rows.length > 0) {
-      let html = '<table>';
-      for (const row of table.rows) {
-        html += '<tr>';
-        for (const cell of row) {
-          html += `<td>${cell}</td>`;
-        }
-        html += '</tr>';
-      }
-      html += '</table>';
-      out.push(html);
+      out.push(renderTable(table.rows));
     }
     table = null;
     inCell = false;
@@ -542,13 +634,19 @@ function convert(rtf: string): string {
     bold = false;
     italic = false;
     underline = false;
+    strike = false;
+    color = null;
+    background = null;
   };
 
   const endCell = (): void => {
     if (!table) {
       return;
     }
-    table.row.push(renderRuns(paragraph.runs, false));
+    table.row.push({
+      html: renderRuns(paragraph.runs, false),
+      merge: MERGE_NONE,
+    });
     paragraph = newParagraph();
   };
 
@@ -557,9 +655,16 @@ function convert(rtf: string): string {
       return;
     }
     if (paragraph.runs.length > 0) {
-      table.row.push(renderRuns(paragraph.runs, false));
+      table.row.push({
+        html: renderRuns(paragraph.runs, false),
+        merge: MERGE_NONE,
+      });
       paragraph = newParagraph();
     }
+    const { merges } = table;
+    table.row.forEach((cell, index) => {
+      cell.merge = merges[index] ?? MERGE_NONE;
+    });
     table.rows.push(table.row);
     table.row = [];
     inCell = false;
@@ -610,6 +715,39 @@ function convert(rtf: string): string {
       case 'ulnone':
         underline = false;
         break;
+      case 'strike':
+      case 'striked':
+        strike = param === undefined ? true : param !== 0;
+        break;
+      case 'cf': {
+        const value = colors[param ?? 0] ?? null;
+        // Black is the auto colour; keeping it would hide text in dark mode.
+        color = value === '#000000' ? null : value;
+        break;
+      }
+      case 'cb':
+      case 'chcbpat':
+      case 'highlight': {
+        const value = colors[param ?? 0] ?? null;
+        background = value === '#ffffff' ? null : value;
+        break;
+      }
+      case 'clvmgf':
+        if (table) {
+          table.pendingMerge = MERGE_FIRST;
+        }
+        break;
+      case 'clvmrg':
+        if (table) {
+          table.pendingMerge = MERGE_CONT;
+        }
+        break;
+      case 'cellx':
+        if (table) {
+          table.merges.push(table.pendingMerge);
+          table.pendingMerge = MERGE_NONE;
+        }
+        break;
       case 'tab':
         addText('\t');
         break;
@@ -645,7 +783,10 @@ function convert(rtf: string): string {
       case 'trowd':
         if (!table) {
           flushParagraph();
-          table = { rows: [], row: [] };
+          table = { rows: [], row: [], merges: [], pendingMerge: MERGE_NONE };
+        } else {
+          table.merges = [];
+          table.pendingMerge = MERGE_NONE;
         }
         break;
       case 'cell':
@@ -654,7 +795,6 @@ function convert(rtf: string): string {
       case 'row':
         endRow();
         break;
-      case 'cellx':
       case 'trgaph':
       case 'trleft':
       case 'trrh':
@@ -702,9 +842,6 @@ function convert(rtf: string): string {
       case 'slmult':
       case 'f':
       case 'fs':
-      case 'cf':
-      case 'cb':
-      case 'chcbpat':
       case 'lang':
       case 'langfe':
       case 'langnp':
