@@ -56,3 +56,33 @@ export function textHash(text: string | null | undefined): string {
 export function isLegacyStubText(text: string | null | undefined): boolean {
   return /^\s*(?:\d+ sub-sections:[\s\S]*)?$/.test(text ?? '');
 }
+
+/**
+ * EA lists several Model Documents under a package as separate child items;
+ * turn each into its own child page instead of concatenating them.
+ */
+export function splitMultiDocuments(node: EaPackageNode): void {
+  if (node.documents.length < 2) {
+    return;
+  }
+  // EA's browser sorts siblings by name; tpos is unreliable for documents.
+  const docs = [...node.documents].sort((a, b) =>
+    a.ownerName.localeCompare(b.ownerName, undefined, { numeric: true }),
+  );
+  let order = Math.max(-1, ...node.children.map((c) => c.order)) + 1;
+  docs.forEach((document, i) => {
+    node.children.push({
+      id: `${node.id}::doc-${i}`,
+      name: document.ownerName,
+      parentId: node.id,
+      order: order++,
+      documents: [document],
+      diagrams: [],
+      lanes: [],
+      activities: [],
+      edges: [],
+      children: [],
+    });
+  });
+  node.documents = [];
+}

@@ -28,6 +28,7 @@ import {
   tagOf,
   textOf,
 } from './ea-xml.util';
+import { splitMultiDocuments } from './ea-import.util';
 
 /**
  * Pure Enterprise Architect XMI -> package tree parser. No Nest / DB
@@ -578,6 +579,7 @@ export function parseEaXmi(buffer: Buffer): EaParseResult {
       }
     }
     node.children.sort((a, b) => a.order - b.order || a.name.localeCompare(b.name));
+    splitMultiDocuments(node);
     return node;
   };
 

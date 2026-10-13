@@ -30,6 +30,7 @@ import {
   tagOf,
   textOf,
 } from './ea-xml.util';
+import { splitMultiDocuments } from './ea-import.util';
 
 /**
  * Pure Enterprise Architect *native* XML (`.xml`) -> page tree parser.
@@ -400,6 +401,7 @@ function attachDocuments(
 
   for (const node of byPackageId.values()) {
     node.documents.sort((a, b) => a.order - b.order);
+    splitMultiDocuments(node);
   }
 }
 

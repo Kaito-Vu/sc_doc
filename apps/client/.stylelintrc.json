@@ -13,6 +13,18 @@
         "src/features/page-history/components/css/history.module.css"
       ],
       "rules": { "color-no-hex": null }
+    },
+    {
+      "files": [
+        "src/features/editor/styles/collaboration.css",
+        "src/features/editor/styles/core.css",
+        "src/features/editor/styles/drag-handle.css",
+        "src/features/editor/styles/find.css",
+        "src/features/comment/components/comment.module.css",
+        "src/features/editor/components/bubble-menu/bubble-menu.module.css",
+        "src/features/editor/components/subpages/subpages.module.css"
+      ],
+      "rules": { "color-no-hex": null }
     }
   ]
 }
