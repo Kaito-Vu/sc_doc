@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Inject,
   Injectable,
   Logger,
@@ -176,7 +177,21 @@ export class EaImportService {
     spaceId: string,
     workspaceId: string,
     mode?: EaImportMode,
+    parentPageId?: string,
   ): Promise<FileTask> {
+    if (parentPageId) {
+      const parent = await this.db
+        .selectFrom('pages')
+        .select('id')
+        .where('id', '=', parentPageId)
+        .where('spaceId', '=', spaceId)
+        .where('deletedAt', 'is', null)
+        .executeTakeFirst();
+      if (!parent) {
+        throw new BadRequestException('Invalid parent page');
+      }
+    }
+
     const fileExtension = path.extname(file.filename).toLowerCase();
     const baseName = sanitizeFileName(
       path.basename(file.filename, fileExtension),
@@ -207,13 +222,16 @@ export class EaImportService {
         creatorId: userId,
         spaceId,
         workspaceId,
+        ...(parentPageId
+          ? { metadata: { source: EA_SOURCE, parentPageId } as any }
+          : {}),
       })
       .returningAll()
       .executeTakeFirstOrThrow();
 
     await this.eaImportQueue.add(
       EA_IMPORT_JOB,
-      { fileTaskId, mode },
+      { fileTaskId, mode, parentPageId },
       { jobId: fileTaskId },
     );
 
@@ -227,6 +245,7 @@ export class EaImportService {
   async processEaImportTask(
     fileTaskId: string,
     mode?: EaImportMode,
+    parentPageId?: string,
   ): Promise<void> {
     const fileTask = await this.db
       .selectFrom('fileTasks')
@@ -266,6 +285,7 @@ export class EaImportService {
         creatorId: fileTask.creatorId,
         fileTask,
         mode,
+        parentPageId,
       });
 
       await this.db
@@ -273,7 +293,7 @@ export class EaImportService {
         .set({
           status: FileTaskStatus.Success,
           errorMessage: null,
-          metadata: { source: EA_SOURCE, ...metadata } as any,
+          metadata: { source: EA_SOURCE, parentPageId, ...metadata } as any,
           updatedAt: new Date(),
         })
         .where('id', '=', fileTaskId)
@@ -433,9 +453,16 @@ export class EaImportService {
     creatorId: string;
     fileTask: FileTask;
     mode?: EaImportMode;
+    parentPageId?: string;
   }): Promise<{ result: EaImportResult; metadata: EaImportMetadata }> {
     const { buffer, fileName, workspaceId, spaceId, creatorId, mode } = opts;
+    const rootParentId = opts.parentPageId ?? null;
     const taskId = opts.fileTask.id;
+    const startedAt = Date.now();
+    const lap = (label: string): void =>
+      this.logger.log(
+        `EA import ${taskId} ${label}: ${Date.now() - startedAt}ms`,
+      );
     await this.checkpoint(taskId, 2);
 
     let parsed: EaParseResult;
@@ -458,6 +485,7 @@ export class EaImportService {
           spaceId,
           workspaceId,
           creatorId,
+          parentPageId: rootParentId,
         });
 
         return {
@@ -484,6 +512,7 @@ export class EaImportService {
     }
 
     await this.checkpoint(taskId, 10);
+    lap('parsed');
     const warnings: EaParseWarning[] = [...parsed.warnings];
 
     if (parsed.roots.length === 0) {
@@ -580,6 +609,7 @@ export class EaImportService {
 
     const documentContent = await this.convertDocuments(prepared, warnings);
     await this.checkpoint(taskId, 25);
+    lap('documents converted');
 
     const imageBudget = { count: 0, bytes: 0 };
 
@@ -654,6 +684,8 @@ export class EaImportService {
       page.title = title;
     });
 
+    lap('html built');
+
     // Phase B (CPU bound): HTML -> ProseMirror -> Yjs on worker threads.
     let converted = 0;
     const pageResults = await runEaCpuJobs(
@@ -686,6 +718,8 @@ export class EaImportService {
     const pageIds: string[] = [];
     const rootPageIds: string[] = [];
 
+    lap('pages converted');
+
     // Last cancellable point: the transaction below commits all pages at once.
     await this.checkpoint(taskId, 92);
 
@@ -701,7 +735,11 @@ export class EaImportService {
           previous !== undefined
             ? generateJitteredKeyBetween(previous, null)
             : key === null
-              ? await this.pageService.nextPagePosition(spaceId, undefined, trx)
+              ? await this.pageService.nextPagePosition(
+                  spaceId,
+                  rootParentId ?? undefined,
+                  trx,
+                )
               : generateJitteredKeyBetween(null, null);
         lastPosition.set(key, position);
 
@@ -717,7 +755,7 @@ export class EaImportService {
           workspaceId,
           creatorId,
           lastUpdatedById: creatorId,
-          parentPageId: page.parentPageId,
+          parentPageId: page.parentPageId ?? rootParentId,
         });
         pageIds.push(page.id);
         if (page.parentPageId === null) {
@@ -732,6 +770,8 @@ export class EaImportService {
           .execute();
       }
     });
+
+    lap('pages inserted');
 
     this.eventEmitter.emit(EventName.PAGE_CREATED, {
       pageIds,

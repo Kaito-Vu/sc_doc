@@ -14,7 +14,7 @@ export default function FixedToolbarPref() {
   const { t } = useTranslation();
   const [user, setUser] = useAtom(userAtom);
   const [checked, setChecked] = useState(
-    user.settings?.preferences?.editorToolbar ?? false,
+    user.settings?.preferences?.editorToolbar ?? true,
   );
 
   const handleChange = async (event: React.ChangeEvent<HTMLInputElement>) => {

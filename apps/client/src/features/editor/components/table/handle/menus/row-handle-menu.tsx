@@ -80,7 +80,7 @@ export const RowHandleMenu = React.memo(function RowHandleMenu({
                 <ColorSwatch
                   color={c.color || "#ffffff"}
                   size={22}
-                  style={{ border: c.color === "" ? "1px solid #e5e7eb" : undefined }}
+                  style={{ border: c.color === "" ? "1px solid var(--mantine-color-gray-3)" : undefined }}
                 />
               </button>
             ))}

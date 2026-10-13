@@ -91,6 +91,7 @@ export class EaHtmlReportService {
     spaceId: string;
     workspaceId: string;
     creatorId: string;
+    parentPageId?: string | null;
     onProgress?: (percent: number) => Promise<void>;
   }): Promise<EaHtmlReportResult> {
     const { buffer, fileTask, spaceId, workspaceId, creatorId } = opts;
@@ -192,7 +193,7 @@ export class EaHtmlReportService {
       await executeTx(this.db, async (trx) => {
         const containerPosition = await this.pageService.nextPagePosition(
           spaceId,
-          undefined,
+          opts.parentPageId ?? undefined,
           trx,
         );
         const container: InsertablePage = {
@@ -207,7 +208,7 @@ export class EaHtmlReportService {
           workspaceId,
           creatorId,
           lastUpdatedById: creatorId,
-          parentPageId: null,
+          parentPageId: opts.parentPageId ?? null,
         };
         await trx.insertInto('pages').values(container).execute();
         pageIds.push(containerId);

@@ -43,16 +43,20 @@ import { useUpgradeLabel } from "@/ee/hooks/use-upgrade-label";
 import { getFileTaskById } from "@/features/file-task/services/file-task-service.ts";
 import { queryClient } from "@/main.tsx";
 import { useQueryEmit } from "@/features/websocket/use-query-emit.ts";
+import { useRefreshSubPages } from "@/ee/import-subpage/use-refresh-sub-pages.ts";
 import bytes from "bytes";
 
 interface PageImportModalProps {
   spaceId: string;
+  // When set, imported pages become children of this page.
+  parentPageId?: string;
   open: boolean;
   onClose: () => void;
 }
 
 export default function PageImportModal({
   spaceId,
+  parentPageId,
   open,
   onClose,
 }: PageImportModalProps) {
@@ -76,7 +80,11 @@ export default function PageImportModal({
             <Modal.CloseButton aria-label={t("Close")} />
           </Modal.Header>
           <Modal.Body>
-            <ImportFormatSelection spaceId={spaceId} onClose={onClose} />
+            <ImportFormatSelection
+              spaceId={spaceId}
+              parentPageId={parentPageId}
+              onClose={onClose}
+            />
           </Modal.Body>
         </Modal.Content>
       </Modal.Root>
@@ -86,12 +94,19 @@ export default function PageImportModal({
 
 interface ImportFormatSelection {
   spaceId: string;
+  parentPageId?: string;
   onClose: () => void;
 }
-function ImportFormatSelection({ spaceId, onClose }: ImportFormatSelection) {
+function ImportFormatSelection({
+  spaceId,
+  parentPageId,
+  onClose,
+}: ImportFormatSelection) {
   const { t } = useTranslation();
+  const refreshSubPages = useRefreshSubPages();
   const [treeData, setTreeData] = useAtom(treeDataAtom);
   const [fileTaskId, setFileTaskId] = useState<string | null>(null);
+  const [dragging, setDragging] = useState(false);
   const emit = useQueryEmit();
 
   const markdownFileRef = useRef<() => void>(null);
@@ -141,7 +156,12 @@ function ImportFormatSelection({ spaceId, onClose }: ImportFormatSelection) {
         autoClose: false,
       });
 
-      const importTask = await importZip(selectedFile, spaceId, source);
+      const importTask = await importZip(
+        selectedFile,
+        spaceId,
+        source,
+        parentPageId,
+      );
       notifications.update({
         id: "import",
         title: t("Importing pages"),
@@ -164,12 +184,12 @@ function ImportFormatSelection({ spaceId, onClose }: ImportFormatSelection) {
         zipFileRef.current();
       }
     } catch (err) {
-      console.log("Failed to upload import file", err);
+      console.error("Failed to upload import file", err);
       notifications.update({
         id: "import",
         color: "red",
         title: t("Failed to upload import file"),
-        message: err?.response.data.message,
+        message: err?.response?.data?.message || t("Check your connection and try again."),
         icon: <IconX size={18} />,
         loading: false,
         withCloseButton: true,
@@ -269,6 +289,8 @@ function ImportFormatSelection({ spaceId, onClose }: ImportFormatSelection) {
             queryKey: ["recent-changes", fileTask.spaceId],
           });
 
+          if (parentPageId) await refreshSubPages(parentPageId, spaceId);
+
           setTimeout(() => {
             emit({
               operation: "refetchRootTreeNodeEvent",
@@ -305,7 +327,7 @@ function ImportFormatSelection({ spaceId, onClose }: ImportFormatSelection) {
           message: t(
             "Something went wrong while importing pages: {{reason}}.",
             {
-              reason: err.response?.data.message,
+              reason: err?.response?.data?.message,
             },
           ),
           icon: <IconX size={18} />,
@@ -354,11 +376,11 @@ function ImportFormatSelection({ spaceId, onClose }: ImportFormatSelection) {
 
     for (const file of selectedFiles) {
       try {
-        const page = await importPage(file, spaceId);
+        const page = await importPage(file, spaceId, parentPageId);
         pages.push(page);
         pageCount += 1;
       } catch (err) {
-        console.log("Failed to import page", err);
+        console.error("Failed to import page", err);
       }
     }
 
@@ -366,7 +388,9 @@ function ImportFormatSelection({ spaceId, onClose }: ImportFormatSelection) {
       const newTreeNodes = buildTree(pages);
       const fullTree = treeData.concat(newTreeNodes);
 
-      if (newTreeNodes?.length && fullTree?.length > 0) {
+      if (parentPageId) {
+        await refreshSubPages(parentPageId, spaceId);
+      } else if (newTreeNodes?.length && fullTree?.length > 0) {
         setTreeData(fullTree);
       }
 
@@ -431,14 +455,14 @@ function ImportFormatSelection({ spaceId, onClose }: ImportFormatSelection) {
         autoClose: false,
       });
 
-      const task = await importEaXml(selectedFile, spaceId, mode);
+      const task = await importEaXml(selectedFile, spaceId, mode, parentPageId);
 
       notifications.hide("import");
       trackEaImport(task, selectedFile);
 
       eaFileRef.current?.();
     } catch (err) {
-      console.log("Failed to upload EA XML file", err);
+      console.error("Failed to upload EA XML file", err);
       notifications.update({
         id: "import",
         color: "red",
@@ -453,9 +477,96 @@ function ImportFormatSelection({ spaceId, onClose }: ImportFormatSelection) {
   };
   handleEaUploadRef.current = handleEaUpload;
 
+  const fileExt = (f: File) =>
+    f.name.slice(f.name.lastIndexOf(".")).toLowerCase();
+
+  const chooseZipSource = (file: File) => {
+    const run = (source: string) => {
+      modals.closeAll();
+      if (source === "ea") void handleEaUpload(file);
+      else void handleZipUpload(file, source);
+    };
+    modals.open({
+      title: t("Select import source"),
+      centered: true,
+      children: (
+        <Stack gap="xs">
+          <Text size="sm" lineClamp={1}>
+            {file.name}
+          </Text>
+          <Button variant="default" onClick={() => run("generic")}>
+            {t("Markdown / HTML (ZIP)")}
+          </Button>
+          <Button variant="default" onClick={() => run("notion")}>
+            Notion
+          </Button>
+          <Button
+            variant="default"
+            disabled={!canUseConfluence || !!parentPageId}
+            onClick={() => run("confluence")}
+          >
+            Confluence
+          </Button>
+          <Button
+            variant="default"
+            disabled={!canUseEa}
+            onClick={() => run("ea")}
+          >
+            Enterprise Architect
+          </Button>
+        </Stack>
+      ),
+    });
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragging(false);
+    const files = Array.from(e.dataTransfer.files);
+
+    const docs = files.filter(
+      (f) =>
+        [".md", ".html"].includes(fileExt(f)) ||
+        (fileExt(f) === ".docx" && canUseDocx) ||
+        (fileExt(f) === ".pdf" && canUsePdf),
+    );
+    const ea = files.find(
+      (f) => [".xml", ".xmi"].includes(fileExt(f)) && canUseEa,
+    );
+    const zip = files.find((f) => fileExt(f) === ".zip");
+
+    if (docs.length) void handleFileUpload(docs);
+    else if (ea) void handleEaUpload(ea);
+    else if (zip) chooseZipSource(zip);
+    else {
+      notifications.show({
+        color: "red",
+        message: t("Unsupported file type"),
+      });
+    }
+  };
+
   // @ts-ignore
   return (
-    <>
+    <div
+      onDragOver={(e) => {
+        e.preventDefault();
+        setDragging(true);
+      }}
+      onDragLeave={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+          setDragging(false);
+        }
+      }}
+      onDrop={handleDrop}
+      style={{
+        outline: dragging
+          ? "2px dashed var(--mantine-color-blue-6)"
+          : "2px dashed transparent",
+        outlineOffset: 8,
+        borderRadius: 8,
+      }}
+    >
       <SimpleGrid cols={2}>
         <FileButton
           onChange={handleFileUpload}
@@ -611,7 +722,7 @@ function ImportFormatSelection({ spaceId, onClose }: ImportFormatSelection) {
               disabled={canUseConfluence}
             >
               <Button
-                disabled={!canUseConfluence}
+                disabled={!canUseConfluence || !!parentPageId}
                 justify="start"
                 variant="default"
                 leftSection={<ConfluenceIcon size={18} />}
@@ -628,6 +739,9 @@ function ImportFormatSelection({ spaceId, onClose }: ImportFormatSelection) {
         <div>
           <Text ta="center" size="lg" inline>
             Import zip file
+          </Text>
+          <Text ta="center" size="xs" c="dimmed" inline>
+            {t("or drag & drop files here")}
           </Text>
           <Text ta="center" size="sm" c="dimmed" inline py="sm">
             {t(
@@ -659,6 +773,6 @@ function ImportFormatSelection({ spaceId, onClose }: ImportFormatSelection) {
           </FileButton>
         </div>
       </Group>
-    </>
+    </div>
   );
 }

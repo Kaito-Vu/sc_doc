@@ -54,6 +54,7 @@ export function VerifierList({
           {canManage && onRemove && (
             <Tooltip label={t("Remove")} withArrow>
               <ActionIcon
+                aria-label={t("Remove")}
                 variant="subtle"
                 color="gray"
                 size="sm"

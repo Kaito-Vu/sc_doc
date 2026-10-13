@@ -62,7 +62,7 @@ export class EaImportController {
     let file = null;
     try {
       file = await req.file({
-        limits: { fileSize: maxSize, fields: 2, files: 1 },
+        limits: { fileSize: maxSize, fields: 3, files: 1 },
       });
     } catch (err: any) {
       this.logger.error(err.message);
@@ -106,6 +106,7 @@ export class EaImportController {
       spaceId,
       workspace.id,
       mode,
+      file.fields?.parentPageId?.value,
     );
   }
 

@@ -162,6 +162,8 @@ export class FileImportTaskService {
   }): Promise<void> {
     const { extractDir, fileTask } = opts;
     const isNotion = fileTask.source === FileImportSource.Notion;
+    const rootParentId: string | null =
+      (fileTask.metadata as any)?.parentPageId ?? null;
     const allFiles = await collectMarkdownAndHtmlFiles(extractDir);
     const attachmentCandidates = await buildAttachmentCandidates(extractDir);
     const docmostMetadata = await readDocmostMetadata(extractDir);
@@ -373,6 +375,7 @@ export class FileImportTaskService {
       // get first position key from the server
       const nextPosition = await this.pageService.nextPagePosition(
         fileTask.spaceId,
+        rootParentId ?? undefined,
       );
 
       let prevPos: string | null = null;
@@ -535,7 +538,7 @@ export class FileImportTaskService {
               workspaceId: fileTask.workspaceId,
               creatorId: fileTask.creatorId,
               lastUpdatedById: fileTask.creatorId,
-              parentPageId: page.parentPageId,
+              parentPageId: page.parentPageId ?? rootParentId,
             };
 
             await trx.insertInto('pages').values(insertablePage).execute();

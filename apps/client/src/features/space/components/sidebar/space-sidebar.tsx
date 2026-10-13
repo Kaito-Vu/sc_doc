@@ -42,6 +42,8 @@ import {
   SpaceCaslSubject,
 } from "@/features/space/permissions/permissions.type.ts";
 import PageImportModal from "@/features/page/components/page-import-modal.tsx";
+import { ImportSubPageHost } from "@/ee/import-subpage/use-import-sub-page.tsx";
+import { useSpaceShortcuts } from "@/ee/shortcuts/shortcuts.tsx";
 import { useTranslation } from "react-i18next";
 import { SwitchSpace } from "./switch-space";
 import ExportModal from "@/components/common/export-modal";
@@ -76,6 +78,10 @@ export function SpaceSidebar() {
   const spaceRules = space?.membership?.permissions;
   const spaceAbility = useSpaceAbility(spaceRules);
   const { handleCreate } = useTreeMutation(space?.id ?? "");
+  useSpaceShortcuts(
+    () => handleCreate(null),
+    !!space && spaceAbility.can(SpaceCaslAction.Manage, SpaceCaslSubject.Page),
+  );
 
   if (!space) {
     return <></>;
@@ -387,6 +393,7 @@ function SpaceMenu({
             open={importOpened}
             onClose={closeImportModal}
           />
+          <ImportSubPageHost />
 
           <ExportModal
             type="space"

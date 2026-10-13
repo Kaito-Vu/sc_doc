@@ -52,12 +52,7 @@ export class ImportService {
     workspaceId: string,
     parentPageId?: string,
   ) {
-    if (parentPageId) {
-      const parent = await this.pageRepo.findById(parentPageId);
-      if (!parent || parent.spaceId !== spaceId || parent.deletedAt) {
-        throw new BadRequestException('Invalid parent page');
-      }
-    }
+    await this.assertValidParent(spaceId, parentPageId);
 
     const file = await filePromise;
     const fileBuffer = await file.toBuffer();
@@ -150,6 +145,14 @@ export class ImportService {
     }
 
     return createdPage;
+  }
+
+  private async assertValidParent(spaceId: string, parentPageId?: string) {
+    if (!parentPageId) return;
+    const parent = await this.pageRepo.findById(parentPageId);
+    if (!parent || parent.spaceId !== spaceId || parent.deletedAt) {
+      throw new BadRequestException('Invalid parent page');
+    }
   }
 
   async processMarkdown(markdownInput: string): Promise<any> {
@@ -334,7 +337,10 @@ export class ImportService {
     userId: string,
     spaceId: string,
     workspaceId: string,
+    parentPageId?: string,
   ) {
+    await this.assertValidParent(spaceId, parentPageId);
+
     const file = await filePromise;
     const fileExtension = path.extname(file.filename).toLowerCase();
     const fileName = sanitizeFileName(
@@ -363,6 +369,7 @@ export class ImportService {
         filePath: filePath,
         fileSize: fileSize,
         fileExt: 'zip',
+        ...(parentPageId ? { metadata: { parentPageId } } : {}),
         creatorId: userId,
         spaceId: spaceId,
         workspaceId: workspaceId,

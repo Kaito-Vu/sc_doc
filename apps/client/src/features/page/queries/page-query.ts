@@ -8,6 +8,7 @@ import {
   UseQueryResult,
   keepPreviousData,
 } from "@tanstack/react-query";
+import { useTrashedToast } from "@/ee/page-undo/use-trashed-toast.tsx";
 import {
   createPage,
   deletePage,
@@ -118,10 +119,11 @@ export function useUpdatePageMutation() {
 
 export function useRemovePageMutation() {
   const { t } = useTranslation();
+  const showTrashedToast = useTrashedToast();
   return useMutation({
     mutationFn: (pageId: string) => deletePage(pageId, false),
     onSuccess: (_, pageId) => {
-      notifications.show({ message: t("Page moved to trash") });
+      showTrashedToast(pageId);
 
       // Stamp deletedAt so a re-visit shows the trash banner, not stale state.
       const cached = queryClient.getQueryData<IPage>(["pages", pageId]);

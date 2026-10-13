@@ -1,5 +1,5 @@
 .header, .navbar, .aside {
-  background-color: light-dark(#f6f7f9, var(--mantine-color-dark-8));
+  background-color: light-dark(var(--mantine-color-gray-0), var(--mantine-color-dark-8));
 }
 
 .navbar, .aside {

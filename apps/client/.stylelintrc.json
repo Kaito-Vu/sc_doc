@@ -1,0 +1,18 @@
+{
+  "rules": {
+    "color-no-hex": true
+  },
+  "overrides": [
+    {
+      "files": [
+        "src/ee/styles/sc-tokens.css",
+        "src/features/editor/styles/highlight.css",
+        "src/features/editor/styles/table.css",
+        "src/features/public-space/**/*.css",
+        "src/features/editor/components/status/status.module.css",
+        "src/features/page-history/components/css/history.module.css"
+      ],
+      "rules": { "color-no-hex": null }
+    }
+  ]
+}

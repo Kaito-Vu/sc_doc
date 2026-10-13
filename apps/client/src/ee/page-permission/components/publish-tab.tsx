@@ -103,6 +103,7 @@ export function PublishTab({ pageId, readOnly, isRestricted, workspaceSharingDis
           style={{ width: "100%" }}
         />
         <ActionIcon
+          aria-label={t("Open public link")}
           component="a"
           variant="default"
           target="_blank"
@@ -113,7 +114,7 @@ export function PublishTab({ pageId, readOnly, isRestricted, workspaceSharingDis
         </ActionIcon>
       </Group>
     ),
-    [publicLink],
+    [publicLink, t],
   );
 
   if (isCloud() && isTrial) {

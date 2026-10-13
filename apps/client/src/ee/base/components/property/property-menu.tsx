@@ -313,6 +313,7 @@ export function PropertyMenuContent({
         <Stack gap={0} p={4}>
           <Group gap="xs" px="sm" py={6}>
             <ActionIcon
+              aria-label={t("Back")}
               variant="subtle"
               color="gray"
               size="xs"
@@ -381,6 +382,7 @@ export function PropertyMenuContent({
         >
           <Group gap="xs">
             <ActionIcon
+              aria-label={t("Back")}
               variant="subtle"
               color="gray"
               size="xs"

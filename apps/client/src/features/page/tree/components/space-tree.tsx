@@ -1,4 +1,5 @@
 import { useAtom } from "jotai";
+import { TreeEmptyState } from "@/ee/empty-state/tree-empty-state.tsx";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -206,9 +207,7 @@ export default function SpaceTree({ spaceId, readOnly }: SpaceTreeProps) {
   return (
     <div className={classes.treeContainer}>
       {isDataLoaded && filteredData.length === 0 && (
-        <Text size="xs" c="dimmed" py="xs" px="sm">
-          {t("No pages yet")}
-        </Text>
+        <TreeEmptyState spaceId={spaceId} readOnly={readOnly} />
       )}
       {isDataLoaded && filteredData.length > 0 && (
         <DocTree<SpaceTreeNode>

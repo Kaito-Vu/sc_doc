@@ -23,12 +23,14 @@ import { marked } from "marked";
 import { DOMSerializer } from "@tiptap/pm/model";
 import { copyToClipboard, htmlToMarkdown, isEditorReady } from "@docmost/editor-ext";
 import { useLocation } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 
 interface EditorAiMenuProps {
   editor: Editor | null;
 }
 
 const EditorAiMenu = ({ editor }: EditorAiMenuProps): JSX.Element | null => {
+  const { t } = useTranslation();
   const aiGenerateStreamMutation = useAiGenerateStreamMutation();
   const location = useLocation();
   const isSmBreakpoint = useMediaQuery("(max-width: 48em)");
@@ -336,6 +338,7 @@ const EditorAiMenu = ({ editor }: EditorAiMenuProps): JSX.Element | null => {
             onChange={(e) => setPrompt(e.currentTarget.value)}
             rightSection={
               <ActionIcon
+                aria-label={t("Generate")}
                 disabled={!prompt || isLoading}
                 variant="filled"
                 color="blue"

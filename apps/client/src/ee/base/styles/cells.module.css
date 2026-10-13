@@ -60,7 +60,7 @@
 
 .overflowCount {
   font-size: 11px;
-  color: light-dark(#686868, var(--mantine-color-dark-1));
+  color: light-dark(var(--mantine-color-gray-7), var(--mantine-color-dark-1));
   flex-shrink: 0;
   white-space: nowrap;
 }

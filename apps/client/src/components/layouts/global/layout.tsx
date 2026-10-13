@@ -5,6 +5,8 @@ import { PosthogUser } from "@/ee/components/posthog-user.tsx";
 import { isCloud } from "@/lib/config.ts";
 import { SearchSpotlight } from "@/features/search/components/search-spotlight.tsx";
 import { EaImportTracker } from "@/ee/ea-import/ea-import-tracker.tsx";
+import { ShortcutsHelp } from "@/ee/shortcuts/shortcuts.tsx";
+import "@/ee/styles/sc-tokens.css";
 import React from "react";
 import { useGetSpaceBySlugQuery } from "@/features/space/queries/space-query.ts";
 
@@ -19,6 +21,7 @@ export default function Layout() {
       </GlobalAppShell>
       {isCloud() && <PosthogUser />}
       <EaImportTracker />
+      <ShortcutsHelp />
       <SearchSpotlight spaceId={space?.id} />
     </UserProvider>
   );

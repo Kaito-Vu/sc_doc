@@ -169,7 +169,7 @@ export function MfaSetupModal({
                     <Paper p="md" withBorder>
                       <Image
                         src={setupData.qrCode}
-                        alt="MFA QR Code"
+                        alt={t("QR code to scan with your authenticator app")}
                         width={200}
                         height={200}
                       />
@@ -208,6 +208,7 @@ export function MfaSetupModal({
                           {({ copied, copy }) => (
                             <Tooltip label={copied ? t("Copied") : t("Copy")}>
                               <ActionIcon
+                                aria-label={t("Copy")}
                                 color={copied ? "green" : "gray"}
                                 onClick={copy}
                               >

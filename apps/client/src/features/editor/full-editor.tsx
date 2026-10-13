@@ -71,7 +71,7 @@ export function FullEditor({
   const [user] = useAtom(userAtom);
   const fullPageWidth = user.settings?.preferences?.fullPageWidth;
   const editorToolbarEnabled =
-    user.settings?.preferences?.editorToolbar ?? false;
+    user.settings?.preferences?.editorToolbar ?? true;
   const [currentPageEditMode, setCurrentPageEditMode] = useAtom(
     currentPageEditModeAtom,
   );

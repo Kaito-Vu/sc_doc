@@ -138,7 +138,7 @@ export class ImportController {
     let file = null;
     try {
       file = await req.file({
-        limits: { fileSize: maxFileSize, fields: 3, files: 1 },
+        limits: { fileSize: maxFileSize, fields: 4, files: 1 },
       });
     } catch (err: any) {
       this.logger.error(err.message);
@@ -196,6 +196,7 @@ export class ImportController {
       user.id,
       spaceId,
       workspace.id,
+      file.fields?.parentPageId?.value,
     );
   }
 }

@@ -468,6 +468,7 @@ export function ViewFilterConfigPopover({
                   />
                 )}
                 <ActionIcon
+                  aria-label={t("Delete")}
                   variant="subtle"
                   color="gray"
                   size="sm"

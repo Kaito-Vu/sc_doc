@@ -154,6 +154,7 @@ export function ViewSortConfigPopover({
                 w={110}
               />
               <ActionIcon
+                aria-label={t("Delete")}
                 variant="subtle"
                 color="gray"
                 size="sm"

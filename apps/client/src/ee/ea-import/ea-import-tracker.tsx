@@ -8,6 +8,8 @@ import { IFileTask } from "@/features/file-task/types/file-task.types.ts";
 import { getFileTaskById } from "@/features/file-task/services/file-task-service.ts";
 import { queryClient } from "@/main.tsx";
 import { useQueryEmit } from "@/features/websocket/use-query-emit.ts";
+import { useRefreshSubPages } from "@/ee/import-subpage/use-refresh-sub-pages.ts";
+import { getErrorMessage } from "@/ee/ea-import/get-error-message.ts";
 import {
   cancelEaImport,
   EaImportMode,
@@ -15,7 +17,9 @@ import {
   importEaXml,
 } from "@/ee/ea-import/services/ea-import-service.ts";
 
-const POLL_MS = 2000;
+const POLL_MS = 1000;
+// Consecutive poll failures before the toast admits the connection is lost.
+const LOST_AFTER_FAILS = 5;
 // The server commits all pages in one transaction after this point.
 const POINT_OF_NO_RETURN = 92;
 
@@ -35,15 +39,56 @@ export function trackEaImport(task: IFileTask, file?: File) {
 export function EaImportTracker() {
   const { t } = useTranslation();
   const emit = useQueryEmit();
+  const refreshSubPages = useRefreshSubPages();
   const [ids, setIds] = useState<string[]>([]);
   const files = useRef(new Map<string, File>());
   const shown = useRef(new Set<string>());
   const finished = useRef(new Set<string>());
+  const canceling = useRef(new Set<string>());
+  const fails = useRef(new Map<string, number>());
+  const lastTask = useRef(new Map<string, IFileTask>());
 
   const notifId = (task: IFileTask) => `ea-import-${task.id}`;
 
+  const confirmCancel = (task: IFileTask) =>
+    modals.openConfirmModal({
+      title: t("Cancel import?"),
+      centered: true,
+      children: (
+        <Text size="sm">
+          {t("Pages already read from this file will not be created.")}
+        </Text>
+      ),
+      labels: { confirm: t("Cancel import"), cancel: t("Keep importing") },
+      confirmProps: { color: "red" },
+      onConfirm: () => {
+        canceling.current.add(task.id);
+        renderProgress(lastTask.current.get(task.id) ?? task);
+        cancelEaImport(task.id).catch((err) => {
+          canceling.current.delete(task.id);
+          renderProgress(lastTask.current.get(task.id) ?? task);
+          notifications.show({
+            color: "red",
+            title: t("Failed to cancel import"),
+            message: getErrorMessage(err),
+          });
+        });
+      },
+    });
+
   const renderProgress = (task: IFileTask) => {
     const progress = (task.metadata as any)?.progress as number | undefined;
+    lastTask.current.set(task.id, task);
+    const isCanceling = canceling.current.has(task.id);
+    const lost = (fails.current.get(task.id) ?? 0) >= LOST_AFTER_FAILS;
+    const cancelable = (progress ?? 0) < POINT_OF_NO_RETURN;
+    const statusText = lost
+      ? t("Connection lost, retrying…")
+      : isCanceling
+        ? t("Canceling…")
+        : progress === undefined
+          ? t("Queued…")
+          : `${progress}%`;
     const props = {
       id: notifId(task),
       title: t("Importing pages"),
@@ -55,20 +100,35 @@ export function EaImportTracker() {
           <Text size="sm" lineClamp={1}>
             {task.fileName}
           </Text>
-          <Progress value={progress ?? 0} size="sm" animated />
+          <Progress
+            value={progress ?? 0}
+            size="sm"
+            animated
+            aria-label={t("Importing pages")}
+          />
           <Group justify="space-between">
-            <Text size="xs" c="dimmed">
-              {progress === undefined ? t("Queued…") : `${progress}%`}
+            <Text
+              size="xs"
+              c={lost ? "red" : "dimmed"}
+              role="status"
+              aria-live="polite"
+            >
+              {statusText}
             </Text>
-            {(progress ?? 0) < POINT_OF_NO_RETURN && (
+            {cancelable ? (
               <Button
                 size="compact-xs"
                 variant="subtle"
                 color="red"
-                onClick={() => cancelEaImport(task.id).catch(() => undefined)}
+                disabled={isCanceling}
+                onClick={() => confirmCancel(task)}
               >
                 {t("Cancel")}
               </Button>
+            ) : (
+              <Text size="xs" c="dimmed">
+                {t("Saving pages, can't be canceled")}
+              </Text>
             )}
           </Group>
         </Stack>
@@ -90,7 +150,7 @@ export function EaImportTracker() {
   const askDuplicate = (task: IFileTask, file: File) => {
     const run = (mode: EaImportMode) => {
       modals.closeAll();
-      importEaXml(file, task.spaceId, mode)
+      importEaXml(file, task.spaceId, mode, (task.metadata as any)?.parentPageId)
         .then((next) => {
           files.current.set(next.id, file);
           addTask(next);
@@ -99,7 +159,7 @@ export function EaImportTracker() {
           notifications.show({
             color: "red",
             title: t("Failed to upload import file"),
-            message: err?.response?.data?.message,
+            message: getErrorMessage(err),
           }),
         );
     };
@@ -120,9 +180,14 @@ export function EaImportTracker() {
             <Button variant="default" onClick={() => modals.closeAll()}>
               {t("Skip")}
             </Button>
-            <Button color="red" onClick={() => run("replace")}>
+            <Button color="red" variant="outline" onClick={() => run("replace")}>
               {t("Replace")}
             </Button>
+            <Text size="xs" c="dimmed">
+              {t(
+                "Replace permanently deletes the pages from the previous import.",
+              )}
+            </Text>
           </Stack>
         </Stack>
       ),
@@ -148,7 +213,7 @@ export function EaImportTracker() {
         color: "red",
         title: t("Page import failed"),
         message: t("Something went wrong while importing pages: {{reason}}.", {
-          reason: task.errorMessage,
+          reason: task.errorMessage || t("unknown error"),
         }),
         icon: <IconX size={18} />,
         autoClose: false,
@@ -179,12 +244,19 @@ export function EaImportTracker() {
         icon: <IconCheck size={18} />,
         autoClose: false,
       });
-      await queryClient.refetchQueries({
-        queryKey: ["root-sidebar-pages", task.spaceId],
-      });
-      await queryClient.invalidateQueries({
-        queryKey: ["recent-changes", task.spaceId],
-      });
+      try {
+        await queryClient.refetchQueries({
+          queryKey: ["root-sidebar-pages", task.spaceId],
+        });
+        await queryClient.invalidateQueries({
+          queryKey: ["recent-changes", task.spaceId],
+        });
+        if (meta?.parentPageId) {
+          await refreshSubPages(meta.parentPageId, task.spaceId);
+        }
+      } catch {
+        // the tree catches up on the next refetch; don't leave the task dangling
+      }
       setTimeout(() => {
         emit({ operation: "refetchRootTreeNodeEvent", spaceId: task.spaceId });
       }, 50);
@@ -193,9 +265,11 @@ export function EaImportTracker() {
   };
 
   const poll = async (id: string) => {
+    if (!navigator.onLine) return markFailure(id);
     try {
       const task = await getFileTaskById(id);
       if (finished.current.has(id)) return;
+      fails.current.delete(id);
       if (task.status === "processing") {
         renderProgress(task);
         return;
@@ -204,8 +278,16 @@ export function EaImportTracker() {
       setIds((prev) => prev.filter((x) => x !== id));
       await finish(task);
     } catch {
-      // transient error: try again on the next tick
+      markFailure(id);
     }
+  };
+
+  // Transient errors are retried every tick; after a few the toast says so.
+  const markFailure = (id: string) => {
+    const n = (fails.current.get(id) ?? 0) + 1;
+    fails.current.set(id, n);
+    const task = lastTask.current.get(id);
+    if (n === LOST_AFTER_FAILS && task) renderProgress(task);
   };
 
   useEffect(() => {

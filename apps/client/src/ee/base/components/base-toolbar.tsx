@@ -142,6 +142,7 @@ export function BaseToolbar({
       <div className={classes.toolbarRight}>
         <Tooltip label={t("Export CSV")}>
           <ActionIcon
+            aria-label={t("Export CSV")}
             variant="subtle"
             size="sm"
             color="gray"
@@ -161,6 +162,7 @@ export function BaseToolbar({
         >
           <Tooltip label={t("Filter")}>
             <ActionIcon
+              aria-label={t("Filter")}
               variant="subtle"
               size="sm"
               color={conditions.length > 0 ? "blue" : "gray"}
@@ -186,6 +188,7 @@ export function BaseToolbar({
             <KanbanGroupByPicker base={base} view={activeView} pageId={base.id}>
               <Tooltip label={t("Group by")}>
                 <ActionIcon
+                  aria-label={t("Group by")}
                   variant="subtle"
                   size="sm"
                   color="gray"
@@ -204,6 +207,7 @@ export function BaseToolbar({
             >
               <Tooltip label={t("Card properties")}>
                 <ActionIcon
+                  aria-label={t("Card properties")}
                   variant="subtle"
                   size="sm"
                   color="gray"
@@ -227,6 +231,7 @@ export function BaseToolbar({
             >
               <Tooltip label={t("Sort")}>
                 <ActionIcon
+                  aria-label={t("Sort")}
                   variant="subtle"
                   size="sm"
                   color={sorts.length > 0 ? "blue" : "gray"}
@@ -257,6 +262,7 @@ export function BaseToolbar({
               >
                 <Tooltip label={t("Hide properties")}>
                   <ActionIcon
+                    aria-label={t("Hide properties")}
                     variant="subtle"
                     size="sm"
                     color={hiddenPropertyCount > 0 ? "blue" : "gray"}
@@ -283,6 +289,7 @@ export function BaseToolbar({
         {onExpand && (
           <Tooltip label={t("Open as page")}>
             <ActionIcon
+              aria-label={t("Open as page")}
               variant="subtle"
               size="sm"
               color="gray"

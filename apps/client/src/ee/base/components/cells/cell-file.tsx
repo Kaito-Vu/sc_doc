@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { Popover, ActionIcon, Text, UnstyledButton } from "@mantine/core";
 import {
   IconPaperclip,
@@ -56,6 +57,7 @@ export function CellFile({
   onCommit,
   onCancel,
 }: CellFileProps) {
+  const { t } = useTranslation();
   const files = parseFiles(value);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
@@ -159,6 +161,7 @@ export function CellFile({
               </a>
               {!readOnly && (
                 <ActionIcon
+                  aria-label={t("Remove")}
                   variant="subtle"
                   color="gray"
                   size="xs"

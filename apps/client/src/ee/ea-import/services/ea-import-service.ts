@@ -7,11 +7,15 @@ export async function importEaXml(
   file: File,
   spaceId: string,
   mode?: EaImportMode,
+  parentPageId?: string,
 ): Promise<IFileTask> {
   const formData = new FormData();
   formData.append("spaceId", spaceId);
   if (mode) {
     formData.append("mode", mode);
+  }
+  if (parentPageId) {
+    formData.append("parentPageId", parentPageId);
   }
   formData.append("file", file);
 

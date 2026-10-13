@@ -97,6 +97,7 @@ export default function McpSettings() {
                   position="right"
                 >
                   <ActionIcon
+                    aria-label={t("Copy")}
                     color={copied ? "teal" : "gray"}
                     variant="subtle"
                     onClick={copy}

@@ -87,7 +87,7 @@ export const CellChevronMenu = React.memo(function CellChevronMenu({
                   color={c.color || "#ffffff"}
                   size={22}
                   style={{
-                    border: c.color === "" ? "1px solid #e5e7eb" : undefined,
+                    border: c.color === "" ? "1px solid var(--mantine-color-gray-3)" : undefined,
                   }}
                 />
               </button>

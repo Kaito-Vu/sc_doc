@@ -50,7 +50,7 @@ export default function TemplateEditor() {
   const { isAdmin: isWorkspaceAdmin } = useUserRole();
   const user = useAtomValue(userAtom);
   const editorToolbarEnabled =
-    user?.settings?.preferences?.editorToolbar ?? false;
+    user?.settings?.preferences?.editorToolbar ?? true;
 
   const { data: existingTemplate } = useGetTemplateByIdQuery(templateId || "");
   const { data: spaces } = useGetSpacesQuery({ limit: 100 });

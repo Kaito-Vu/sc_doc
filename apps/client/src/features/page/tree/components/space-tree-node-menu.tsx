@@ -7,6 +7,7 @@ import { notifications } from "@mantine/notifications";
 import {
   IconArrowRight,
   IconCopy,
+  IconCopyPlus,
   IconDotsVertical,
   IconFileExport,
   IconLink,
@@ -15,7 +16,7 @@ import {
   IconTrash,
 } from "@tabler/icons-react";
 
-import { ImportSubPageMenuItem } from "@/ee/import-subpage/import-subpage-menu-item.tsx";
+import { useImportSubPage } from "@/ee/import-subpage/use-import-sub-page.tsx";
 import ExportModal from "@/components/common/export-modal";
 import MovePageModal from "@/features/page/components/move-page-modal.tsx";
 import CopyPageModal from "@/features/page/components/copy-page-modal.tsx";
@@ -69,6 +70,7 @@ export function NodeMenu({ node, canEdit }: NodeMenuProps) {
   const addFavorite = useAddFavoriteMutation();
   const removeFavorite = useRemoveFavoriteMutation();
   const isFavorited = favoriteIds.has(node.id);
+  const importSubPage = useImportSubPage(node);
 
   const handleCopyLink = () => {
     const pageUrl =
@@ -194,6 +196,7 @@ export function NodeMenu({ node, canEdit }: NodeMenuProps) {
 
           {canEdit && (
             <>
+              <Menu.Divider />
               <Menu.Item
                 leftSection={<IconCopy size={16} />}
                 onClick={(e) => {
@@ -217,7 +220,7 @@ export function NodeMenu({ node, canEdit }: NodeMenuProps) {
               </Menu.Item>
 
               <Menu.Item
-                leftSection={<IconCopy size={16} />}
+                leftSection={<IconCopyPlus size={16} />}
                 onClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
@@ -227,7 +230,8 @@ export function NodeMenu({ node, canEdit }: NodeMenuProps) {
                 {t("Copy to space")}
               </Menu.Item>
 
-              <ImportSubPageMenuItem node={node} />
+              <Menu.Divider />
+              {importSubPage.menuItem}
 
               <Menu.Divider />
               <Menu.Item

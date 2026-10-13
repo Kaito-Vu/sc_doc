@@ -1,0 +1,18 @@
+/* Semantic design tokens for fork/ee UI. Prefer these over raw hex values. */
+:root {
+  --sc-surface-subtle: light-dark(#f7f9fb, var(--mantine-color-dark-6));
+  --sc-border-subtle: light-dark(#edf2f7, var(--mantine-color-dark-5));
+  --sc-text-strong: light-dark(#1a202c, var(--mantine-color-dark-0));
+  --sc-text-body: light-dark(#2d3748, var(--mantine-color-dark-0));
+  --sc-danger-subtle: light-dark(#fed7d7, var(--mantine-color-red-9));
+  --sc-duration-fast: 120ms;
+  --sc-duration-med: 220ms;
+  --sc-ease: cubic-bezier(0.2, 0, 0, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --sc-duration-fast: 0.01ms;
+    --sc-duration-med: 0.01ms;
+  }
+}

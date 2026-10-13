@@ -158,6 +158,7 @@ export default function AuditLogs() {
               <Popover.Target>
                 <Tooltip label={t("Audit settings")}>
                   <ActionIcon variant="default" size="input-sm" ml="auto" onClick={() => setSettingsOpen((o) => !o)}>
+                    aria-label={t("Audit settings")}
                     <IconSettings size={16} />
                   </ActionIcon>
                 </Tooltip>

@@ -15,7 +15,7 @@
   align-items: flex-start;
   gap: 10px;
   padding-bottom: 14px;
-  border-bottom: 1px solid light-dark(#edf2f7, var(--mantine-color-dark-5));
+  border-bottom: 1px solid var(--sc-border-subtle);
   margin-bottom: 4px;
   padding-top: 16px;
 }
@@ -29,7 +29,7 @@
   font-size: 15px;
   font-weight: 700;
   line-height: 1.35;
-  color: light-dark(#1a202c, var(--mantine-color-dark-0));
+  color: var(--sc-text-strong);
   word-break: break-word;
   margin: 0 0 2px;
 }
@@ -65,7 +65,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 6px 0;
-  border-bottom: 1px solid light-dark(#f7f9fb, var(--mantine-color-dark-6));
+  border-bottom: 1px solid var(--sc-surface-subtle);
   min-height: 32px;
   gap: 8px;
 }
@@ -93,7 +93,7 @@
 .rowText {
   font-size: 13px;
   font-weight: 500;
-  color: light-dark(#2d3748, var(--mantine-color-dark-0));
+  color: var(--sc-text-body);
   text-align: right;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -107,7 +107,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 6px 0;
-  border-bottom: 1px solid light-dark(#f7f9fb, var(--mantine-color-dark-6));
+  border-bottom: 1px solid var(--sc-surface-subtle);
   gap: 8px;
 }
 
@@ -133,7 +133,7 @@
 .personName {
   font-size: 13px;
   font-weight: 500;
-  color: light-dark(#2d3748, var(--mantine-color-dark-0));
+  color: var(--sc-text-body);
   max-width: 100px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -146,7 +146,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 7px 0;
-  border-bottom: 1px solid light-dark(#f7f9fb, var(--mantine-color-dark-6));
+  border-bottom: 1px solid var(--sc-surface-subtle);
   gap: 8px;
 }
 
@@ -159,7 +159,7 @@
   align-items: center;
   gap: 7px;
   font-size: 13px;
-  color: light-dark(#2d3748, var(--mantine-color-dark-0));
+  color: var(--sc-text-body);
 }
 
 /* Actions Grid */
@@ -178,7 +178,7 @@
 /* Danger Zone */
 .dangerDivider {
   height: 1px;
-  background: light-dark(#fed7d7, var(--mantine-color-red-9));
+  background: var(--sc-danger-subtle);
   margin: 16px 0 0;
 }
 
