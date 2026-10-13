@@ -1,14 +1,17 @@
 import { useRef } from "react";
-import { atom, useAtom, useSetAtom } from "jotai";
+import { atom, useAtom, useSetAtom, type PrimitiveAtom } from "jotai";
 import { Menu } from "@mantine/core";
 import { IconFileImport } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
 import PageImportModal from "@/features/page/components/page-import-modal.tsx";
 import type { SpaceTreeNode } from "@/features/page/tree/types.ts";
 
-const importTargetAtom = atom<{ spaceId: string; parentPageId: string } | null>(
-  null,
-);
+// Cast: without strictNullChecks, `atom<T | null>(null)` resolves to the
+// read-only overload.
+const importTargetAtom = atom(null) as PrimitiveAtom<{
+  spaceId: string;
+  parentPageId: string;
+} | null>;
 
 /** "Import as sub-page" item for a tree node's menu. */
 export function useImportSubPage(node: SpaceTreeNode) {
