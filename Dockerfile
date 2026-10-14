@@ -60,6 +60,7 @@ WORKDIR /app
 
 COPY --from=builder /app/apps/server/dist ./apps/server/dist
 COPY --from=builder /app/apps/client/dist ./apps/client/dist
+COPY --from=builder /app/apps/client/package.json ./apps/client/package.json
 COPY --from=builder /app/apps/server/package.json ./apps/server/package.json
 
 COPY --from=builder /app/packages/editor-ext/dist ./packages/editor-ext/dist
