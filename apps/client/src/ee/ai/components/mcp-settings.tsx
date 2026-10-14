@@ -6,7 +6,6 @@ import {
   Text,
   Switch,
   TextInput,
-  ActionIcon,
   Tooltip,
   Stack,
   Alert,
@@ -21,8 +20,8 @@ import { useHasFeature } from "@/ee/hooks/use-feature";
 import { Feature } from "@/ee/features";
 import { useUpgradeLabel } from "@/ee/hooks/use-upgrade-label";
 import { getAppUrl } from "@/lib/config.ts";
-import { IconCheck, IconCopy, IconInfoCircle } from "@tabler/icons-react";
-import { CopyButton } from "@/components/common/copy-button.tsx";
+import { IconInfoCircle } from "@tabler/icons-react";
+import { CopyValueButton } from "@/ee/components/copy-value-button";
 
 export default function McpSettings() {
   const { t } = useTranslation();
@@ -89,24 +88,7 @@ export default function McpSettings() {
           </Text>
           <Group gap="xs">
             <TextInput value={mcpUrl} readOnly style={{ flex: 1 }} />
-            <CopyButton value={mcpUrl} timeout={2000}>
-              {({ copied, copy }) => (
-                <Tooltip
-                  label={copied ? t("Copied") : t("Copy")}
-                  withArrow
-                  position="right"
-                >
-                  <ActionIcon
-                    aria-label={t("Copy")}
-                    color={copied ? "teal" : "gray"}
-                    variant="subtle"
-                    onClick={copy}
-                  >
-                    {copied ? <IconCheck size={16} /> : <IconCopy size={16} />}
-                  </ActionIcon>
-                </Tooltip>
-              )}
-            </CopyButton>
+            <CopyValueButton value={mcpUrl} variant="icon" copiedColor="teal" subtle />
           </Group>
           <Text size="sm" c="dimmed" mt="xs">
             {t("Connect AI assistants with your Docmost account via OAuth.")}

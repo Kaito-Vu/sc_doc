@@ -17,6 +17,7 @@ import { IAuthProvider } from "@/ee/security/types/security.types.ts";
 import { useTranslation } from "react-i18next";
 import { useUpdateSsoProviderMutation } from "@/ee/security/queries/security-query.ts";
 import { IconInfoCircle } from "@tabler/icons-react";
+import { SsoSwitchRow, copyDirty } from "@/ee/security/components/sso-form-fields.tsx";
 
 const ssoSchema = z.object({
   name: z.string().min(1, "Display name is required"),
@@ -67,39 +68,7 @@ export function SsoLDAPForm({ provider, onClose }: Readonly<SsoFormProps>) {
     const ssoData: Partial<IAuthProvider> = {
       providerId: provider.id,
     };
-    if (form.isDirty("name")) {
-      ssoData.name = values.name;
-    }
-    if (form.isDirty("ldapUrl")) {
-      ssoData.ldapUrl = values.ldapUrl;
-    }
-    if (form.isDirty("ldapBindDn")) {
-      ssoData.ldapBindDn = values.ldapBindDn;
-    }
-    if (form.isDirty("ldapBindPassword")) {
-      ssoData.ldapBindPassword = values.ldapBindPassword;
-    }
-    if (form.isDirty("ldapBaseDn")) {
-      ssoData.ldapBaseDn = values.ldapBaseDn;
-    }
-    if (form.isDirty("ldapUserSearchFilter")) {
-      ssoData.ldapUserSearchFilter = values.ldapUserSearchFilter;
-    }
-    if (form.isDirty("ldapTlsEnabled")) {
-      ssoData.ldapTlsEnabled = values.ldapTlsEnabled;
-    }
-    if (form.isDirty("ldapTlsCaCert")) {
-      ssoData.ldapTlsCaCert = values.ldapTlsCaCert;
-    }
-    if (form.isDirty("isEnabled")) {
-      ssoData.isEnabled = values.isEnabled;
-    }
-    if (form.isDirty("allowSignup")) {
-      ssoData.allowSignup = values.allowSignup;
-    }
-    if (form.isDirty("groupSync")) {
-      ssoData.groupSync = values.groupSync;
-    }
+    copyDirty(form, values, ssoData, ["name", "ldapUrl", "ldapBindDn", "ldapBindPassword", "ldapBaseDn", "ldapUserSearchFilter", "ldapTlsEnabled", "ldapTlsCaCert", "isEnabled", "allowSignup", "groupSync"]);
 
     await updateSsoProviderMutation.mutateAsync(ssoData);
     form.resetDirty();
@@ -190,32 +159,11 @@ export function SsoLDAPForm({ provider, onClose }: Readonly<SsoFormProps>) {
             </Accordion.Item>
           </Accordion>
 
-          <Group justify="space-between">
-            <div>{t("Group sync")}</div>
-            <Switch
-              className={classes.switch}
-              checked={form.values.groupSync}
-              {...form.getInputProps("groupSync")}
-            />
-          </Group>
+          <SsoSwitchRow label={t("Group sync")} form={form} field="groupSync" />
 
-          <Group justify="space-between">
-            <div>{t("Allow signup")}</div>
-            <Switch
-              className={classes.switch}
-              checked={form.values.allowSignup}
-              {...form.getInputProps("allowSignup")}
-            />
-          </Group>
+          <SsoSwitchRow label={t("Allow signup")} form={form} field="allowSignup" />
 
-          <Group justify="space-between">
-            <div>{t("Enabled")}</div>
-            <Switch
-              className={classes.switch}
-              checked={form.values.isEnabled}
-              {...form.getInputProps("isEnabled")}
-            />
-          </Group>
+          <SsoSwitchRow label={t("Enabled")} form={form} field="isEnabled" />
 
           <Group mt="md" justify="flex-end">
             <Button type="submit" disabled={!form.isDirty()}>

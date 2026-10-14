@@ -1,0 +1,41 @@
+/* Toast redesign (fork/ee): floating card, accent bar, timestamp. */
+.mantine-Notification-root {
+  min-width: min(360px, calc(100vw - 32px));
+  padding: 12px 12px 12px 16px;
+  border-radius: 12px;
+  border: 1px solid light-dark(rgb(15 23 42 / 8%), rgb(255 255 255 / 10%));
+  background: light-dark(#fff, var(--mantine-color-dark-6));
+  box-shadow:
+    0 1px 2px rgb(15 23 42 / 6%),
+    0 8px 24px -4px rgb(15 23 42 / 18%),
+    0 20px 40px -12px rgb(15 23 42 / 18%);
+}
+
+.mantine-Notification-root::before {
+  top: 10px;
+  bottom: 10px;
+  inset-inline-start: 6px;
+  width: 4px;
+  border-radius: 4px;
+}
+
+.mantine-Notification-title {
+  font-weight: 600;
+  color: var(--sc-text-strong, inherit);
+}
+
+.mantine-Notification-description {
+  line-height: 1.4;
+}
+
+.mantine-Notification-closeButton {
+  border-radius: 8px;
+}
+
+.sc-toast-time {
+  display: block;
+  margin-top: 4px;
+  font-size: var(--mantine-font-size-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--mantine-color-dimmed);
+}

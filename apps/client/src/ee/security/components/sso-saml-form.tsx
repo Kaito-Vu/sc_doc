@@ -6,7 +6,6 @@ import {
   Button,
   Group,
   Stack,
-  Switch,
   Textarea,
   TextInput,
 } from "@mantine/core";
@@ -14,11 +13,11 @@ import {
   buildCallbackUrl,
   buildSamlEntityId,
 } from "@/ee/security/sso.utils.ts";
-import classes from "@/ee/security/components/sso.module.css";
 import { IAuthProvider } from "@/ee/security/types/security.types.ts";
 import CopyTextButton from "@/components/common/copy.tsx";
 import { useTranslation } from "react-i18next";
 import { useUpdateSsoProviderMutation } from "@/ee/security/queries/security-query.ts";
+import { SsoSwitchRow, copyDirty } from "@/ee/security/components/sso-form-fields.tsx";
 
 const ssoSchema = z.object({
   name: z.string().min(1, "Display name is required"),
@@ -62,24 +61,7 @@ export function SsoSamlForm({ provider, onClose }: Readonly<SsoFormProps>) {
     const ssoData: Partial<IAuthProvider> = {
       providerId: provider.id,
     };
-    if (form.isDirty("name")) {
-      ssoData.name = values.name;
-    }
-    if (form.isDirty("samlUrl")) {
-      ssoData.samlUrl = values.samlUrl;
-    }
-    if (form.isDirty("samlCertificate")) {
-      ssoData.samlCertificate = values.samlCertificate;
-    }
-    if (form.isDirty("isEnabled")) {
-      ssoData.isEnabled = values.isEnabled;
-    }
-    if (form.isDirty("allowSignup")) {
-      ssoData.allowSignup = values.allowSignup;
-    }
-    if (form.isDirty("groupSync")) {
-      ssoData.groupSync = values.groupSync;
-    }
+    copyDirty(form, values, ssoData, ["name", "samlUrl", "samlCertificate", "isEnabled", "allowSignup", "groupSync"]);
 
     await updateSsoProviderMutation.mutateAsync(ssoData);
     form.resetDirty();
@@ -128,32 +110,11 @@ export function SsoSamlForm({ provider, onClose }: Readonly<SsoFormProps>) {
             {...form.getInputProps("samlCertificate")}
           />
 
-          <Group justify="space-between">
-            <div>{t("Group sync")}</div>
-            <Switch
-              className={classes.switch}
-              checked={form.values.groupSync}
-              {...form.getInputProps("groupSync")}
-            />
-          </Group>
+          <SsoSwitchRow label={t("Group sync")} form={form} field="groupSync" />
 
-          <Group justify="space-between">
-            <div>{t("Allow signup")}</div>
-            <Switch
-              className={classes.switch}
-              checked={form.values.allowSignup}
-              {...form.getInputProps("allowSignup")}
-            />
-          </Group>
+          <SsoSwitchRow label={t("Allow signup")} form={form} field="allowSignup" />
 
-          <Group justify="space-between">
-            <div>{t("Enabled")}</div>
-            <Switch
-              className={classes.switch}
-              checked={form.values.isEnabled}
-              {...form.getInputProps("isEnabled")}
-            />
-          </Group>
+          <SsoSwitchRow label={t("Enabled")} form={form} field="isEnabled" />
 
           <Group mt="md" justify="flex-end">
             <Button type="submit" disabled={!form.isDirty()}>

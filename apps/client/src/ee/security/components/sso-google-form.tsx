@@ -1,11 +1,11 @@
 import { z } from "zod/v4";
 import { useForm } from "@mantine/form";
 import { zod4Resolver } from "mantine-form-zod-resolver";
-import { Box, Button, Group, Stack, Switch, TextInput } from "@mantine/core";
-import classes from "@/ee/security/components/sso.module.css";
+import { Box, Button, Group, Stack, TextInput } from "@mantine/core";
 import { IAuthProvider } from "@/ee/security/types/security.types.ts";
 import { useTranslation } from "react-i18next";
 import { useUpdateSsoProviderMutation } from "@/ee/security/queries/security-query.ts";
+import { SsoSwitchRow, copyDirty } from "@/ee/security/components/sso-form-fields.tsx";
 
 const ssoSchema = z.object({
   name: z.string().min(1, "Provider name is required"),
@@ -36,15 +36,7 @@ export function SsoGoogleForm({ provider, onClose }: Readonly<SsoFormProps>) {
     const ssoData: Partial<IAuthProvider> = {
       providerId: provider.id,
     };
-    if (form.isDirty("name")) {
-      ssoData.name = values.name;
-    }
-    if (form.isDirty("isEnabled")) {
-      ssoData.isEnabled = values.isEnabled;
-    }
-    if (form.isDirty("allowSignup")) {
-      ssoData.allowSignup = values.allowSignup;
-    }
+    copyDirty(form, values, ssoData, ["name", "isEnabled", "allowSignup"]);
 
     await updateSsoProviderMutation.mutateAsync(ssoData);
     form.resetDirty();
@@ -61,23 +53,9 @@ export function SsoGoogleForm({ provider, onClose }: Readonly<SsoFormProps>) {
             readOnly
             {...form.getInputProps("name")}
           />
-          <Group justify="space-between">
-            <div>{t("Allow signup")}</div>
-            <Switch
-              className={classes.switch}
-              checked={form.values.allowSignup}
-              {...form.getInputProps("allowSignup")}
-            />
-          </Group>
+          <SsoSwitchRow label={t("Allow signup")} form={form} field="allowSignup" />
 
-          <Group justify="space-between">
-            <div>{t("Enabled")}</div>
-            <Switch
-              className={classes.switch}
-              checked={form.values.isEnabled}
-              {...form.getInputProps("isEnabled")}
-            />
-          </Group>
+          <SsoSwitchRow label={t("Enabled")} form={form} field="isEnabled" />
 
           <Group mt="md" justify="flex-end">
             <Button type="submit" disabled={!form.isDirty()}>

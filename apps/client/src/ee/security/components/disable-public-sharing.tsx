@@ -1,59 +1,13 @@
-import { Group, Text, Switch, Tooltip } from "@mantine/core";
+import { Text } from "@mantine/core";
 import { modals } from "@mantine/modals";
-import { useAtom } from "jotai";
-import { workspaceAtom } from "@/features/user/atoms/current-user-atom.ts";
-import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { updateWorkspace } from "@/features/workspace/services/workspace-service.ts";
-import { notifications } from "@mantine/notifications";
-import { useHasFeature } from "@/ee/hooks/use-feature";
+import { WorkspaceToggleRow } from "@/ee/components/workspace-setting-toggle";
 import { Feature } from "@/ee/features";
-import { useUpgradeLabel } from "@/ee/hooks/use-upgrade-label.ts";
 
 export default function DisablePublicSharing() {
   const { t } = useTranslation();
 
-  return (
-    <Group justify="space-between" wrap="nowrap" gap="xl">
-      <div>
-        <Text size="md">{t("Disable public sharing")}</Text>
-        <Text size="sm" c="dimmed">
-          {t("Prevent members from sharing pages publicly.")}
-        </Text>
-      </div>
-
-      <DisablePublicSharingToggle />
-    </Group>
-  );
-}
-
-function DisablePublicSharingToggle() {
-  const { t } = useTranslation();
-  const [workspace, setWorkspace] = useAtom(workspaceAtom);
-  const [checked, setChecked] = useState(
-    workspace?.settings?.sharing?.disabled === true,
-  );
-  const hasSharingControls = useHasFeature(Feature.SHARING_CONTROLS);
-  const upgradeLabel = useUpgradeLabel();
-
-  const applyChange = async (value: boolean) => {
-    try {
-      const updatedWorkspace = await updateWorkspace({
-        disablePublicSharing: value,
-      });
-      setChecked(value);
-      setWorkspace(updatedWorkspace);
-    } catch (err) {
-      notifications.show({
-        message: err?.response?.data?.message,
-        color: "red",
-      });
-    }
-  };
-
-  const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const value = event.currentTarget.checked;
-
+  const confirm = (value: boolean, apply: () => void) =>
     modals.openConfirmModal({
       title: value ? t("Disable public sharing") : t("Enable public sharing"),
       children: (
@@ -70,18 +24,18 @@ function DisablePublicSharingToggle() {
       centered: true,
       labels: { confirm: t("Confirm"), cancel: t("Cancel") },
       confirmProps: value ? { color: "red" } : {},
-      onConfirm: () => applyChange(value),
+      onConfirm: apply,
     });
-  };
 
   return (
-    <Tooltip label={upgradeLabel} disabled={hasSharingControls} refProp="rootRef">
-      <Switch
-        checked={checked}
-        onChange={handleChange}
-        disabled={!hasSharingControls}
-        aria-label={t("Toggle public sharing")}
-      />
-    </Tooltip>
+    <WorkspaceToggleRow
+      field="disablePublicSharing"
+      read={(w) => w?.settings?.sharing?.disabled === true}
+      feature={Feature.SHARING_CONTROLS}
+      ariaLabel={t("Toggle public sharing")}
+      title={t("Disable public sharing")}
+      description={t("Prevent members from sharing pages publicly.")}
+      confirm={confirm}
+    />
   );
 }

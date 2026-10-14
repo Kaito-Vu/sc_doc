@@ -11,10 +11,9 @@ import {
   Alert,
   PasswordInput,
 } from "@mantine/core";
-import { CopyButton } from "@/components/common/copy-button";
+import { CopyValueButton } from "@/ee/components/copy-value-button";
 import {
   IconRefresh,
-  IconCopy,
   IconCheck,
   IconAlertCircle,
 } from "@tabler/icons-react";
@@ -170,24 +169,7 @@ export function MfaBackupCodesModal({
                 <Text size="sm" fw={600}>
                   {t("Your new backup codes")}
                 </Text>
-                <CopyButton value={backupCodes.join("\n")}>
-                  {({ copied, copy }) => (
-                    <Button
-                      size="xs"
-                      variant="subtle"
-                      onClick={copy}
-                      leftSection={
-                        copied ? (
-                          <IconCheck size={14} />
-                        ) : (
-                          <IconCopy size={14} />
-                        )
-                      }
-                    >
-                      {copied ? t("Copied") : t("Copy")}
-                    </Button>
-                  )}
-                </CopyButton>
+                <CopyValueButton value={backupCodes.join("\n")} />
               </Group>
               <List size="sm" spacing="xs">
                 {backupCodes.map((code, index) => (

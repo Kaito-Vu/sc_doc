@@ -3,6 +3,7 @@ import { notifications } from "@mantine/notifications";
 import { IconDownload } from "@tabler/icons-react";
 import i18n from "@/i18n.ts";
 import api from "@/lib/api-client.ts";
+import { docxDownloadUrl } from "./notification-download-url";
 
 interface Params {
   pageId: string;
@@ -10,6 +11,7 @@ interface Params {
   singleFile?: boolean;
   toc?: boolean;
   order?: string[];
+  exclude?: string[];
 }
 
 type Status =
@@ -35,14 +37,15 @@ export async function startDocxExport(params: Params): Promise<void> {
   const jobId: string = res.data?.data?.jobId ?? res.data?.jobId;
   const id = `docx-export-${jobId}`;
 
-  notifications.show({
+  const progress = (title: string) => ({
     id,
     loading: true,
     autoClose: false,
     withCloseButton: false,
-    title: t("Export queued"),
+    title,
     message: t("We'll show a download link here when your file is ready."),
   });
+  notifications.show(progress(t("Export queued")));
 
   const fail = (message: string) =>
     notifications.update({
@@ -83,7 +86,7 @@ export async function startDocxExport(params: Params): Promise<void> {
               <Group gap={6} wrap="nowrap">
                 <IconDownload size={16} />
                 <Anchor
-                  href={`/api/docx-export/download/${s.token}`}
+                  href={docxDownloadUrl(s.token)}
                   download={s.fileName}
                   size="sm"
                 >
@@ -103,14 +106,9 @@ export async function startDocxExport(params: Params): Promise<void> {
         clearInterval(timer);
         fail(t("The download link has expired"));
       } else {
-        notifications.update({
-          id,
-          loading: true,
-          autoClose: false,
-          withCloseButton: false,
-          title: s.state === "active" ? t("Exporting…") : t("Export queued"),
-          message: t("We'll show a download link here when your file is ready."),
-        });
+        notifications.update(
+          progress(s.state === "active" ? t("Exporting…") : t("Export queued")),
+        );
       }
     } catch (err) {
       clearInterval(timer);

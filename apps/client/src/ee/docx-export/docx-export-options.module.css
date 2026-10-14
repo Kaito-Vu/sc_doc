@@ -1,0 +1,42 @@
+/* Subpage list: fills the space the viewport leaves instead of a fixed height. */
+.list {
+  max-height: clamp(120px, calc(100dvh - 500px), 440px);
+}
+
+.row {
+  border-radius: 6px;
+  padding-block: 2px;
+  padding-inline-end: 2px;
+}
+
+.row:hover {
+  background: light-dark(var(--mantine-color-gray-0), var(--mantine-color-dark-6));
+}
+
+/* Reorder buttons only on hover/focus: frees width for titles and cuts clutter. */
+.actions {
+  opacity: 0;
+  transition: opacity var(--sc-duration-fast, 120ms) ease;
+}
+
+.row:hover .actions,
+.row:focus-within .actions {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .actions {
+    opacity: 1;
+  }
+}
+
+.title {
+  min-width: 0;
+}
+
+/* Mantine wraps scroll content in display:table, which grows to the widest
+   title and defeats text truncation; make it a normal block. */
+.list :global(.mantine-ScrollArea-content) {
+  display: block;
+  min-width: 0;
+}

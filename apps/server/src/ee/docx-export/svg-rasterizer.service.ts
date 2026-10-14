@@ -3,7 +3,7 @@ import { createHash } from 'crypto';
 import { readFileSync } from 'fs';
 import { RedisService } from '@nestjs-labs/nestjs-ioredis';
 import type { Redis } from 'ioredis';
-import { DIAGRAM_CACHE_INDEX } from './diagram-cache-cleanup.service';
+import { DIAGRAM_CACHE_INDEX } from './docx-export.constants';
 import { StorageService } from '../../integrations/storage/storage.service';
 import { EnvironmentService } from '../../integrations/environment/environment.service';
 
@@ -21,7 +21,6 @@ export class SvgRasterizerService {
   private readonly redis: Redis;
   private active = 0;
   private readonly waiters: (() => void)[] = [];
-  private readonly inflight = new Map<string, Promise<Buffer>>();
 
   constructor(
     private readonly env: EnvironmentService,
@@ -52,33 +51,26 @@ export class SvgRasterizerService {
     );
   }
 
-  /** PNG cached in storage by hash; concurrent identical renders share one call. */
-  private cached(
+  /** PNG cached in storage by hash. */
+  private async cached(
     hash: string,
     produce: () => Promise<Buffer>,
   ): Promise<Buffer> {
     const key = `cache/docx-diagram/${hash}.png`;
-    let p = this.inflight.get(hash);
-    if (!p) {
-      p = (async () => {
-        try {
-          if (await this.storage.exists(key)) {
-            await this.touch(key);
-            return await this.storage.read(key);
-          }
-        } catch {
-          // cache is best-effort
-        }
-        const png = await produce();
-        await this.storage
-          .upload(key, png)
-          .then(() => this.touch(key))
-          .catch(() => undefined);
-        return png;
-      })().finally(() => this.inflight.delete(hash));
-      this.inflight.set(hash, p);
+    try {
+      if (await this.storage.exists(key)) {
+        await this.touch(key);
+        return await this.storage.read(key);
+      }
+    } catch {
+      // cache is best-effort
     }
-    return p;
+    const png = await produce();
+    await this.storage
+      .upload(key, png)
+      .then(() => this.touch(key))
+      .catch(() => undefined);
+    return png;
   }
 
   private async acquire() {

@@ -21,7 +21,7 @@ import { DocxExportService } from './docx-export.service';
 import {
   DOCX_EXPORT_FILES_INDEX,
   DOCX_EXPORT_JOB,
-  DOCX_EXPORT_QUEUE_PER_USER,
+  DOCX_EXPORT_MAX_WAITING,
   DOCX_EXPORT_QUEUE,
   DOCX_LINK_TTL_SEC,
   DocxExportJobData,
@@ -63,9 +63,7 @@ export class DocxExportJobService {
     if (!page || page.deletedAt) throw new NotFoundException('Page not found');
     await this.pageAccessService.validateCanView(page, user);
 
-    const users = await this.userRepo.countActiveByWorkspaceId(workspaceId);
-    const maxWaiting = Math.max(users, 1) * DOCX_EXPORT_QUEUE_PER_USER;
-    if ((await this.queue.getWaitingCount()) >= maxWaiting) {
+    if ((await this.queue.getWaitingCount()) >= DOCX_EXPORT_MAX_WAITING) {
       throw new ServiceUnavailableException(
         'Export queue is full, please try again in a few minutes',
       );
@@ -79,6 +77,9 @@ export class DocxExportJobService {
         order: Array.isArray(body.order)
           ? body.order.filter((id) => typeof id === 'string').slice(0, 5000)
           : undefined,
+        exclude: Array.isArray(body.exclude)
+          ? body.exclude.filter((id) => typeof id === 'string').slice(0, 5000)
+          : undefined,
         toc: !!body.toc,
         tocTitle:
           typeof body.tocTitle === 'string'
@@ -88,7 +89,6 @@ export class DocxExportJobService {
         workspaceId,
       } satisfies DocxExportJobData,
       {
-        attempts: 1,
         removeOnComplete: { age: DOCX_LINK_TTL_SEC },
         removeOnFail: { age: DOCX_LINK_TTL_SEC },
       },

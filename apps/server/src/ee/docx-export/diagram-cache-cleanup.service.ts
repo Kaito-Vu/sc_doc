@@ -2,11 +2,12 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { RedisService } from '@nestjs-labs/nestjs-ioredis';
 import type { Redis } from 'ioredis';
-import { DOCX_EXPORT_FILES_INDEX } from './docx-export.constants';
+import {
+  DIAGRAM_CACHE_INDEX,
+  DOCX_EXPORT_FILES_INDEX,
+} from './docx-export.constants';
 import { StorageService } from '../../integrations/storage/storage.service';
 
-/** Redis sorted set: member = storage key of a cached diagram PNG, score = last-used epoch ms. */
-export const DIAGRAM_CACHE_INDEX = 'docx-diagram-cache';
 const TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const BATCH = 500;
 
@@ -26,29 +27,7 @@ export class DiagramCacheCleanupService {
   // Idempotent, so running on several instances is harmless.
   @Cron('0 3 * * *')
   async cleanup() {
-    const cutoff = Date.now() - TTL_MS;
-    let removed = 0;
-    for (;;) {
-      const keys = await this.redis.zrangebyscore(
-        DIAGRAM_CACHE_INDEX,
-        0,
-        cutoff,
-        'LIMIT',
-        0,
-        BATCH,
-      );
-      if (keys.length === 0) break;
-      for (const key of keys) {
-        try {
-          await this.storage.delete(key);
-          await this.redis.zrem(DIAGRAM_CACHE_INDEX, key);
-          removed++;
-        } catch (err) {
-          this.logger.warn(`diagram cache: failed to delete ${key}: ${err}`);
-          return; // retry next run instead of looping on a failing key
-        }
-      }
-    }
+    const removed = await this.sweep(DIAGRAM_CACHE_INDEX, Date.now() - TTL_MS);
     if (removed)
       this.logger.log(`diagram cache: removed ${removed} stale PNGs`);
   }
@@ -56,24 +35,30 @@ export class DiagramCacheCleanupService {
   /** Deletes exported files whose download link has expired. */
   @Cron('*/10 * * * *')
   async cleanupExports() {
-    const now = Date.now();
+    await this.sweep(DOCX_EXPORT_FILES_INDEX, Date.now());
+  }
+
+  /** Deletes every object in the index scored <= cutoff; stops at the first failure to retry next run. */
+  private async sweep(index: string, cutoff: number): Promise<number> {
+    let removed = 0;
     for (;;) {
-      const paths = await this.redis.zrangebyscore(
-        DOCX_EXPORT_FILES_INDEX,
+      const keys = await this.redis.zrangebyscore(
+        index,
         0,
-        now,
+        cutoff,
         'LIMIT',
         0,
         BATCH,
       );
-      if (paths.length === 0) return;
-      for (const path of paths) {
+      if (keys.length === 0) return removed;
+      for (const key of keys) {
         try {
-          await this.storage.delete(path);
-          await this.redis.zrem(DOCX_EXPORT_FILES_INDEX, path);
+          await this.storage.delete(key);
+          await this.redis.zrem(index, key);
+          removed++;
         } catch (err) {
-          this.logger.warn(`docx export: failed to delete ${path}: ${err}`);
-          return;
+          this.logger.warn(`docx export: failed to delete ${key}: ${err}`);
+          return removed;
         }
       }
     }

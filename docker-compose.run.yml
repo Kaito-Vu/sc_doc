@@ -6,7 +6,7 @@
 #                         docker save sc_doc:latest | gzip > sc_doc.tar.gz
 #   2. On the server:     gunzip -c sc_doc.tar.gz | docker load
 #   3. Start:             docker compose -f docker-compose.run.yml up -d
-# Third-party images (postgres, redis, seaweedfs, gotenberg) must be loaded the same way.
+# Third-party images (postgres, redis, seaweedfs, gotenberg, drawio, nginx) must be loaded the same way.
 #
 # All secrets and tunables live in `.env` (git-ignored), NOT in this file.
 # Bootstrap once with:
@@ -57,9 +57,9 @@ services:
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
       SMTP_SECURE: "${SMTP_SECURE:-false}"
       GOTENBERG_URL: ${GOTENBERG_URL:-http://gotenberg:3000}
+      # Public URL of draw.io via the gateway, e.g. https://doc.etc.vn/drawio
+      DRAWIO_URL: ${DRAWIO_URL:-}
       TZ: ${TZ:-Asia/Ho_Chi_Minh}
-    ports:
-      - "${DOCMOST_PORT:-8888}:3000"
     restart: unless-stopped
     security_opt:
       - no-new-privileges:true
@@ -87,6 +87,31 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
+
+  # Single entrypoint: point your TLS proxy at this port (was the docmost port).
+  gateway:
+    image: nginx:stable-alpine
+    pull_policy: never
+    restart: unless-stopped
+    depends_on:
+      - docmost
+      - drawio
+    ports:
+      - "${DOCMOST_PORT:-8888}:80"
+    volumes:
+      - ./gateway/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    logging: *default-logging
+    security_opt:
+      - no-new-privileges:true
+
+  # Self-hosted draw.io editor so diagrams work without internet access.
+  drawio:
+    image: jgraph/drawio:latest
+    pull_policy: never
+    restart: unless-stopped
+    logging: *default-logging
+    security_opt:
+      - no-new-privileges:true
 
   db:
     image: postgres:18

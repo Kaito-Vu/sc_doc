@@ -11,20 +11,17 @@ import {
   PinInput,
   Alert,
   List,
-  ActionIcon,
-  Tooltip,
   Paper,
   Code,
   Loader,
   Collapse,
   UnstyledButton,
 } from "@mantine/core";
-import { CopyButton } from "@/components/common/copy-button";
+import { CopyValueButton } from "@/ee/components/copy-value-button";
 import {
   IconQrcode,
   IconShieldCheck,
   IconKey,
-  IconCopy,
   IconCheck,
   IconAlertCircle,
   IconChevronDown,
@@ -204,23 +201,7 @@ export function MfaSetupModal({
                       </Text>
                       <Group gap="xs">
                         <Code block>{setupData.manualKey}</Code>
-                        <CopyButton value={setupData.manualKey}>
-                          {({ copied, copy }) => (
-                            <Tooltip label={copied ? t("Copied") : t("Copy")}>
-                              <ActionIcon
-                                aria-label={t("Copy")}
-                                color={copied ? "green" : "gray"}
-                                onClick={copy}
-                              >
-                                {copied ? (
-                                  <IconCheck size={16} />
-                                ) : (
-                                  <IconCopy size={16} />
-                                )}
-                              </ActionIcon>
-                            </Tooltip>
-                          )}
-                        </CopyButton>
+                        <CopyValueButton value={setupData.manualKey} variant="icon" />
                       </Group>
                     </Alert>
                   </Collapse>
@@ -295,24 +276,7 @@ export function MfaSetupModal({
                   {t("Backup codes")}
                 </Text>
                 <Group gap="xs" wrap="nowrap">
-                  <CopyButton value={backupCodes.join("\n")}>
-                    {({ copied, copy }) => (
-                      <Button
-                        size="xs"
-                        variant="subtle"
-                        onClick={copy}
-                        leftSection={
-                          copied ? (
-                            <IconCheck size={14} />
-                          ) : (
-                            <IconCopy size={14} />
-                          )
-                        }
-                      >
-                        {copied ? t("Copied") : t("Copy")}
-                      </Button>
-                    )}
-                  </CopyButton>
+                  <CopyValueButton value={backupCodes.join("\n")} />
                   <Button
                     size="xs"
                     variant="subtle"

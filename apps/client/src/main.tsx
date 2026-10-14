@@ -11,7 +11,7 @@ import { mantineCssResolver, theme } from "@/theme";
 import { MantineProvider } from "@mantine/core";
 import { BrowserRouter } from "react-router-dom";
 import { ModalsProvider } from "@mantine/modals";
-import { Notifications } from "@mantine/notifications";
+import { AppNotifications } from "@/ee/toast/app-notifications";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { HelmetProvider } from "react-helmet-async";
 import "./i18n";
@@ -52,7 +52,7 @@ root.render(
     <MantineProvider theme={theme} cssVariablesResolver={mantineCssResolver}>
       <ModalsProvider>
         <QueryClientProvider client={queryClient}>
-          <Notifications position="bottom-center" limit={3} zIndex={10000} />
+          <AppNotifications />
           <HelmetProvider>
             <PostHogProvider client={posthog}>
               <App />

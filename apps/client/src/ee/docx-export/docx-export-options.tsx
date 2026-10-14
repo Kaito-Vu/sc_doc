@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   ActionIcon,
   Group,
@@ -15,18 +15,23 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import api from "@/lib/api-client.ts";
+import { TriStateCheckbox, triState } from "@/ee/components/tri-state-checkbox";
+import classes from "./docx-export-options.module.css";
 
 export interface DocxOptions {
   singleFile: boolean;
   toc: boolean;
   /** Page ids in export order; empty = default tree order. */
   order: string[];
+  /** Subpage ids left out of the export. */
+  exclude: string[];
 }
 
 export const defaultDocxOptions: DocxOptions = {
   singleFile: true,
   toc: false,
   order: [],
+  exclude: [],
 };
 
 interface TreeItem {
@@ -87,6 +92,19 @@ const canMoveDown = (a: TreeItem[], i: number) => {
   return end < a.length && a[end].level === a[i].level;
 };
 
+/** Ancestor indexes of item `i` (excluding the root at 0), nearest first. */
+const ancestors = (a: TreeItem[], i: number) => {
+  const out: number[] = [];
+  let level = a[i].level;
+  for (let k = i - 1; k > 0; k--) {
+    if (a[k].level < level) {
+      out.push(k);
+      level = a[k].level;
+    }
+  }
+  return out;
+};
+
 interface Props {
   pageId: string;
   includeChildren: boolean;
@@ -102,7 +120,7 @@ export function DocxExportOptions({
   onChange,
 }: Props) {
   const { t } = useTranslation();
-  const [items, setItems] = useState<TreeItem[]>([]);
+  const [reordered, setReordered] = useState<TreeItem[]>();
   const [dragId, setDragId] = useState<string | null>(null);
   const [over, setOver] = useState<{ id: string; after: boolean } | null>(null);
 
@@ -115,14 +133,31 @@ export function DocxExportOptions({
     enabled: includeChildren,
     staleTime: 0,
   });
-  useEffect(() => {
-    if (data) setItems(data);
-  }, [data]);
+  const items = reordered ?? data ?? [];
 
   if (!includeChildren) return null;
 
+  const excluded = new Set(value.exclude);
+  const setExcluded = (next: Set<string>) =>
+    onChange({ ...value, exclude: [...next] });
+
+  /** Unchecking a page drops its subpages too; checking one brings back its parents. */
+  const toggle = (i: number, checked: boolean) => {
+    const next = new Set(excluded);
+    const ids = items.slice(i, blockEnd(items, i)).map((x) => x.id);
+    if (checked) {
+      ids.forEach((id) => next.delete(id));
+      ancestors(items, i).forEach((k) => next.delete(items[k].id));
+    } else {
+      ids.forEach((id) => next.add(id));
+    }
+    setExcluded(next);
+  };
+  const subpages = items.slice(1);
+  const selectedCount = subpages.filter((x) => !excluded.has(x.id)).length;
+
   const apply = (next: TreeItem[]) => {
-    setItems(next);
+    setReordered(next);
     onChange({ ...value, order: next.map((i) => i.id) });
   };
 
@@ -153,12 +188,36 @@ export function DocxExportOptions({
 
       {items.length > 1 && (
         <>
-          <Text size="md" mt="md">
-            {t("Export order")}
-          </Text>
-          <ScrollArea.Autosize mah={220} mt={4} type="auto">
+          <Group justify="space-between" wrap="nowrap" mt="md">
+            <Text size="md">
+              {t("Subpages to export")}{" "}
+              <Text span size="sm" c="dimmed">
+                ({selectedCount}/{subpages.length})
+              </Text>
+            </Text>
+            <TriStateCheckbox
+              size="xs"
+              label={t("Select all")}
+              state={triState(selectedCount, subpages.length)}
+              onChange={(checked) =>
+                setExcluded(
+                  checked ? new Set() : new Set(subpages.map((x) => x.id)),
+                )
+              }
+            />
+          </Group>
+          <ScrollArea.Autosize
+            className={classes.list}
+            mt={4}
+            type="auto"
+            scrollbars="y"
+          >
             {items.slice(1).map((item, idx) => {
               const i = idx + 1;
+              // [ ] none, [-] partly, [x] all of this page and its subpages.
+              const block = items.slice(i, blockEnd(items, i));
+              const skipped = block.filter((x) => excluded.has(x.id)).length;
+              const state = triState(block.length - skipped, block.length);
               const from = items.findIndex((x) => x.id === dragId);
               // Only siblings of the dragged page are valid drop targets.
               const droppable =
@@ -174,6 +233,7 @@ export function DocxExportOptions({
               return (
                 <Group
                   key={item.id}
+                  className={classes.row}
                   gap={4}
                   wrap="nowrap"
                   justify="space-between"
@@ -216,7 +276,7 @@ export function DocxExportOptions({
                       : {}),
                   }}
                 >
-                  <Group gap={4} wrap="nowrap" style={{ minWidth: 0 }}>
+                  <Group gap={8} wrap="nowrap" className={classes.title}>
                     <IconGripVertical
                       size={14}
                       style={{
@@ -224,11 +284,22 @@ export function DocxExportOptions({
                         color: "var(--mantine-color-dimmed)",
                       }}
                     />
-                    <Text size="sm" truncate>
+                    <TriStateCheckbox
+                      size="xs"
+                      aria-label={item.title}
+                      state={state}
+                      onChange={(checked) => toggle(i, checked)}
+                    />
+                    <Text
+                      size="sm"
+                      truncate
+                      title={item.title}
+                      c={state === "none" ? "dimmed" : undefined}
+                    >
                       {item.title}
                     </Text>
                   </Group>
-                  <Group gap={2} wrap="nowrap">
+                  <Group gap={2} wrap="nowrap" className={classes.actions}>
                     <ActionIcon
                       variant="subtle"
                       size="sm"

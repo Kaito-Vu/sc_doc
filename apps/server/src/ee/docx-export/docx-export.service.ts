@@ -58,7 +58,7 @@ export class DocxExportService {
   private async collectTree(
     root: any,
     user: User,
-    opts: { includeContent: boolean; order?: string[] },
+    opts: { includeContent: boolean; order?: string[]; exclude?: string[] },
   ): Promise<{ page: any; level: number }[]> {
     const all: any[] = await this.pageRepo.getPageAndDescendants(root.id, {
       includeContent: opts.includeContent,
@@ -70,6 +70,7 @@ export class DocxExportService {
         spaceId: root.spaceId,
       }),
     );
+    const exclude = new Set(opts.exclude);
     const rank = new Map((opts.order ?? []).map((id, i) => [id, i]));
     const byParent = new Map<string, any[]>();
     for (const p of all) {
@@ -87,7 +88,12 @@ export class DocxExportService {
             : 0;
     const items: { page: any; level: number }[] = [];
     const walk = (page: any, level: number) => {
-      if (page.id !== root.id && !accessible.has(page.id)) return;
+      if (
+        page.id !== root.id &&
+        (!accessible.has(page.id) || exclude.has(page.id))
+      ) {
+        return;
+      }
       items.push({ page, level });
       for (const k of (byParent.get(page.id) ?? []).sort(bySiblingOrder)) {
         walk(k, level + 1);
@@ -116,7 +122,6 @@ export class DocxExportService {
     user: User,
     opts: DocxExportOptions,
   ): Promise<{ body: Buffer; ext: 'docx' | 'zip'; title: string }> {
-    const t0 = Date.now();
     const root = await this.pageRepo.findById(pageId, { includeContent: true });
     if (!root || root.deletedAt) {
       throw new NotFoundException('Page not found');
@@ -124,17 +129,17 @@ export class DocxExportService {
     await this.pageAccessService.validateCanView(root, user);
 
     const title = root.title || 'Untitled';
+    const multiFile = !!opts.includeChildren && !opts.singleFile;
     const items: { page: any; level: number }[] = opts.includeChildren
       ? await this.collectTree(root, user, {
           includeContent: true,
           order: opts.order,
+          exclude: opts.exclude,
         })
       : [{ page: root, level: 1 }];
-    const t1 = Date.now();
 
     const appUrl = this.env.getAppUrl();
     const mermaid = new Map<string, string>();
-    const multiFile = !!opts.includeChildren && !opts.singleFile;
     const prepared = items.map(({ page, level }) => ({
       title: page.title || 'Untitled',
       level,
@@ -147,7 +152,6 @@ export class DocxExportService {
       new Set(items.map((i) => i.page.id)),
       mermaid,
     );
-    const t2 = Date.now();
 
     const resolver = (src: string) => this.imageFrom(images, src);
     // Every page after the first starts on a new sheet; with a ToC the first one does too.
@@ -181,32 +185,22 @@ export class DocxExportService {
         : buf;
     };
 
-    let result: { body: Buffer; ext: 'docx' | 'zip' };
-    if (!opts.includeChildren || opts.singleFile) {
-      result = { body: await build(prepared), ext: 'docx' };
-    } else {
-      const zip = new JSZip();
-      const pad = String(prepared.length).length;
-      for (const [i, p] of prepared.entries()) {
-        const name = sanitizeFileName(p.title, { preserveSpaces: true });
-        zip.file(
-          `${String(i + 1).padStart(pad, '0')} - ${name}.docx`,
-          await build([{ ...p, level: 1 }]),
-        );
-      }
-      result = {
-        body: await zip.generateAsync({
-          type: 'nodebuffer',
-          compression: 'DEFLATE',
-        }),
-        ext: 'zip',
-      };
+    if (!multiFile) return { body: await build(prepared), ext: 'docx', title };
+
+    const zip = new JSZip();
+    const pad = String(prepared.length).length;
+    for (const [i, p] of prepared.entries()) {
+      const name = sanitizeFileName(p.title, { preserveSpaces: true });
+      zip.file(
+        `${String(i + 1).padStart(pad, '0')} - ${name}.docx`,
+        await build([{ ...p, level: 1 }]),
+      );
     }
-    this.logger.debug(
-      `docx export pages=${items.length} images=${images.size} ` +
-        `permissions=${t1 - t0}ms images=${t2 - t1}ms serialize=${Date.now() - t2}ms`,
-    );
-    return { ...result, title };
+    const body = await zip.generateAsync({
+      type: 'nodebuffer',
+      compression: 'DEFLATE',
+    });
+    return { body, ext: 'zip', title };
   }
 
   /** Page titles and body headings (levels 1-3) for the table of contents. */
@@ -222,7 +216,7 @@ export class DocxExportService {
         }
       }
     }
-    return entries.filter((e) => e.level <= 3);
+    return entries;
   }
 
   /** Batch-loads every image of the export (one DB query, bounded parallel reads/renders). */
@@ -327,7 +321,7 @@ export class DocxExportService {
       return n;
     }
     if ((n.type === 'embed' || n.type === 'youtube') && src) {
-      return link(src, src);
+      return link(src, '');
     }
     if (LINK_NODES.has(n.type) && src) {
       return link(

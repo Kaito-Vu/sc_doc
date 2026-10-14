@@ -7,17 +7,16 @@ import {
   Group,
   SegmentedControl,
   Stack,
-  Switch,
   TextInput,
 } from "@mantine/core";
 import { buildCallbackUrl } from "@/ee/security/sso.utils.ts";
-import classes from "@/ee/security/components/sso.module.css";
 import { IAuthProvider } from "@/ee/security/types/security.types.ts";
 import CopyTextButton from "@/components/common/copy.tsx";
 import { useTranslation } from "react-i18next";
 import { useUpdateSsoProviderMutation } from "@/ee/security/queries/security-query.ts";
 import { OpenIdIcon } from "@/components/icons/openid-icon.tsx";
 import { EntraIdIcon } from "@/components/icons/entra-id-icon.tsx";
+import { SsoSwitchRow, copyDirty } from "@/ee/security/components/sso-form-fields.tsx";
 
 type OidcTemplate = "generic" | "azuread";
 
@@ -91,9 +90,7 @@ export function SsoOIDCForm({ provider, onClose }: Readonly<SsoFormProps>) {
     const ssoData: Partial<IAuthProvider> = {
       providerId: provider.id,
     };
-    if (form.isDirty("name")) {
-      ssoData.name = values.name;
-    }
+    copyDirty(form, values, ssoData, ["name"]);
     if (form.isDirty("template")) {
       ssoData.settings = {
         oidc: { provider: values.template === "azuread" ? "azuread" : "generic" },
@@ -105,21 +102,11 @@ export function SsoOIDCForm({ provider, onClose }: Readonly<SsoFormProps>) {
     if (values.template === "azuread" && form.isDirty("oidcTenantId")) {
       ssoData.oidcTenantId = values.oidcTenantId;
     }
-    if (form.isDirty("oidcClientId")) {
-      ssoData.oidcClientId = values.oidcClientId;
-    }
+    copyDirty(form, values, ssoData, ["oidcClientId"]);
     if (form.isDirty("oidcClientSecret") && values.oidcClientSecret) {
       ssoData.oidcClientSecret = values.oidcClientSecret;
     }
-    if (form.isDirty("isEnabled")) {
-      ssoData.isEnabled = values.isEnabled;
-    }
-    if (form.isDirty("allowSignup")) {
-      ssoData.allowSignup = values.allowSignup;
-    }
-    if (form.isDirty("groupSync")) {
-      ssoData.groupSync = values.groupSync;
-    }
+    copyDirty(form, values, ssoData, ["isEnabled", "allowSignup", "groupSync"]);
 
     await updateSsoProviderMutation.mutateAsync(ssoData);
     form.resetDirty();
@@ -217,32 +204,11 @@ export function SsoOIDCForm({ provider, onClose }: Readonly<SsoFormProps>) {
             {...form.getInputProps("oidcClientSecret")}
           />
 
-          <Group justify="space-between">
-            <div>{t("Group sync")}</div>
-            <Switch
-              className={classes.switch}
-              checked={form.values.groupSync}
-              {...form.getInputProps("groupSync")}
-            />
-          </Group>
+          <SsoSwitchRow label={t("Group sync")} form={form} field="groupSync" />
 
-          <Group justify="space-between">
-            <div>{t("Allow signup")}</div>
-            <Switch
-              className={classes.switch}
-              checked={form.values.allowSignup}
-              {...form.getInputProps("allowSignup")}
-            />
-          </Group>
+          <SsoSwitchRow label={t("Allow signup")} form={form} field="allowSignup" />
 
-          <Group justify="space-between">
-            <div>{t("Enabled")}</div>
-            <Switch
-              className={classes.switch}
-              checked={form.values.isEnabled}
-              {...form.getInputProps("isEnabled")}
-            />
-          </Group>
+          <SsoSwitchRow label={t("Enabled")} form={form} field="isEnabled" />
 
           <Group mt="md" justify="flex-end">
             <Button type="submit" disabled={!form.isDirty()}>

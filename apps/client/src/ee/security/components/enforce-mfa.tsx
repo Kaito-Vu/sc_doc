@@ -1,78 +1,46 @@
-import {
-  Group,
-  Text,
-  Switch,
-  MantineSize,
-  Tooltip,
-} from "@mantine/core";
-import { useAtom } from "jotai";
-import { workspaceAtom } from "@/features/user/atoms/current-user-atom.ts";
-import React, { useState } from "react";
+import { MantineSize } from "@mantine/core";
 import { useTranslation } from "react-i18next";
-import { updateWorkspace } from "@/features/workspace/services/workspace-service.ts";
-import { notifications } from "@mantine/notifications";
-import { useHasFeature } from "@/ee/hooks/use-feature.ts";
+import {
+  WorkspaceSettingToggle,
+  WorkspaceToggleRow,
+} from "@/ee/components/workspace-setting-toggle.tsx";
 import { Feature } from "@/ee/features.ts";
-import { useUpgradeLabel } from "@/ee/hooks/use-upgrade-label.ts";
+
+const mfa = {
+  field: "enforceMfa",
+  read: (w) => w?.enforceMfa,
+  feature: Feature.MFA,
+} as const;
 
 export default function EnforceMfa() {
   const { t } = useTranslation();
 
   return (
-    <Group justify="space-between" wrap="nowrap" gap="xl">
-      <div>
-        <Text size="md">{t("Enforce two-factor authentication")}</Text>
-        <Text size="sm" c="dimmed">
-          {t(
-            "Once enforced, all members must enable two-factor authentication to access the workspace.",
-          )}
-        </Text>
-      </div>
-
-      <EnforceMfaToggle />
-    </Group>
+    <WorkspaceToggleRow
+      {...mfa}
+      ariaLabel={t("Toggle MFA enforcement")}
+      title={t("Enforce two-factor authentication")}
+      description={t(
+        "Once enforced, all members must enable two-factor authentication to access the workspace.",
+      )}
+    />
   );
 }
 
-interface EnforceMfaToggleProps {
-  size?: MantineSize;
-  label?: string;
-}
 export function EnforceMfaToggle({
   size,
   label,
-}: Readonly<EnforceMfaToggleProps>) {
+}: {
+  size?: MantineSize;
+  label?: string;
+}) {
   const { t } = useTranslation();
-  const [workspace, setWorkspace] = useAtom(workspaceAtom);
-  const [checked, setChecked] = useState(workspace?.enforceMfa);
-  const hasAccess = useHasFeature(Feature.MFA);
-  const upgradeLabel = useUpgradeLabel();
-
-  const handleChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const value = event.currentTarget.checked;
-    try {
-      const updatedWorkspace = await updateWorkspace({ enforceMfa: value });
-      setChecked(value);
-      setWorkspace(updatedWorkspace);
-    } catch (err) {
-      notifications.show({
-        message: err?.response?.data?.message,
-        color: "red",
-      });
-    }
-  };
-
   return (
-    <Tooltip label={upgradeLabel} disabled={hasAccess} refProp="rootRef">
-      <Switch
-        size={size}
-        label={label}
-        labelPosition="left"
-        defaultChecked={checked}
-        onChange={handleChange}
-        disabled={!hasAccess}
-        aria-label={t("Toggle MFA enforcement")}
-      />
-    </Tooltip>
+    <WorkspaceSettingToggle
+      {...mfa}
+      size={size}
+      label={label}
+      ariaLabel={t("Toggle MFA enforcement")}
+    />
   );
 }
