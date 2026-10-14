@@ -1,6 +1,7 @@
 /* Subpage list: fills the space the viewport leaves instead of a fixed height. */
 .list {
-  max-height: clamp(120px, calc(100dvh - 500px), 440px);
+  /* modal max height = 100dvh - 2*10vh (yOffset); ~340px is the fixed chrome around the list. */
+  max-height: clamp(80px, calc(80dvh - 360px), 440px);
 }
 
 .row {

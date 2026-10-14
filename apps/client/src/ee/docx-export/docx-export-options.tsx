@@ -135,8 +135,6 @@ export function DocxExportOptions({
   });
   const items = reordered ?? data ?? [];
 
-  if (!includeChildren) return null;
-
   const excluded = new Set(value.exclude);
   const setExcluded = (next: Set<string>) =>
     onChange({ ...value, exclude: [...next] });
@@ -163,22 +161,7 @@ export function DocxExportOptions({
 
   return (
     <>
-      <Group justify="space-between" wrap="nowrap" mt="md">
-        <Text size="md">{t("Subpages as")}</Text>
-        <Select
-          data={[
-            { value: "single", label: t("Single file") },
-            { value: "multiple", label: t("Multiple files (.zip)") },
-          ]}
-          value={value.singleFile ? "single" : "multiple"}
-          onChange={(v) => onChange({ ...value, singleFile: v !== "multiple" })}
-          allowDeselect={false}
-          withCheckIcon={false}
-          styles={{ wrapper: { maxWidth: 200 } }}
-        />
-      </Group>
-
-      <Group justify="space-between" wrap="nowrap" mt="md">
+      <Group justify="space-between" wrap="nowrap" mt="sm">
         <Text size="md">{t("Table of contents")}</Text>
         <Switch
           checked={value.toc}
@@ -186,143 +169,168 @@ export function DocxExportOptions({
         />
       </Group>
 
-      {items.length > 1 && (
+      {includeChildren && (
         <>
-          <Group justify="space-between" wrap="nowrap" mt="md">
-            <Text size="md">
-              {t("Subpages to export")}{" "}
-              <Text span size="sm" c="dimmed">
-                ({selectedCount}/{subpages.length})
-              </Text>
-            </Text>
-            <TriStateCheckbox
-              size="xs"
-              label={t("Select all")}
-              state={triState(selectedCount, subpages.length)}
-              onChange={(checked) =>
-                setExcluded(
-                  checked ? new Set() : new Set(subpages.map((x) => x.id)),
-                )
+          <Group justify="space-between" wrap="nowrap" mt="sm">
+            <Text size="md">{t("Subpages as")}</Text>
+            <Select
+              data={[
+                { value: "single", label: t("Single file") },
+                { value: "multiple", label: t("Multiple files (.zip)") },
+              ]}
+              value={value.singleFile ? "single" : "multiple"}
+              onChange={(v) =>
+                onChange({ ...value, singleFile: v !== "multiple" })
               }
+              allowDeselect={false}
+              withCheckIcon={false}
+              styles={{ wrapper: { maxWidth: 200 } }}
             />
           </Group>
-          <ScrollArea.Autosize
-            className={classes.list}
-            mt={4}
-            type="auto"
-            scrollbars="y"
-          >
-            {items.slice(1).map((item, idx) => {
-              const i = idx + 1;
-              // [ ] none, [-] partly, [x] all of this page and its subpages.
-              const block = items.slice(i, blockEnd(items, i));
-              const skipped = block.filter((x) => excluded.has(x.id)).length;
-              const state = triState(block.length - skipped, block.length);
-              const from = items.findIndex((x) => x.id === dragId);
-              // Only siblings of the dragged page are valid drop targets.
-              const droppable =
-                from > 0 &&
-                from !== i &&
-                parentOf(items, from) === parentOf(items, i);
-              const edge =
-                droppable && over?.id === item.id
-                  ? over.after
-                    ? "borderBottom"
-                    : "borderTop"
-                  : undefined;
-              return (
-                <Group
-                  key={item.id}
-                  className={classes.row}
-                  gap={4}
-                  wrap="nowrap"
-                  justify="space-between"
-                  pl={(item.level - 2) * 16}
-                  draggable
-                  onDragStart={(e) => {
-                    e.dataTransfer.setData("text/plain", item.id);
-                    e.dataTransfer.effectAllowed = "move";
-                    setDragId(item.id);
-                  }}
-                  onDragEnd={() => {
-                    setDragId(null);
-                    setOver(null);
-                  }}
-                  onDragOver={(e) => {
-                    if (!droppable) return;
-                    e.preventDefault();
-                    const r = e.currentTarget.getBoundingClientRect();
-                    const after = e.clientY > r.top + r.height / 2;
-                    if (over?.id !== item.id || over.after !== after) {
-                      setOver({ id: item.id, after });
-                    }
-                  }}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    if (droppable && over) {
-                      apply(moveBlock(items, from, i, over.after));
-                    }
-                    setDragId(null);
-                    setOver(null);
-                  }}
-                  style={{
-                    cursor: "grab",
-                    opacity: dragId === item.id ? 0.4 : 1,
-                    ...(edge
-                      ? {
-                          [edge]:
-                            "2px solid var(--mantine-primary-color-filled)",
-                        }
-                      : {}),
-                  }}
-                >
-                  <Group gap={8} wrap="nowrap" className={classes.title}>
-                    <IconGripVertical
-                      size={14}
-                      style={{
-                        flexShrink: 0,
-                        color: "var(--mantine-color-dimmed)",
+
+          {items.length > 1 && (
+            <>
+              <Group justify="space-between" wrap="nowrap" mt="sm">
+                <Text size="md">
+                  {t("Subpages to export")}{" "}
+                  <Text span size="sm" c="dimmed">
+                    ({selectedCount}/{subpages.length})
+                  </Text>
+                </Text>
+                <TriStateCheckbox
+                  size="xs"
+                  label={t("Select all")}
+                  state={triState(selectedCount, subpages.length)}
+                  onChange={(checked) =>
+                    setExcluded(
+                      checked ? new Set() : new Set(subpages.map((x) => x.id)),
+                    )
+                  }
+                />
+              </Group>
+              <ScrollArea.Autosize
+                className={classes.list}
+                mt={4}
+                type="auto"
+                scrollbars="y"
+              >
+                {items.slice(1).map((item, idx) => {
+                  const i = idx + 1;
+                  // [ ] none, [-] partly, [x] all of this page and its subpages.
+                  const block = items.slice(i, blockEnd(items, i));
+                  const skipped = block.filter((x) =>
+                    excluded.has(x.id),
+                  ).length;
+                  const state = triState(block.length - skipped, block.length);
+                  const from = items.findIndex((x) => x.id === dragId);
+                  // Only siblings of the dragged page are valid drop targets.
+                  const droppable =
+                    from > 0 &&
+                    from !== i &&
+                    parentOf(items, from) === parentOf(items, i);
+                  const edge =
+                    droppable && over?.id === item.id
+                      ? over.after
+                        ? "borderBottom"
+                        : "borderTop"
+                      : undefined;
+                  return (
+                    <Group
+                      key={item.id}
+                      className={classes.row}
+                      gap={4}
+                      wrap="nowrap"
+                      justify="space-between"
+                      pl={(item.level - 2) * 16}
+                      draggable
+                      onDragStart={(e) => {
+                        e.dataTransfer.setData("text/plain", item.id);
+                        e.dataTransfer.effectAllowed = "move";
+                        setDragId(item.id);
                       }}
-                    />
-                    <TriStateCheckbox
-                      size="xs"
-                      aria-label={item.title}
-                      state={state}
-                      onChange={(checked) => toggle(i, checked)}
-                    />
-                    <Text
-                      size="sm"
-                      truncate
-                      title={item.title}
-                      c={state === "none" ? "dimmed" : undefined}
+                      onDragEnd={() => {
+                        setDragId(null);
+                        setOver(null);
+                      }}
+                      onDragOver={(e) => {
+                        if (!droppable) return;
+                        e.preventDefault();
+                        const r = e.currentTarget.getBoundingClientRect();
+                        const after = e.clientY > r.top + r.height / 2;
+                        if (over?.id !== item.id || over.after !== after) {
+                          setOver({ id: item.id, after });
+                        }
+                      }}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        if (droppable && over) {
+                          apply(moveBlock(items, from, i, over.after));
+                        }
+                        setDragId(null);
+                        setOver(null);
+                      }}
+                      style={{
+                        cursor: "grab",
+                        opacity: dragId === item.id ? 0.4 : 1,
+                        ...(edge
+                          ? {
+                              [edge]:
+                                "2px solid var(--mantine-primary-color-filled)",
+                            }
+                          : {}),
+                      }}
                     >
-                      {item.title}
-                    </Text>
-                  </Group>
-                  <Group gap={2} wrap="nowrap" className={classes.actions}>
-                    <ActionIcon
-                      variant="subtle"
-                      size="sm"
-                      aria-label={t("Move up")}
-                      disabled={prevSibling(items, i) < 0}
-                      onClick={() => apply(moveUp(items, i))}
-                    >
-                      <IconChevronUp size={14} />
-                    </ActionIcon>
-                    <ActionIcon
-                      variant="subtle"
-                      size="sm"
-                      aria-label={t("Move down")}
-                      disabled={!canMoveDown(items, i)}
-                      onClick={() => apply(moveUp(items, blockEnd(items, i)))}
-                    >
-                      <IconChevronDown size={14} />
-                    </ActionIcon>
-                  </Group>
-                </Group>
-              );
-            })}
-          </ScrollArea.Autosize>
+                      <Group gap={8} wrap="nowrap" className={classes.title}>
+                        <IconGripVertical
+                          size={14}
+                          style={{
+                            flexShrink: 0,
+                            color: "var(--mantine-color-dimmed)",
+                          }}
+                        />
+                        <TriStateCheckbox
+                          size="xs"
+                          aria-label={item.title}
+                          state={state}
+                          onChange={(checked) => toggle(i, checked)}
+                        />
+                        <Text
+                          size="sm"
+                          truncate
+                          title={item.title}
+                          c={state === "none" ? "dimmed" : undefined}
+                        >
+                          {item.title}
+                        </Text>
+                      </Group>
+                      <Group gap={2} wrap="nowrap" className={classes.actions}>
+                        <ActionIcon
+                          variant="subtle"
+                          size="sm"
+                          aria-label={t("Move up")}
+                          disabled={prevSibling(items, i) < 0}
+                          onClick={() => apply(moveUp(items, i))}
+                        >
+                          <IconChevronUp size={14} />
+                        </ActionIcon>
+                        <ActionIcon
+                          variant="subtle"
+                          size="sm"
+                          aria-label={t("Move down")}
+                          disabled={!canMoveDown(items, i)}
+                          onClick={() =>
+                            apply(moveUp(items, blockEnd(items, i)))
+                          }
+                        >
+                          <IconChevronDown size={14} />
+                        </ActionIcon>
+                      </Group>
+                    </Group>
+                  );
+                })}
+              </ScrollArea.Autosize>
+            </>
+          )}
         </>
       )}
     </>

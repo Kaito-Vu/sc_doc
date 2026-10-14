@@ -93,7 +93,9 @@ export function getFileImportSizeLimit() {
 }
 
 export function getDrawioUrl() {
-  return getConfigValue("DRAWIO_URL", "https://embed.diagrams.net");
+  const url = getConfigValue("DRAWIO_URL") || "https://embed.diagrams.net";
+  // trailing slash avoids a gateway redirect that can drop the public port
+  return (url.startsWith("/") ? getAppUrl() + url : url).replace(/\/?$/, "/");
 }
 
 export function getBillingTrialDays() {

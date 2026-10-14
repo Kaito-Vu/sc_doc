@@ -15,6 +15,7 @@ import {
 import { useTranslation } from "react-i18next";
 import { TableBackgroundColor } from "./table-background-color";
 import { TableTextAlignment } from "./table-text-alignment";
+import { TableAutoNumberButton } from "@/ee/editor/table-auto-number";
 import { BubbleMenu } from "@tiptap/react/menus";
 import classes from "../common/toolbar-menu.module.css";
 
@@ -73,6 +74,7 @@ export const TableCellMenu = React.memo(
         <div className={classes.toolbar}>
           <TableBackgroundColor editor={editor} />
           <TableTextAlignment editor={editor} />
+          <TableAutoNumberButton editor={editor} />
 
           <div className={classes.divider} />
 

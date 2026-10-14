@@ -103,3 +103,17 @@
     padding: 16px;
   }
 }
+
+/* Modals using scrollAreaComponent={ScrollArea.Autosize}: Mantine's content
+   wrapper is display:table and grows to the widest nowrap child, causing a
+   horizontal scrollbar and clipped controls. Only the modal's own scroll
+   area (direct wrapper of the body) is targeted, not nested ones. */
+.mantine-Modal-content
+  > *
+  > *
+  > .mantine-ScrollArea-root
+  > .mantine-ScrollArea-viewport
+  > .mantine-ScrollArea-content {
+  display: block;
+  min-width: 0;
+}

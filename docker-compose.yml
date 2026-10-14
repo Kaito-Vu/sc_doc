@@ -69,7 +69,8 @@ services:
 
   # Single entrypoint: point your TLS proxy at this port (was the docmost port).
   gateway:
-    image: nginx:stable-alpine
+    build: ./gateway
+    image: sc_doc-gateway:latest
     restart: unless-stopped
     depends_on:
       - docmost
@@ -84,14 +85,16 @@ services:
 
   # Self-hosted draw.io editor so diagrams work without internet access.
   drawio:
-    image: jgraph/drawio:latest
+    build: ./drawio
+    image: sc_doc-drawio:latest
     restart: unless-stopped
     logging: *default-logging
     security_opt:
       - no-new-privileges:true
 
   gotenberg:
-    image: gotenberg/gotenberg:8.37-chromium
+    build: ./gotenberg
+    image: sc_doc-gotenberg:latest
     restart: unless-stopped
     # Internal only: renders draw.io SVG to PNG for DOCX export.
     command: ["gotenberg", "--api-timeout=60s"]
@@ -106,7 +109,8 @@ services:
       start_period: 10s
 
   db:
-    image: postgres:18
+    build: ./db
+    image: sc_doc-db:latest
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-docmost}
       POSTGRES_USER: ${POSTGRES_USER:-docmost}
@@ -141,7 +145,8 @@ services:
       start_period: 10s
 
   seaweedfs:
-    image: chrislusf/seaweedfs:4.48
+    build: ./seaweedfs
+    image: sc_doc-seaweedfs:latest
     restart: unless-stopped
     entrypoint: ["sh", "-c"]
     # Exposed to the host on loopback only, for administration. The Docmost
@@ -182,7 +187,7 @@ services:
       start_period: 10s
 
   seaweedfs-init:
-    image: chrislusf/seaweedfs:4.48
+    image: sc_doc-seaweedfs:latest
     restart: "no"
     depends_on:
       seaweedfs:

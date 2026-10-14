@@ -1,0 +1,28 @@
+/* Counter is per table (nested tables get their own). Header-only rows are skipped. */
+.ProseMirror table {
+  counter-reset: sc-auto-no;
+}
+
+.ProseMirror tr:has(> td) {
+  counter-increment: sc-auto-no;
+}
+
+.ProseMirror td[data-auto-number] > :first-child::before {
+  content: attr(data-auto-number-prefix) counter(sc-auto-no);
+}
+
+.ProseMirror td[data-auto-number="upper-roman"] > :first-child::before {
+  content: attr(data-auto-number-prefix) counter(sc-auto-no, upper-roman);
+}
+
+.ProseMirror td[data-auto-number="lower-roman"] > :first-child::before {
+  content: attr(data-auto-number-prefix) counter(sc-auto-no, lower-roman);
+}
+
+.ProseMirror td[data-auto-number="upper-alpha"] > :first-child::before {
+  content: attr(data-auto-number-prefix) counter(sc-auto-no, upper-alpha);
+}
+
+.ProseMirror td[data-auto-number="lower-alpha"] > :first-child::before {
+  content: attr(data-auto-number-prefix) counter(sc-auto-no, lower-alpha);
+}

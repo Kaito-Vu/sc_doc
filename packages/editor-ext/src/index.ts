@@ -4,6 +4,7 @@ export * from "./lib/utils";
 export * from "./lib/math";
 export * from "./lib/details";
 export * from "./lib/table";
+export * from "./ee/table-auto-number";
 export * from "./lib/image";
 export * from "./lib/video";
 export * from "./lib/callout";

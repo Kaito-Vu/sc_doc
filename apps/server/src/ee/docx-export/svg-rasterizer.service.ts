@@ -3,6 +3,7 @@ import { createHash } from 'crypto';
 import { readFileSync } from 'fs';
 import { RedisService } from '@nestjs-labs/nestjs-ioredis';
 import type { Redis } from 'ioredis';
+import { withPngDpi } from './image-size';
 import { DIAGRAM_CACHE_INDEX } from './docx-export.constants';
 import { StorageService } from '../../integrations/storage/storage.service';
 import { EnvironmentService } from '../../integrations/environment/environment.service';
@@ -56,7 +57,7 @@ export class SvgRasterizerService {
     hash: string,
     produce: () => Promise<Buffer>,
   ): Promise<Buffer> {
-    const key = `cache/docx-diagram/${hash}.png`;
+    const key = `cache/docx-diagram/v2/${hash}.png`;
     try {
       if (await this.storage.exists(key)) {
         await this.touch(key);
@@ -112,9 +113,13 @@ export class SvgRasterizerService {
       });
     const html = `<!doctype html><html><body style="margin:0;background:#fff">${sized}</body></html>`;
 
-    return this.screenshot(
-      [{ name: 'index.html', data: html, type: 'text/html' }],
-      { width: String(w), height: String(h) },
+    // Rendered at SCALE x for sharpness; the density tells Word the logical (1x) size.
+    return withPngDpi(
+      await this.screenshot(
+        [{ name: 'index.html', data: html, type: 'text/html' }],
+        { width: String(w), height: String(h) },
+      ),
+      96 * SCALE,
     );
   }
 

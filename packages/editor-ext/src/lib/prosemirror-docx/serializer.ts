@@ -38,6 +38,7 @@ import {
   getTableColumnWidths,
   TEXT_WIDTH,
 } from './utils';
+import { formatAutoNumber } from '../../ee/table-auto-number';
 import { IFootnotes, INumbering, Mutable, SectionConfig, SerializationState } from './types';
 
 // This is duplicated from @curvenote/schema
@@ -347,6 +348,7 @@ export class DocxSerializerState {
     const rows: TableRow[] = [];
     const columnWidths = getTableColumnWidths(node);
     const cellWidths = getTableCellWidths(node, columnWidths);
+    let autoNumber = 0;
     node.content.forEach((row, _rowOffset, rowIndex) => {
       const cells: TableCell[] = [];
       // Check if all cells are headers in this row
@@ -356,11 +358,16 @@ export class DocxSerializerState {
           tableHeader = false;
         }
       });
+      if (!tableHeader) autoNumber++; // same rule as the editor's CSS counter
       // This scales images inside of tables
       this.maxImageWidth = MAX_IMAGE_WIDTH / row.content.childCount;
       row.content.forEach((cell, _cellOffset, cellIndex) => {
         this.children = [];
-        this.renderContent(cell);
+        if (cell.attrs.autoNumber) {
+          const text = (cell.attrs.autoNumberPrefix ?? '') + formatAutoNumber(autoNumber, cell.attrs.autoNumber);
+          this.children.push(new Paragraph(text));
+        }
+        else this.renderContent(cell);
         const tableCellOpts: Mutable<ITableCellOptions> = {
           children: this.children,
           width: { size: cellWidths[rowIndex][cellIndex], type: WidthType.DXA },

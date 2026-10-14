@@ -3,10 +3,11 @@
 #
 # For servers without internet access:
 #   1. On a dev machine:  docker build --platform linux/amd64 -t sc_doc:latest .
-#                         docker save sc_doc:latest | gzip > sc_doc.tar.gz
+#                         docker compose build gateway db gotenberg drawio seaweedfs   (patched images -> sc_doc-gateway, sc_doc-db, sc_doc-gotenberg, sc_doc-drawio, sc_doc-seaweedfs)
+#                         docker save sc_doc:latest sc_doc-gateway:latest sc_doc-db:latest sc_doc-gotenberg:latest sc_doc-drawio:latest sc_doc-seaweedfs:latest | gzip > sc_doc.tar.gz
 #   2. On the server:     gunzip -c sc_doc.tar.gz | docker load
 #   3. Start:             docker compose -f docker-compose.run.yml up -d
-# Third-party images (postgres, redis, seaweedfs, gotenberg, drawio, nginx) must be loaded the same way.
+# Third-party images (redis) must be loaded the same way.
 #
 # All secrets and tunables live in `.env` (git-ignored), NOT in this file.
 # Bootstrap once with:
@@ -74,7 +75,7 @@ services:
       retries: 5
 
   gotenberg:
-    image: gotenberg/gotenberg:8.37-chromium
+    image: sc_doc-gotenberg:latest
     restart: unless-stopped
     # Internal only: renders draw.io SVG to PNG for DOCX export.
     command: ["gotenberg", "--api-timeout=60s"]
@@ -90,7 +91,7 @@ services:
 
   # Single entrypoint: point your TLS proxy at this port (was the docmost port).
   gateway:
-    image: nginx:stable-alpine
+    image: sc_doc-gateway:latest
     pull_policy: never
     restart: unless-stopped
     depends_on:
@@ -106,7 +107,7 @@ services:
 
   # Self-hosted draw.io editor so diagrams work without internet access.
   drawio:
-    image: jgraph/drawio:latest
+    image: sc_doc-drawio:latest
     pull_policy: never
     restart: unless-stopped
     logging: *default-logging
@@ -114,7 +115,7 @@ services:
       - no-new-privileges:true
 
   db:
-    image: postgres:18
+    image: sc_doc-db:latest
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-docmost}
       POSTGRES_USER: ${POSTGRES_USER:-docmost}
@@ -149,7 +150,7 @@ services:
       start_period: 10s
 
   seaweedfs:
-    image: chrislusf/seaweedfs:4.48
+    image: sc_doc-seaweedfs:latest
     restart: unless-stopped
     entrypoint: ["sh", "-c"]
     # Exposed to the host on loopback only, for administration. The Docmost
@@ -190,7 +191,7 @@ services:
       start_period: 10s
 
   seaweedfs-init:
-    image: chrislusf/seaweedfs:4.48
+    image: sc_doc-seaweedfs:latest
     restart: "no"
     depends_on:
       seaweedfs:
