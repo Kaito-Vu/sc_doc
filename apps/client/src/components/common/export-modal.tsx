@@ -8,11 +8,14 @@ import {
   Divider,
   Tooltip,
   Badge,
+  ScrollArea,
 } from "@mantine/core";
+import { exportPage } from "@/features/page/services/page-service.ts";
+import { startDocxExport } from "@/ee/docx-export/start-docx-export";
 import {
-  exportPage,
-  exportPageToDocx,
-} from "@/features/page/services/page-service.ts";
+  DocxExportOptions,
+  defaultDocxOptions,
+} from "@/ee/docx-export/docx-export-options";
 import { useState } from "react";
 import { ExportFormat } from "@/features/page/types/page.types.ts";
 import { notifications } from "@mantine/notifications";
@@ -38,7 +41,7 @@ export default function ExportModal({
   const [format, setFormat] = useState<ExportFormat>(ExportFormat.Markdown);
   const [includeChildren, setIncludeChildren] = useState<boolean>(false);
   const [includeAttachments, setIncludeAttachments] = useState<boolean>(false);
-  const [singleFile, setSingleFile] = useState<boolean>(true);
+  const [docxOptions, setDocxOptions] = useState(defaultDocxOptions);
   const [isExporting, setIsExporting] = useState<boolean>(false);
   const { t } = useTranslation();
   const upgradeLabel = useUpgradeLabel();
@@ -51,7 +54,9 @@ export default function ExportModal({
     try {
       if (type === "page") {
         if (format === ExportFormat.Docx) {
-          await exportPageToDocx({ pageId: id, includeChildren, singleFile });
+          await startDocxExport({ pageId: id, includeChildren, ...docxOptions });
+          onClose();
+          return;
         } else {
           await exportPage({
             pageId: id,
@@ -91,7 +96,7 @@ export default function ExportModal({
       padding="xl"
       yOffset="10vh"
       xOffset={0}
-      mah={400}
+      scrollAreaComponent={ScrollArea.Autosize}
       onClick={(e) => e.stopPropagation()}
     >
       <Modal.Overlay />
@@ -129,21 +134,13 @@ export default function ExportModal({
                 />
               </Group>
 
-              {isDocx && includeChildren && (
-                <Group justify="space-between" wrap="nowrap" mt="md">
-                  <Text size="md">{t("Subpages as")}</Text>
-                  <Select
-                    data={[
-                      { value: "single", label: t("Single file") },
-                      { value: "multiple", label: t("Multiple files (.zip)") },
-                    ]}
-                    value={singleFile ? "single" : "multiple"}
-                    onChange={(v) => setSingleFile(v !== "multiple")}
-                    allowDeselect={false}
-                    withCheckIcon={false}
-                    styles={{ wrapper: { maxWidth: 200 } }}
-                  />
-                </Group>
+              {isDocx && (
+                <DocxExportOptions
+                  pageId={id}
+                  includeChildren={includeChildren}
+                  value={docxOptions}
+                  onChange={setDocxOptions}
+                />
               )}
 
               {!isDocx && (

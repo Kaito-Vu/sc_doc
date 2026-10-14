@@ -1,53 +1,76 @@
 import {
   Body,
   Controller,
+  Get,
   HttpCode,
   HttpStatus,
+  Param,
   Post,
   Res,
   UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { AuthUser } from '../../common/decorators/auth-user.decorator';
-import { User } from '@docmost/db/types/entity.types';
-import { DocxExportService } from './docx-export.service';
+import { AuthWorkspace } from '../../common/decorators/auth-workspace.decorator';
+import { User, Workspace } from '@docmost/db/types/entity.types';
 import { RequireFeature } from '../common/decorators/require-feature.decorator';
 import { Feature } from '../../common/features';
 import { FastifyReply } from 'fastify';
-import { sanitizeFileName } from '../../common/helpers';
+import { DocxExportJobService } from './docx-export-job.service';
+import { DocxExportService } from './docx-export.service';
+import { DocxExportOptions } from './docx-export.constants';
 
 @UseGuards(JwtAuthGuard)
-@Controller()
+@Controller('docx-export')
 export class DocxExportController {
-  constructor(private readonly docxExportService: DocxExportService) {}
+  constructor(
+    private readonly jobs: DocxExportJobService,
+    private readonly exporter: DocxExportService,
+  ) {}
 
-  @HttpCode(HttpStatus.OK)
-  @Post('docx-export')
+  /** Queues the export; the client polls `status/:jobId` and then follows the download link. */
+  @HttpCode(HttpStatus.ACCEPTED)
+  @Post()
   @RequireFeature(Feature.DOCX_EXPORT)
-  async export(
+  start(
     @Body()
-    body: { pageId: string; includeChildren?: boolean; singleFile?: boolean },
+    body: { pageId: string } & DocxExportOptions,
+    @AuthUser() user: User,
+    @AuthWorkspace() workspace: Workspace,
+  ) {
+    return this.jobs.enqueue(user, workspace.id, body);
+  }
+
+  /** Subpages in default order, for the dialog's reorder list. */
+  @HttpCode(HttpStatus.OK)
+  @Post('tree')
+  @RequireFeature(Feature.DOCX_EXPORT)
+  tree(@Body() body: { pageId: string }, @AuthUser() user: User) {
+    return this.exporter.listTree(body.pageId, user);
+  }
+
+  @Get('status/:jobId')
+  @RequireFeature(Feature.DOCX_EXPORT)
+  status(@Param('jobId') jobId: string, @AuthUser() user: User) {
+    return this.jobs.status(user, jobId);
+  }
+
+  @Get('download/:token')
+  @RequireFeature(Feature.DOCX_EXPORT)
+  async download(
+    @Param('token') token: string,
     @AuthUser() user: User,
     @Res() res: FastifyReply,
   ) {
-    const { buffer, ext, title } = await this.docxExportService.exportPages(
-      body.pageId,
+    const { stream, fileName, contentType } = await this.jobs.resolveDownload(
       user,
-      body,
+      token,
     );
-    const fileName = sanitizeFileName(`${title}.${ext}`, {
-      preserveSpaces: true,
-    });
     res.header(
       'Content-Disposition',
       `attachment; filename="${encodeURIComponent(fileName)}"`,
     );
-    res.header(
-      'Content-Type',
-      ext === 'zip'
-        ? 'application/zip'
-        : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    );
-    res.send(buffer);
+    res.header('Content-Type', contentType);
+    res.send(stream);
   }
 }

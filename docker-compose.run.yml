@@ -6,7 +6,7 @@
 #                         docker save sc_doc:latest | gzip > sc_doc.tar.gz
 #   2. On the server:     gunzip -c sc_doc.tar.gz | docker load
 #   3. Start:             docker compose -f docker-compose.run.yml up -d
-# Third-party images (postgres, redis, seaweedfs) must be loaded the same way.
+# Third-party images (postgres, redis, seaweedfs, gotenberg) must be loaded the same way.
 #
 # All secrets and tunables live in `.env` (git-ignored), NOT in this file.
 # Bootstrap once with:
@@ -33,6 +33,8 @@ services:
         condition: service_healthy
       seaweedfs-init:
         condition: service_completed_successfully
+      gotenberg:
+        condition: service_healthy
     environment:
       NODE_ENV: production
       APP_URL: ${APP_URL:?set APP_URL in .env}
@@ -54,6 +56,7 @@ services:
       SMTP_USERNAME: ${SMTP_USERNAME:-}
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
       SMTP_SECURE: "${SMTP_SECURE:-false}"
+      GOTENBERG_URL: ${GOTENBERG_URL:-http://gotenberg:3000}
       TZ: ${TZ:-Asia/Ho_Chi_Minh}
     ports:
       - "${DOCMOST_PORT:-8888}:3000"
@@ -69,6 +72,21 @@ services:
       timeout: 5s
       start_period: 30s
       retries: 5
+
+  gotenberg:
+    image: gotenberg/gotenberg:8.37-chromium
+    restart: unless-stopped
+    # Internal only: renders draw.io SVG to PNG for DOCX export.
+    command: ["gotenberg", "--api-timeout=60s"]
+    logging: *default-logging
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:3000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
   db:
     image: postgres:18

@@ -15,6 +15,7 @@ export const NotificationType = {
   SIEM_DESTINATION_FAILING: 'siem_destination.failing',
   SIEM_DESTINATION_DISABLED: 'siem_destination.disabled',
   SIEM_DESTINATION_RECOVERED: 'siem_destination.recovered',
+  DOCX_EXPORT_READY: 'docx_export.ready',
 } as const;
 
 export type NotificationType =
@@ -48,6 +49,7 @@ export const DIRECT_NOTIFICATION_TYPES: NotificationType[] = [
   NotificationType.SIEM_DESTINATION_FAILING,
   NotificationType.SIEM_DESTINATION_DISABLED,
   NotificationType.SIEM_DESTINATION_RECOVERED,
+  NotificationType.DOCX_EXPORT_READY,
 ];
 
 export const UPDATES_NOTIFICATION_TYPES: NotificationType[] = [

@@ -22,6 +22,7 @@ import { buildPageUrl, getPageTitle } from "@/features/page/page.utils";
 import { formatRelativeTime } from "../notification.utils";
 import classes from "../notification.module.css";
 import { getReviewUrlOverride } from "@/ee/page-verification/notification-url-override";
+import { getDocxDownloadUrl } from "@/ee/docx-export/notification-download-url";
 
 type NotificationItemProps = {
   notification: INotification;
@@ -74,6 +75,8 @@ export function NotificationItem({
         return "SIEM destination <bold>{{name}}</bold> was disabled after 24 hours of failures";
       case "siem_destination.recovered":
         return "SIEM destination <bold>{{name}}</bold> recovered";
+      case "docx_export.ready":
+        return "Your Word export is ready, click to download";
       default:
         return "";
     }
@@ -90,7 +93,9 @@ export function NotificationItem({
           notification.page.title,
         ) + commentParam
       : undefined;
-  const pageUrl = getReviewUrlOverride(notification) ?? defaultPageUrl;
+  const downloadUrl = getDocxDownloadUrl(notification);
+  const pageUrl =
+    getReviewUrlOverride(notification) ?? downloadUrl ?? defaultPageUrl;
 
   const isSiemDestination = notification.type.startsWith("siem_destination.");
   const destinationName =
@@ -126,6 +131,7 @@ export function NotificationItem({
     <UnstyledButton
       component={Link}
       to={linkUrl ?? ""}
+      reloadDocument={!!downloadUrl}
       onClick={handleClick}
       // auxclick fires for all non-primary buttons; guard to middle-click only (button 1)
       // so that right-click (button 2, context menu) does not mark as read

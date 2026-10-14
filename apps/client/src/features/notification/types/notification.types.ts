@@ -14,7 +14,8 @@ export type NotificationType =
   | "page.reverification_required"
   | "siem_destination.failing"
   | "siem_destination.disabled"
-  | "siem_destination.recovered";
+  | "siem_destination.recovered"
+  | "docx_export.ready";
 
 export type INotification = {
   id: string;

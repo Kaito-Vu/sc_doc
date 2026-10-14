@@ -1,0 +1,105 @@
+/*
+ * Global modal redesign (fork/ee). Targets Mantine's static Modal classes so
+ * every <Modal>, <Modal.Root> and modals.open*() picks it up with no per-file
+ * changes. Imported once from main.tsx after Mantine's stylesheet.
+ */
+
+.mantine-Modal-root {
+  --sc-modal-radius: 16px;
+  --sc-modal-border: light-dark(rgb(15 23 42 / 8%), rgb(255 255 255 / 10%));
+  --sc-modal-header-bg: light-dark(#fff, var(--mantine-color-dark-7));
+}
+
+/* Softer, blurred backdrop instead of flat grey */
+.mantine-Modal-overlay {
+  background: light-dark(rgb(15 23 42 / 42%), rgb(0 0 0 / 60%));
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  opacity: 1;
+}
+
+/* Floating card: large radius, hairline border, layered shadow */
+.mantine-Modal-content {
+  border-radius: var(--sc-modal-radius);
+  border: 1px solid var(--sc-modal-border);
+  box-shadow:
+    0 1px 2px rgb(15 23 42 / 6%),
+    0 12px 32px -4px rgb(15 23 42 / 18%),
+    0 32px 64px -16px rgb(15 23 42 / 22%);
+  scrollbar-width: thin;
+}
+
+.mantine-Modal-content[data-full-screen] {
+  border-radius: 0;
+  border: 0;
+}
+
+/* Header: clear title bar separated from content */
+.mantine-Modal-header {
+  background: var(--sc-modal-header-bg);
+  min-height: 56px;
+  padding-block: 12px;
+  padding-inline: 20px 12px;
+  border-bottom: 1px solid var(--sc-modal-border);
+}
+
+.mantine-Modal-title {
+  font-size: var(--mantine-font-size-md);
+  font-weight: 600 !important;
+  letter-spacing: -0.01em;
+  color: var(--sc-text-strong, inherit);
+}
+
+/* Close button: round, quiet until hovered */
+.mantine-Modal-close {
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  border-radius: 8px;
+  color: var(--mantine-color-dimmed);
+  transition:
+    background-color var(--sc-duration-fast, 120ms) var(--sc-ease, ease),
+    color var(--sc-duration-fast, 120ms) var(--sc-ease, ease);
+}
+
+.mantine-Modal-close:hover {
+  background: light-dark(rgb(15 23 42 / 7%), rgb(255 255 255 / 10%));
+  color: var(--sc-text-strong, inherit);
+}
+
+.mantine-Modal-close:focus-visible {
+  outline: 2px solid var(--mantine-primary-color-filled);
+  outline-offset: 1px;
+}
+
+.mantine-Modal-body {
+  padding: 20px;
+}
+
+/* Smooth entrance (Mantine's own transition still handles exit) */
+@media (prefers-reduced-motion: no-preference) {
+  .mantine-Modal-content {
+    animation: sc-modal-in var(--sc-duration-med, 220ms) var(--sc-ease, ease) both;
+  }
+}
+
+@keyframes sc-modal-in {
+  from {
+    transform: translateY(8px) scale(0.98);
+  }
+}
+
+/* Phones: tighter padding */
+@media (max-width: 36em) {
+  .mantine-Modal-content:not([data-full-screen]) {
+    border-radius: 14px;
+  }
+
+  .mantine-Modal-header {
+    padding-inline: 16px 8px;
+  }
+
+  .mantine-Modal-body {
+    padding: 16px;
+  }
+}
