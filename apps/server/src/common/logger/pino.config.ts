@@ -1,5 +1,6 @@
 import { Params } from 'nestjs-pino';
 import { stdTimeFunctions } from 'pino';
+import { buildLogStream } from '../../ee/logging/log-transport';
 import { redactSensitiveUrl } from '../helpers/utils';
 
 const CONTEXTS_TO_IGNORE = [
@@ -18,20 +19,9 @@ export function createPinoConfig(): Params {
   const level = isProduction && !isDebugMode ? 'info' : 'debug';
 
   return {
-    pinoHttp: {
+    pinoHttp: [{
       level,
       timestamp: stdTimeFunctions.isoTime,
-      transport: !isProduction
-        ? {
-            target: 'pino-pretty',
-            options: {
-              colorize: true,
-              singleLine: true,
-              translateTime: 'SYS:standard',
-              ignore: 'pid,hostname',
-            },
-          }
-        : undefined,
       formatters: {
         level: (label) => ({ level: label }),
       },
@@ -72,6 +62,6 @@ export function createPinoConfig(): Params {
               req.url === '/api/health' || req.url === '/api/health/live',
           }
         : false,
-    },
+    }, buildLogStream(level, isProduction)],
   };
 }

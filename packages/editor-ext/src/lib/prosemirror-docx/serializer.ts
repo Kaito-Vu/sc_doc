@@ -14,6 +14,7 @@ import {
   Bookmark,
   ImageRun,
   AlignmentType,
+  ShadingType,
   Table,
   TableRow,
   TableCell,
@@ -38,10 +39,23 @@ import {
   getTableColumnWidths,
   TEXT_WIDTH,
 } from './utils';
+import { toDocxColor } from './color';
 import { formatAutoNumber } from '../../ee/table-auto-number';
 import { IFootnotes, INumbering, Mutable, SectionConfig, SerializationState } from './types';
 
 // This is duplicated from @curvenote/schema
+const ALIGNMENTS: Record<string, (typeof AlignmentType)[keyof typeof AlignmentType]> = {
+  left: AlignmentType.LEFT,
+  center: AlignmentType.CENTER,
+  right: AlignmentType.RIGHT,
+  justify: AlignmentType.JUSTIFIED,
+};
+
+function paragraphAlignment(node: Node): Pick<IParagraphOptions, 'alignment'> {
+  const alignment = ALIGNMENTS[node.attrs?.textAlign];
+  return alignment ? { alignment } : {};
+}
+
 export type AlignOptions = 'left' | 'center' | 'right';
 
 export type NodeSerializer = Record<
@@ -348,6 +362,7 @@ export class DocxSerializerState {
     const rows: TableRow[] = [];
     const columnWidths = getTableColumnWidths(node);
     const cellWidths = getTableCellWidths(node, columnWidths);
+    let headerRun = true;
     let autoNumber = 0;
     node.content.forEach((row, _rowOffset, rowIndex) => {
       const cells: TableCell[] = [];
@@ -376,6 +391,8 @@ export class DocxSerializerState {
         const rowspan = cell.attrs.rowspan ?? 1;
         if (colspan > 1) tableCellOpts.columnSpan = colspan;
         if (rowspan > 1) tableCellOpts.rowSpan = rowspan;
+        const bgFill = toDocxColor(cell.attrs.backgroundColor);
+        if (bgFill) tableCellOpts.shading = { type: ShadingType.CLEAR, color: 'auto', fill: bgFill };
         cells.push(
           new TableCell({
             ...tableCellOpts,
@@ -383,7 +400,9 @@ export class DocxSerializerState {
           }),
         );
       });
-      rows.push(new TableRow({ ...(getRowOptions?.(row) || {}), children: cells, tableHeader }));
+      // Word only repeats header rows that start the table, so keep it contiguous.
+      headerRun = headerRun && tableHeader;
+      rows.push(new TableRow({ ...(getRowOptions?.(row) || {}), children: cells, tableHeader: headerRun, cantSplit: headerRun || undefined }));
     });
     this.maxImageWidth = MAX_IMAGE_WIDTH;
     const table = new Table({
@@ -424,6 +443,7 @@ export class DocxSerializerState {
   closeBlock(node: Node, props?: IParagraphOptions) {
     const paragraph = new Paragraph({
       children: this.current,
+      ...paragraphAlignment(node),
       ...this.nextParentParagraphOpts,
       ...props,
     });
@@ -791,6 +811,7 @@ export class DocxSerializerStateAsync {
     const rows: TableRow[] = [];
     const columnWidths = getTableColumnWidths(node);
     const cellWidths = getTableCellWidths(node, columnWidths);
+    let headerRun = true;
 
     for (let rowIndex = 0; rowIndex < node.content.childCount; rowIndex += 1) {
       const row = node.content.child(rowIndex);
@@ -822,6 +843,8 @@ export class DocxSerializerStateAsync {
         const rowspan = cell.attrs.rowspan ?? 1;
         if (colspan > 1) tableCellOpts.columnSpan = colspan;
         if (rowspan > 1) tableCellOpts.rowSpan = rowspan;
+        const bgFill = toDocxColor(cell.attrs.backgroundColor);
+        if (bgFill) tableCellOpts.shading = { type: ShadingType.CLEAR, color: 'auto', fill: bgFill };
         cells.push(
           new TableCell({
             ...tableCellOpts,
@@ -830,7 +853,9 @@ export class DocxSerializerStateAsync {
         );
       }
 
-      rows.push(new TableRow({ ...(getRowOptions?.(row) || {}), children: cells, tableHeader }));
+      // Word only repeats header rows that start the table, so keep it contiguous.
+      headerRun = headerRun && tableHeader;
+      rows.push(new TableRow({ ...(getRowOptions?.(row) || {}), children: cells, tableHeader: headerRun, cantSplit: headerRun || undefined }));
     }
 
     this.maxImageWidth = MAX_IMAGE_WIDTH;
@@ -895,6 +920,7 @@ export class DocxSerializerStateAsync {
   closeBlock(node: Node, props?: IParagraphOptions) {
     const paragraph = new Paragraph({
       children: this.current,
+      ...paragraphAlignment(node),
       ...this.nextParentParagraphOpts,
       ...props,
     });

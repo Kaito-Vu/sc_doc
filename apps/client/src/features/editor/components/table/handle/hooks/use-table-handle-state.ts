@@ -17,6 +17,8 @@ export function useTableHandleState(editor: Editor | null): TableHandleState {
       if (!ctx.editor) return null;
       return TableDndKey.getState(ctx.editor.state) ?? null;
     },
+    // state holds DOM/ProseMirror nodes: a deep compare overflows the stack
+    equalityFn: (a, b) => a === b,
   });
 
   return state ?? FALLBACK;

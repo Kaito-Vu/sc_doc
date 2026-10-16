@@ -85,6 +85,11 @@ FROM gcr.io/distroless/nodejs${NODE_VERSION}-debian13 AS installer
 
 ENV NODE_ENV=production
 
+# Deploy marker: BUILD_VERSION=$(git describe --tags --always --dirty) docker compose build
+ARG BUILD_VERSION=dev
+ENV BUILD_VERSION=${BUILD_VERSION}
+LABEL org.opencontainers.image.version=${BUILD_VERSION}
+
 COPY --from=prod --chown=1000:1000 /app /app
 
 USER 1000:1000

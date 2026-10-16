@@ -1,6 +1,10 @@
 import { FC, useEffect, useState } from "react";
 import type { Editor } from "@tiptap/react";
 import { ColorSelector } from "@/features/editor/components/bubble-menu/color-selector";
+import {
+  BackgroundColorSelector,
+  TextColorSelector,
+} from "@/ee/editor/background-color/background-color-selector";
 
 interface Props {
   editor: Editor;
@@ -19,6 +23,9 @@ export const ColorGroup: FC<Props> = ({ editor }) => {
   }, [isOpen]);
 
   return (
-    <ColorSelector editor={editor} isOpen={isOpen} setIsOpen={setIsOpen} />
+    <>
+      <TextColorSelector editor={editor} />
+      <BackgroundColorSelector editor={editor} />
+    </>
   );
 };

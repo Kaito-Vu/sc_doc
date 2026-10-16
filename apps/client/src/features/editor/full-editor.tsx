@@ -24,6 +24,7 @@ import { FixedToolbar } from "@/features/editor/components/fixed-toolbar/fixed-t
 import { PageEditMode } from "@/features/user/types/user.types.ts";
 import { useAsideTriggerProps } from "@/hooks/use-toggle-aside.tsx";
 import { DeletedPageBanner } from "@/features/page/trash/components/deleted-page-banner.tsx";
+import { BackToTopFab } from "@/ee/editor/back-to-top/back-to-top-fab";
 import clsx from "clsx";
 import { currentPageEditModeAtom } from "@/features/editor/atoms/editor-atoms.ts";
 import { EmptyPageGetStarted } from "@/features/editor/components/empty-page/empty-page-get-started";
@@ -121,6 +122,7 @@ export function FullEditor({
         spaceId={spaceId}
         editable={editable}
       />
+      <BackToTopFab />
     </Container>
   );
 }

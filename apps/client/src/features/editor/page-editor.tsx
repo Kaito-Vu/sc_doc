@@ -79,6 +79,7 @@ import { PageEditMode } from "@/features/user/types/user.types.ts";
 import { jwtDecode } from "jwt-decode";
 import { searchSpotlight } from "@/features/search/constants.ts";
 import { useEditorScroll } from "./hooks/use-editor-scroll";
+import { useRestoreEditorFocus } from "@/ee/editor/restore-focus/use-restore-editor-focus";
 import { EditorAiMenu } from "@/ee/ai/components/editor/ai-menu/ai-menu";
 import { EditorLinkMenu } from "@/features/editor/components/link/link-menu";
 import ColumnsMenu from "@/features/editor/components/columns/columns-menu.tsx";
@@ -441,6 +442,7 @@ function CollabPageEditor({
   }, [pageId]);
 
   const isSynced = isLocalSynced && isRemoteSynced;
+  useRestoreEditorFocus(editor, pageId, isSynced);
 
   useEffect(() => {
     setYjsSynced(isSynced);

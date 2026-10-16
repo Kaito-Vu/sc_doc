@@ -6,6 +6,7 @@ import {
 } from '@nestjs/platform-fastify';
 import { Logger, NotFoundException, ValidationPipe } from '@nestjs/common';
 import { Logger as PinoLogger } from 'nestjs-pino';
+import { BUILD_VERSION } from './ee/versioning/build-version';
 import { TransformHttpResponseInterceptor } from './common/interceptors/http-response.interceptor';
 import { WsRedisIoAdapter } from './ws/adapter/ws-redis.adapter';
 import fastifyMultipart from '@fastify/multipart';
@@ -165,6 +166,7 @@ async function bootstrap() {
   const host = process.env.HOST || '0.0.0.0';
   await app.listen(port, host, () => {
     const logger = new Logger('NestApplication');
+    logger.log(`Build version: ${BUILD_VERSION}`);
     logger.log(
       `Listening on http://127.0.0.1:${port} / ${process.env.APP_URL}`,
     );

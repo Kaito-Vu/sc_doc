@@ -48,6 +48,7 @@ import { uploadAudioAction } from "@/features/editor/components/audio/upload-aud
 import { uploadAttachmentAction } from "@/features/editor/components/attachment/upload-attachment-action.tsx";
 import { uploadPdfAction } from "@/features/editor/components/pdf/upload-pdf-action.tsx";
 import { pickFileFromSlash } from "@/ee/file-picker/slash-file-picker";
+import { showTableSizePopover } from "@/ee/table-size/table-size-popover";
 import IconExcalidraw from "@/components/icons/icon-excalidraw";
 import IconMermaid from "@/components/icons/icon-mermaid";
 import IconDrawio from "@/components/icons/icon-drawio";
@@ -321,13 +322,10 @@ const CommandGroups: SlashMenuGroupedItemsType = {
       description: "Insert a table.",
       searchTerms: ["table", "rows", "columns"],
       icon: IconTable,
-      command: ({ editor, range }: CommandProps) =>
-        editor
-          .chain()
-          .focus()
-          .deleteRange(range)
-          .insertTable({ rows: 3, cols: 3, withHeaderRow: true })
-          .run(),
+      command: ({ editor, range }: CommandProps) => {
+        editor.chain().focus().deleteRange(range).run();
+        showTableSizePopover(editor);
+      },
     },
     {
       title: "Base (Inline)",

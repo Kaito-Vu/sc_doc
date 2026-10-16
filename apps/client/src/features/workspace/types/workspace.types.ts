@@ -117,6 +117,7 @@ export interface IPublicWorkspace {
 
 export interface IVersion {
   currentVersion: string;
+  buildVersion?: string;
   latestVersion: string;
   releaseUrl: string;
 }

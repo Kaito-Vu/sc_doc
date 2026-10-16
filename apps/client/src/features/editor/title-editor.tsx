@@ -27,6 +27,7 @@ import localEmitter from "@/lib/local-emitter.ts";
 import { PageEditMode } from "@/features/user/types/user.types.ts";
 import { searchSpotlight } from "@/features/search/constants.ts";
 import { platformModifierKey } from "@/lib";
+import { shouldAutofocusTitle } from "@/ee/editor/restore-focus/should-autofocus-title";
 
 export interface TitleEditorProps {
   pageId: string;
@@ -173,6 +174,7 @@ export function TitleEditor({
     setTimeout(() => {
       // guard against Cannot access view['hasFocus'] error
       if (!titleEditor?.isInitialized) return;
+      if (!shouldAutofocusTitle(pageId)) return;
       titleEditor?.commands?.focus("end");
     }, 300);
   }, [titleEditor]);

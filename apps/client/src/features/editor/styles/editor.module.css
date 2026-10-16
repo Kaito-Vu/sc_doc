@@ -23,9 +23,13 @@
     }
 }
 
-/* Marker class only — toggled alongside Mantine's Container `fluid` prop so
- * the width lock above doesn't fight the "Full page width" preference. */
+/* Toggled alongside Mantine's Container `fluid` prop. The width lock above
+ * (--container-size, !important) would otherwise leave a fluid container with
+ * width:auto, shrinking it to fit content and centering it — narrower than the
+ * non-full-width layout. Fill the available width instead. */
 .fluid {
+    --container-size: 100% !important;
+    width: 100%;
 }
 
 .byline {

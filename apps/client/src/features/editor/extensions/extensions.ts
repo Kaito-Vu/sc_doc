@@ -125,7 +125,8 @@ import EmojiCommand from "./emoji-command";
 import { countWords } from "alfaaz";
 import AutoJoiner from "@/features/editor/extensions/autojoiner.ts";
 import GlobalDragHandle from "@/features/editor/extensions/drag-handle.ts";
-import { CleanStyles } from "@/features/editor/extensions/clean-styles.ts";
+import { CleanStylesKeepColors as CleanStyles } from "@/ee/editor/paste-colors/clean-styles-keep-colors";
+import { TableCellLists } from "@/ee/editor/table-lists/table-cell-lists";
 import { PlusBullet } from "@/ee/editor/plus-bullet-extension";
 import { TemplateSkeleton } from "@/ee/template/extensions/template-skeleton/template-skeleton-extension";
 import TemplateSkeletonView from "@/ee/template/extensions/template-skeleton/template-skeleton-view";
@@ -251,6 +252,7 @@ export const mainExtensions = [
   }),
   Typography,
   PlusBullet,
+  TableCellLists,
   TrailingNode,
   GlobalDragHandle.configure({
     customNodes: ["transclusionSource", "transclusionReference", "tabPanel"],

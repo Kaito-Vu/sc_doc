@@ -11,6 +11,7 @@ import {
 import { IconColumns4 } from "@/components/icons/icon-columns-4";
 import { IconColumns5 } from "@/components/icons/icon-columns-5";
 import { useTranslation } from "react-i18next";
+import { showTableSizePopover } from "@/ee/table-size/table-size-popover";
 
 interface Props {
   editor: Editor;
@@ -101,13 +102,7 @@ export const QuickInsertsGroup: FC<Props> = ({ editor }) => {
           color="dark"
           size="md"
           aria-label={t("Table")}
-          onClick={() =>
-            editor
-              .chain()
-              .focus()
-              .insertTable({ rows: 3, cols: 3, withHeaderRow: true })
-              .run()
-          }
+          onClick={() => showTableSizePopover(editor)}
         >
           <IconTable size={16} />
         </ActionIcon>

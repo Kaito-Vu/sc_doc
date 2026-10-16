@@ -51,6 +51,7 @@ export default function AppVersion() {
             target="_blank"
           >
             {appVersion?.currentVersion && <>v{appVersion?.currentVersion}</>}
+            {appVersion?.buildVersion && <> ({appVersion.buildVersion})</>}
           </Text>
         </Indicator>
       </Tooltip>

@@ -25,12 +25,14 @@ import { DocxExportModule } from './docx-export/docx-export.module';
 import { PdfExportModule } from './pdf-export/pdf-export.module';
 import { McpModule } from './mcp/mcp.module';
 import { PluginsModule } from './plugins/plugins.module';
+import { ClientLogModule } from './logging/client-log.module';
 import { PlatformModule } from './platform/platform.module';
 import { FeatureGateGuard } from './common/guards/feature-gate.guard';
 
 @Module({
   imports: [
     PlatformModule,
+    ClientLogModule,
     LicenceModule,
     AuditEeModule,
     ApiKeyModule,

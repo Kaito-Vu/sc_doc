@@ -14,7 +14,10 @@ import {
 import clsx from "clsx";
 import classes from "./bubble-menu.module.css";
 import { ActionIcon, Button, rem, Tooltip } from "@mantine/core";
-import { ColorSelector } from "./color-selector";
+import {
+  BackgroundColorSelector,
+  TextColorSelector,
+} from "@/ee/editor/background-color/background-color-selector";
 import { NodeSelector } from "./node-selector";
 import { TextAlignmentSelector } from "./text-alignment-selector";
 import {
@@ -251,15 +254,8 @@ export const EditorBubbleMenu: FC<EditorBubbleMenuProps> = (props) => {
               ))}
             </ActionIcon.Group>
 
-            <ColorSelector
-              editor={props.editor}
-              isOpen={isColorSelectorOpen}
-              setIsOpen={() => {
-                setIsColorSelectorOpen(!isColorSelectorOpen);
-                setIsNodeSelectorOpen(false);
-                setIsTextAlignmentOpen(false);
-              }}
-            />
+            <TextColorSelector editor={props.editor} />
+            <BackgroundColorSelector editor={props.editor} />
           </>
         )}
 

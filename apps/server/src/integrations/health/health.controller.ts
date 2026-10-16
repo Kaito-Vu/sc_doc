@@ -2,6 +2,7 @@ import { Controller, Get } from '@nestjs/common';
 import { HealthCheck, HealthCheckService } from '@nestjs/terminus';
 import { PostgresHealthIndicator } from './postgres.health';
 import { RedisHealthIndicator } from './redis.health';
+import { BUILD_VERSION } from '../../ee/versioning/build-version';
 import { SkipTransform } from '../../common/decorators/skip-transform.decorator';
 
 @Controller('health')
@@ -16,10 +17,11 @@ export class HealthController {
   @Get()
   @HealthCheck()
   async check() {
-    return this.health.check([
+    const result = await this.health.check([
       () => this.postgres.pingCheck('database'),
       () => this.redis.pingCheck('redis'),
     ]);
+    return { ...result, version: BUILD_VERSION };
   }
 
   @Get('live')
