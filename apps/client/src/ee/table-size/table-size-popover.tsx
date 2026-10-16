@@ -12,15 +12,12 @@ function TableSizePopover({ editor, close }: { editor: Editor; close: () => void
   const [rows, setRows] = useState<number | string>(3);
   const [cols, setCols] = useState<number | string>(3);
 
-  const clamp = (v: number | string) =>
-    Math.min(MAX, Math.max(1, Number(v) || 1));
-
   const insert = () => {
     close();
     editor
       .chain()
       .focus()
-      .insertTable({ rows: clamp(rows), cols: clamp(cols), withHeaderRow: true })
+      .insertTable({ rows: Number(rows) || 1, cols: Number(cols) || 1, withHeaderRow: true })
       .run();
   };
 
@@ -53,7 +50,6 @@ function TableSizePopover({ editor, close }: { editor: Editor; close: () => void
     >
       <Group gap="xs" wrap="nowrap" align="flex-end">
         <NumberInput
-          data-autofocus
           autoFocus
           size="xs"
           w={70}
