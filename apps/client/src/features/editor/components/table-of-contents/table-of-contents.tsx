@@ -5,6 +5,7 @@ import classes from "./table-of-contents.module.css";
 import clsx from "clsx";
 import { Box, Text, Title } from "@mantine/core";
 import { useTranslation } from "react-i18next";
+import { useTocActiveSection } from "@/ee/editor/toc-active-section/use-toc-active-section";
 
 type TableOfContentsProps = {
   editor: ReturnType<typeof useEditor>;
@@ -100,6 +101,8 @@ export const TableOfContents: FC<TableOfContentsProps> = (props) => {
     },
     props.isShare ? [props.editor] : [],
   );
+
+  useTocActiveSection(props.editor, headingDOMNodes, setActiveElement);
 
   useEffect(() => {
     try {

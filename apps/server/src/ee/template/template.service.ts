@@ -81,6 +81,7 @@ export class TemplateService {
       icon?: string;
       spaceId?: string;
     },
+    allowMemberTemplates = false,
   ) {
     if (data.spaceId) {
       const ability = await this.spaceAbility.createForUser(
@@ -95,6 +96,7 @@ export class TemplateService {
         id: workspaceId,
       } as Workspace);
       if (
+        !allowMemberTemplates &&
         ability.cannot(WorkspaceCaslAction.Manage, WorkspaceCaslSubject.Settings)
       ) {
         throw new ForbiddenException();

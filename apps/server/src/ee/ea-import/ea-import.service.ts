@@ -728,16 +728,7 @@ export class EaImportService {
       } else if (node.diagrams.length > 0) {
         html = buildDiagramHtml(node, imageHtmlById);
       } else {
-        html = buildContainerHtml(
-          node,
-          stripped.code,
-          node.children.map((child) => ({
-            id: pageIdByNode.get(child)!,
-            slugId: slugIdByNode.get(child)!,
-            title: (child.name || 'Untitled').normalize('NFC'),
-            creatorId,
-          })),
-        );
+        html = buildContainerHtml(node, stripped.code);
       }
       htmlByPage.set(page.id, { html, title });
       page.title = title;

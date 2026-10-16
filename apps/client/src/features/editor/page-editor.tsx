@@ -79,6 +79,7 @@ import { PageEditMode } from "@/features/user/types/user.types.ts";
 import { jwtDecode } from "jwt-decode";
 import { searchSpotlight } from "@/features/search/constants.ts";
 import { useEditorScroll } from "./hooks/use-editor-scroll";
+import { PageSubpagesSection } from "@/ee/subpages-section/page-subpages-section";
 import { useRestoreEditorFocus } from "@/ee/editor/restore-focus/use-restore-editor-focus";
 import { EditorAiMenu } from "@/ee/ai/components/editor/ai-menu/ai-menu";
 import { EditorLinkMenu } from "@/features/editor/components/link/link-menu";
@@ -495,6 +496,7 @@ function CollabPageEditor({
   return (
     <div className="editor-container" style={{ position: "relative" }}>
       <div ref={menuContainerRef}>
+        <PageSubpagesSection pageId={pageId} />
         <EditorContent editor={editor} />
 
         {editor && (

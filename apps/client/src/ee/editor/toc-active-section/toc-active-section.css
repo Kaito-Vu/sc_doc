@@ -1,0 +1,4 @@
+button[class*="linkActive"] {
+  font-weight: 700;
+  color: var(--mantine-color-blue-6);
+}

@@ -60,7 +60,15 @@ export class TemplateController {
     @AuthUser() user: User,
     @AuthWorkspace() workspace: Workspace,
   ) {
-    return this.templateService.create(workspace.id, user, body);
+    const settings = workspace.settings as {
+      templates?: { allowMemberTemplates?: boolean };
+    } | null;
+    return this.templateService.create(
+      workspace.id,
+      user,
+      body,
+      settings?.templates?.allowMemberTemplates === true,
+    );
   }
 
   @HttpCode(HttpStatus.OK)

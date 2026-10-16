@@ -1,0 +1,64 @@
+/* Compact, borderless restyle of the core subpage list rows (SubpageItem).
+   Core CSS-module classes are hashed, hence the [class*=] selectors. */
+.section {
+  margin-block: rem(2px) rem(14px);
+  padding-bottom: rem(8px);
+  border-bottom: 1px solid
+    light-dark(var(--mantine-color-gray-2), var(--mantine-color-dark-5));
+}
+
+.header {
+  display: inline-flex;
+  align-items: center;
+  gap: rem(6px);
+  padding: rem(2px) rem(6px) rem(2px) rem(2px);
+  margin-bottom: rem(2px);
+  background: none;
+  border: 0;
+  border-radius: var(--mantine-radius-sm);
+  cursor: pointer;
+  color: light-dark(var(--mantine-color-gray-7), var(--mantine-color-dark-1));
+  font-size: var(--mantine-font-size-xs);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+
+  &:hover {
+    background: light-dark(var(--mantine-color-gray-1), var(--mantine-color-dark-6));
+  }
+}
+
+.chevron {
+  transition: transform 150ms ease;
+}
+
+.collapsed .chevron {
+  transform: rotate(-90deg);
+}
+
+.count {
+  padding: 0 rem(7px);
+  border-radius: 999px;
+  font-size: rem(11px);
+  letter-spacing: 0;
+  background: light-dark(var(--mantine-color-gray-1), var(--mantine-color-dark-5));
+}
+
+.list {
+  max-height: rem(280px);
+  overflow-y: auto;
+
+  [class*="_row_"] {
+    min-height: rem(30px);
+    padding-inline-end: rem(8px);
+  }
+
+  [class*="_title_"] {
+    font-size: var(--mantine-font-size-sm);
+    font-weight: 500;
+  }
+
+  [class*="_updatedAt_"] {
+    font-size: rem(11px);
+  }
+}
