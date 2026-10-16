@@ -17,6 +17,12 @@ export class PageLockController {
   constructor(private readonly pageLockService: PageLockService) {}
 
   @HttpCode(HttpStatus.OK)
+  @Post('lock-info')
+  info(@Body() body: { pageId: string }, @AuthUser() user: User) {
+    return this.pageLockService.info(body.pageId, user);
+  }
+
+  @HttpCode(HttpStatus.OK)
   @Post('lock')
   lock(@Body() body: { pageId: string }, @AuthUser() user: User) {
     return this.pageLockService.lock(body.pageId, user);

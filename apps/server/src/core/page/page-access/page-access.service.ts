@@ -10,7 +10,7 @@ import { SpaceRepo } from '@docmost/db/repos/space/space.repo';
 import { CacheOptions } from '../../../common/helpers/with-cache';
 import {
   assertPageNotLockedForUser,
-  isPageLockedForUser,
+  isPageLockEnforced,
 } from '../../../ee/page-lock/page-lock.util';
 
 @Injectable()
@@ -79,7 +79,7 @@ export class PageAccessService {
         (hasAnyRestriction
           ? canEdit
           : ability.can(SpaceCaslAction.Edit, SpaceCaslSubject.Page)) &&
-        !isPageLockedForUser(page, user.id),
+        !(await isPageLockEnforced(page, user.id)),
       hasRestriction: hasAnyRestriction,
     };
   }
@@ -92,6 +92,7 @@ export class PageAccessService {
   async validateCanEdit(
     page: Page,
     user: User,
+    opts?: { ignoreLock?: boolean },
   ): Promise<{ hasRestriction: boolean }> {
     const ability = await this.spaceAbility.createForUser(user, page.spaceId);
 
@@ -99,7 +100,7 @@ export class PageAccessService {
     if (ability.cannot(SpaceCaslAction.Read, SpaceCaslSubject.Page)) {
       throw new ForbiddenException();
     }
-    assertPageNotLockedForUser(page, user.id);
+    if (!opts?.ignoreLock) await assertPageNotLockedForUser(page, user.id);
 
     const { hasAnyRestriction, canEdit } =
       await this.pagePermissionRepo.canUserEditPage(user.id, page.id);
@@ -125,7 +126,7 @@ export class PageAccessService {
     workspaceId: string,
   ): Promise<void> {
     try {
-      await this.validateCanEdit(page, user);
+      await this.validateCanEdit(page, user, { ignoreLock: true });
       return;
     } catch {
       // User cannot edit — check if reader commenting is enabled

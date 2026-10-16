@@ -1,0 +1,11 @@
+{
+  "id": "page-lock",
+  "name": "Page lock",
+  "version": "1.0.0",
+  "description": "Let editors lock a page for 24 hours so others can only view it. Owners, admins and space admins can unlock.",
+  "author": "Internal",
+  "license": "MIT",
+  "hooks": [],
+  "configRequired": false,
+  "configLocation": "plugin"
+}

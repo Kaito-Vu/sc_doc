@@ -15,6 +15,7 @@ import {
 } from '../../core/casl/interfaces/space-ability.type';
 import { CollabAccessService } from '../../collaboration/services/collab-access.service';
 import { isPageLockActive } from './page-lock.util';
+import { isPageLockEnabled } from './page-lock.enabled';
 
 @Injectable()
 export class PageLockService {
@@ -32,10 +33,32 @@ export class PageLockService {
     return page;
   }
 
+  async info(pageId: string, user: User) {
+    const page = await this.findPage(pageId);
+    await this.pageAccessService.validateCanView(page, user);
+    if (
+      !isPageLockActive(page) ||
+      !page.lockedById ||
+      !(await isPageLockEnabled(page.workspaceId))
+    ) {
+      return { locked: false };
+    }
+
+    const lockedBy = await this.db
+      .selectFrom('users')
+      .select(['id', 'name', 'avatarUrl'])
+      .where('id', '=', page.lockedById)
+      .executeTakeFirst();
+    return { locked: true, lockedBy, lockedAt: page.lockedAt };
+  }
+
   // Anyone who can edit may lock; validateCanEdit already rejects a page
   // that is actively locked by someone else.
   async lock(pageId: string, user: User) {
     const page = await this.findPage(pageId);
+    if (!(await isPageLockEnabled(page.workspaceId))) {
+      throw new ForbiddenException('Page lock plugin is disabled');
+    }
     await this.pageAccessService.validateCanEdit(page, user);
 
     await this.db
