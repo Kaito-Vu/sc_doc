@@ -3,6 +3,7 @@ import { LicenceModule } from './licence/licence.module';
 import { ApiKeyModule } from './api-key/api-key.module';
 import { AuditEeModule } from './audit/audit.module';
 import { MfaModule } from './mfa/mfa.module';
+import { PageLockModule } from './page-lock/page-lock.module';
 import { PagePermissionModule } from './page-permission/page-permission.module';
 import { TemplateModule } from './template/template.module';
 import { ScimModule } from './scim/scim.module';
@@ -38,6 +39,7 @@ import { FeatureGateGuard } from './common/guards/feature-gate.guard';
     ApiKeyModule,
     MfaModule,
     PagePermissionModule,
+    PageLockModule,
     TemplateModule,
     ScimModule,
     PageVerificationModule,

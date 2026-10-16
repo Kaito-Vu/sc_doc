@@ -38,6 +38,8 @@ export class PageRepo {
     'spaceId',
     'workspaceId',
     'isLocked',
+    'lockedById',
+    'lockedAt',
     'isBase',
     'createdAt',
     'updatedAt',

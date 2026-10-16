@@ -60,6 +60,7 @@ import PageAttachmentsModal from "@/features/attachments/components/page-attachm
 import PresentationModal from "@/features/editor/components/presentation/presentation-modal.tsx";
 import { useTimeAgo } from "@/hooks/use-time-ago.tsx";
 import { PageShareModal } from "@/ee/page-permission";
+import { PageLockBadge, PageLockMenuItem } from "@/ee/page-lock";
 import RevertBaseMenuItem from "@/ee/base/components/revert-base-menu-item";
 import {
   PageVerificationMenuItem,
@@ -132,6 +133,8 @@ export default function PageHeaderMenu({ readOnly }: PageHeaderMenuProps) {
       <ConnectionWarning />
 
       {!readOnly && !page?.isBase && <PageEditModeToggle size="xs" />}
+
+      <PageLockBadge />
 
       <PageShareModal readOnly={readOnly} />
 
@@ -403,6 +406,8 @@ function PageActionMenu({ readOnly }: PageActionMenuProps) {
               onClick={openVerificationModal}
             />
           )}
+
+          <PageLockMenuItem readOnly={readOnly} />
 
           <Menu.Divider />
 

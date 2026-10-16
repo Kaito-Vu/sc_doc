@@ -25,6 +25,8 @@ import {
   PERMISSION_CACHE_TTL_MS,
 } from '../../../common/helpers/cache-keys';
 
+import { isWorkspaceAdmin } from '../../../ee/space-admin-access/workspace-admin-spaces';
+
 export { PagePermissionMember } from './types/page-permission.types';
 
 @Injectable()
@@ -414,6 +416,9 @@ export class PagePermissionRepo {
       CacheKey.PAGE_CAN_EDIT(userId, pageId),
       PERMISSION_CACHE_TTL_MS,
       async () => {
+        if (await isWorkspaceAdmin(this.db, userId)) {
+          return { hasAnyRestriction: false, canAccess: true, canEdit: true };
+        }
         const result = await sql<{
           canAccess: boolean | null;
           canEdit: boolean | null;
@@ -665,8 +670,12 @@ export class PagePermissionRepo {
       hasDirectRestriction,
       hasInheritedRestriction,
       hasAnyRestriction: hasDirectRestriction || hasInheritedRestriction,
-      canAccess: Boolean(result?.canAccess),
-      canEdit: Boolean(result?.canEdit),
+      ...((await isWorkspaceAdmin(this.db, userId))
+        ? { canAccess: true, canEdit: true }
+        : {
+            canAccess: Boolean(result?.canAccess),
+            canEdit: Boolean(result?.canEdit),
+          }),
     };
   }
 
@@ -682,6 +691,7 @@ export class PagePermissionRepo {
   }): Promise<string[]> {
     const { pageIds, userId, spaceId } = opts;
     if (pageIds.length === 0) return [];
+    if (await isWorkspaceAdmin(this.db, userId)) return pageIds;
 
     if (spaceId) {
       const hasRestrictions = await this.hasRestrictedPagesInSpace(spaceId);
@@ -757,6 +767,9 @@ export class PagePermissionRepo {
     userId: string,
   ): Promise<Array<{ id: string; canEdit: boolean }>> {
     if (pageIds.length === 0) return [];
+    if (await isWorkspaceAdmin(this.db, userId)) {
+      return pageIds.map((id) => ({ id, canEdit: true }));
+    }
 
     const results = await this.db
       .withRecursive('allAncestors', (qb) =>
@@ -937,6 +950,16 @@ export class PagePermissionRepo {
     userId: string,
   ): Promise<string[]> {
     if (parentIds.length === 0) return [];
+    if (await isWorkspaceAdmin(this.db, userId)) {
+      const rows = await this.db
+        .selectFrom('pages')
+        .select('parentPageId')
+        .distinct()
+        .where('parentPageId', 'in', parentIds)
+        .where('deletedAt', 'is', null)
+        .execute();
+      return rows.map((r) => r.parentPageId);
+    }
 
     const results = await this.db
       .withRecursive('childAncestors', (qb) =>

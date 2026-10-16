@@ -26,6 +26,7 @@ import { isUserDisabled } from '../../common/helpers';
 import { getPageId } from '../collaboration.util';
 import { COLLAB_ACCESS_RECHECK_CHANNEL } from '../constants';
 import { CollabAccessRecheck } from '../services/collab-access.service';
+import { isPageLockedForUser } from '../../ee/page-lock/page-lock.util';
 import { JwtCollabPayload, JwtType } from '../../core/auth/dto/jwt-payload';
 
 type CollabAccess = 'none' | 'read' | 'write';
@@ -202,6 +203,8 @@ export class AuthenticationExtension implements Extension {
     const canWrite = hasAnyRestriction
       ? canEdit
       : userSpaceRole !== SpaceRole.READER;
-    return canWrite && !page.deletedAt ? 'write' : 'read';
+    return canWrite && !page.deletedAt && !isPageLockedForUser(page, user.id)
+      ? 'write'
+      : 'read';
   }
 }

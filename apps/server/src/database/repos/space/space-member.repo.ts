@@ -20,6 +20,11 @@ import {
   CacheKey,
   PERMISSION_CACHE_TTL_MS,
 } from '../../../common/helpers/cache-keys';
+import {
+  adminSpaceIdsQuery,
+  adminSpaceRoleQuery,
+  adminSpacesRolesQuery,
+} from '../../../ee/space-admin-access/workspace-admin-spaces';
 
 @Injectable()
 export class SpaceMemberRepo {
@@ -252,6 +257,7 @@ export class SpaceMemberRepo {
               .where('groupUsers.userId', '=', userId)
               .where('spaceMembers.spaceId', '=', spaceId),
           )
+          .unionAll(adminSpaceRoleQuery(this.db, userId, spaceId))
           .execute();
 
         if (!roles || roles.length === 0) {
@@ -315,7 +321,8 @@ export class SpaceMemberRepo {
           .innerJoin('spaces', 'spaces.id', 'spaceMembers.spaceId')
           .select('spaces.id')
           .where('groupUsers.userId', '=', userId),
-      );
+      )
+      .union(adminSpaceIdsQuery(this.db, userId));
   }
 
   async getUserSpaceIds(userId: string): Promise<string[]> {
@@ -346,6 +353,7 @@ export class SpaceMemberRepo {
           .where('groupUsers.userId', '=', userId)
           .where('spaceMembers.spaceId', 'in', spaceIds),
       )
+      .unionAll(adminSpacesRolesQuery(this.db, userId, spaceIds))
       .execute();
   }
 

@@ -325,6 +325,8 @@ export interface Pages {
   isBase: Generated<boolean>;
   baseSchemaVersion: Generated<number>;
   isLocked: Generated<boolean>;
+  lockedAt: Timestamp | null;
+  lockedById: string | null;
   lastUpdatedById: string | null;
   parentPageId: string | null;
   position: string | null;

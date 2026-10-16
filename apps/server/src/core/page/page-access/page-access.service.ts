@@ -8,6 +8,10 @@ import {
 } from '../../casl/interfaces/space-ability.type';
 import { SpaceRepo } from '@docmost/db/repos/space/space.repo';
 import { CacheOptions } from '../../../common/helpers/with-cache';
+import {
+  assertPageNotLockedForUser,
+  isPageLockedForUser,
+} from '../../../ee/page-lock/page-lock.util';
 
 @Injectable()
 export class PageAccessService {
@@ -71,9 +75,11 @@ export class PageAccessService {
     }
 
     return {
-      canEdit: hasAnyRestriction
-        ? canEdit
-        : ability.can(SpaceCaslAction.Edit, SpaceCaslSubject.Page),
+      canEdit:
+        (hasAnyRestriction
+          ? canEdit
+          : ability.can(SpaceCaslAction.Edit, SpaceCaslSubject.Page)) &&
+        !isPageLockedForUser(page, user.id),
       hasRestriction: hasAnyRestriction,
     };
   }
@@ -93,6 +99,7 @@ export class PageAccessService {
     if (ability.cannot(SpaceCaslAction.Read, SpaceCaslSubject.Page)) {
       throw new ForbiddenException();
     }
+    assertPageNotLockedForUser(page, user.id);
 
     const { hasAnyRestriction, canEdit } =
       await this.pagePermissionRepo.canUserEditPage(user.id, page.id);
