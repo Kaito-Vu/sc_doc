@@ -360,4 +360,30 @@ export class BaseRepo {
       .where('id', '=', pageId)
       .execute();
   }
+
+  async hasRowData(pageId: string) {
+    const row = await this.db
+      .selectFrom('baseRows')
+      .select('id')
+      .where('pageId', '=', pageId)
+      .where(sql<boolean>`cells <> '{}'::jsonb`)
+      .limit(1)
+      .executeTakeFirst();
+    return !!row;
+  }
+
+  async revertBaseToPage(pageId: string, trx?: KyselyTransaction) {
+    const db = dbOrTx(this.db, trx);
+    await db.deleteFrom('baseRows').where('pageId', '=', pageId).execute();
+    await db.deleteFrom('baseViews').where('pageId', '=', pageId).execute();
+    await db
+      .deleteFrom('baseProperties')
+      .where('pageId', '=', pageId)
+      .execute();
+    await db
+      .updateTable('pages')
+      .set({ isBase: false, updatedAt: new Date() })
+      .where('id', '=', pageId)
+      .execute();
+  }
 }

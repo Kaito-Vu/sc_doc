@@ -60,6 +60,7 @@ import PageAttachmentsModal from "@/features/attachments/components/page-attachm
 import PresentationModal from "@/features/editor/components/presentation/presentation-modal.tsx";
 import { useTimeAgo } from "@/hooks/use-time-ago.tsx";
 import { PageShareModal } from "@/ee/page-permission";
+import RevertBaseMenuItem from "@/ee/base/components/revert-base-menu-item";
 import {
   PageVerificationMenuItem,
   PageVerificationModal,
@@ -393,6 +394,8 @@ function PageActionMenu({ readOnly }: PageActionMenuProps) {
               {t("Presentation mode")}
             </Menu.Item>
           )}
+
+          {!readOnly && page?.isBase && <RevertBaseMenuItem page={page} />}
 
           {!readOnly && !page?.isBase && (
             <PageVerificationMenuItem

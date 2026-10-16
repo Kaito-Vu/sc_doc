@@ -97,6 +97,17 @@ export class BaseController {
   }
 
   @HttpCode(HttpStatus.OK)
+  @Post('revert')
+  @RequireFeature(Feature.BASES)
+  async revert(
+    @Body() body: { pageId: string },
+    @AuthUser() user: User,
+    @AuthWorkspace() workspace: Workspace,
+  ) {
+    await this.baseService.revert(body.pageId, user, workspace.id);
+  }
+
+  @HttpCode(HttpStatus.OK)
   @Post()
   @RequireFeature(Feature.BASES)
   async list(

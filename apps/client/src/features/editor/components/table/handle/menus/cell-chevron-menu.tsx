@@ -16,6 +16,7 @@ import {
 import { useTranslation } from "react-i18next";
 import { useTableClear } from "../hooks/use-table-clear";
 import { TABLE_COLORS } from "../../table-background-color";
+import { TableSplitMenuItems } from "@/ee/editor/table-split/table-split-controls";
 import { AlignmentSubmenu } from "./alignment-submenu";
 
 interface CellChevronMenuProps {
@@ -112,6 +113,7 @@ export const CellChevronMenu = React.memo(function CellChevronMenu({
       >
         {t("Split cell")}
       </Menu.Item>
+      <TableSplitMenuItems editor={editor} />
       <Menu.Item
         leftSection={<IconTableRow size={16} />}
         onClick={() => editor.chain().focus().toggleHeaderCell().run()}

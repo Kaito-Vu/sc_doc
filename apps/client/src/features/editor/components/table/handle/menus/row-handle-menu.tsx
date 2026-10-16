@@ -15,6 +15,7 @@ import {
 import { useTranslation } from "react-i18next";
 import { useTableMoveRowColumn } from "../hooks/use-table-move-row-column";
 import { useTableClear } from "../hooks/use-table-clear";
+import { TableCopyMenuItem } from "@/ee/editor/table-copy/table-copy-menu-item";
 import { AlignmentSubmenu } from "./alignment-submenu";
 
 interface RowHandleMenuProps {
@@ -56,6 +57,7 @@ export const RowHandleMenu = React.memo(function RowHandleMenu({
 
   return (
     <>
+      <TableCopyMenuItem editor={editor} />
       <Menu.Sub position="right-start">
         <Menu.Sub.Target>
           <Menu.Sub.Item leftSection={<IconPalette size={16} />}>

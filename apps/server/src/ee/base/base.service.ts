@@ -318,6 +318,17 @@ export class BaseService {
     return this.buildBaseDto(updated);
   }
 
+  async revert(pageId: string, user: User, workspaceId: string) {
+    const page = await this.getBasePageOrThrow(pageId, workspaceId);
+    await this.assertCanEdit(user, page.spaceId);
+    if (await this.baseRepo.hasRowData(pageId)) {
+      throw new BadRequestException(
+        'Base already contains data and cannot be reverted to a page',
+      );
+    }
+    await this.baseRepo.revertBaseToPage(pageId);
+  }
+
   async list(
     spaceId: string,
     user: User,

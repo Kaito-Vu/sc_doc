@@ -18,6 +18,7 @@ import { useTranslation } from "react-i18next";
 import { useTableMoveRowColumn } from "../hooks/use-table-move-row-column";
 import { useTableClear } from "../hooks/use-table-clear";
 import { useTableSort } from "../hooks/use-table-sort";
+import { TableCopyMenuItem } from "@/ee/editor/table-copy/table-copy-menu-item";
 import { AlignmentSubmenu } from "./alignment-submenu";
 
 interface ColumnHandleMenuProps {
@@ -76,6 +77,7 @@ export const ColumnHandleMenu = React.memo(function ColumnHandleMenu({
 
   return (
     <>
+      <TableCopyMenuItem editor={editor} />
       <Menu.Item
         leftSection={<IconSortAscendingLetters size={16} />}
         onClick={sortAsc.handleSort}

@@ -16,6 +16,7 @@ import { useTranslation } from "react-i18next";
 import { TableBackgroundColor } from "./table-background-color";
 import { TableTextAlignment } from "./table-text-alignment";
 import { TableAutoNumberButton } from "@/ee/editor/table-auto-number";
+import { TableSplitButtons } from "@/ee/editor/table-split/table-split-controls";
 import { BubbleMenu } from "@tiptap/react/menus";
 import classes from "../common/toolbar-menu.module.css";
 
@@ -99,6 +100,8 @@ export const TableCellMenu = React.memo(
               <IconSquareToggle size={18} />
             </ActionIcon>
           </Tooltip>
+
+          <TableSplitButtons editor={editor} />
 
           <div className={classes.divider} />
 

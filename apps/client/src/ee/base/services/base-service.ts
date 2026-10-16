@@ -57,6 +57,10 @@ export async function convertPageToBase(
   return req.data;
 }
 
+export async function revertBaseToPage(pageId: string): Promise<void> {
+  await api.post("/bases/revert", { pageId });
+}
+
 export async function exportBaseToCsv(
   pageId: string,
   filter?: FilterNode,
