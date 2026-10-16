@@ -4,6 +4,7 @@ import { updateUser } from "../services/user-service";
 import { useAtom } from "jotai";
 import { userAtom } from "../atoms/current-user-atom";
 import { useState } from "react";
+import { useLocaleForced } from "@/ee/workspace-locale/use-workspace-locale";
 
 export default function AccountLanguage() {
   const { t } = useTranslation();
@@ -23,6 +24,7 @@ export default function AccountLanguage() {
 
 function LanguageSwitcher() {
   const { t, i18n } = useTranslation();
+  const forced = useLocaleForced();
   const [user, setUser] = useAtom(userAtom);
   const [language, setLanguage] = useState(
     user?.locale === "en" ? "en-US" : user?.locale,
@@ -58,6 +60,7 @@ function LanguageSwitcher() {
       value={language || "en-US"}
       onChange={handleChange}
       allowDeselect={false}
+      disabled={forced}
       checkIconPosition="right"
     />
   );

@@ -121,7 +121,6 @@ export class UserRepo {
         insertableUser.name || insertableUser.email.split('@')[0].toLowerCase(),
       email: insertableUser.email.toLowerCase(),
       password: await hashPassword(insertableUser.password),
-      locale: 'en-US',
       role: insertableUser?.role,
       lastLoginAt: new Date(),
     };
@@ -132,6 +131,8 @@ export class UserRepo {
       .values({
         ...insertableUser,
         ...user,
+        // new users start with the workspace default language (settings.defaultLocale)
+        locale: sql<string>`COALESCE((SELECT settings->>'defaultLocale' FROM workspaces WHERE id = ${insertableUser.workspaceId}), 'en-US')`,
         ...(opts?.pageEditMode
           ? {
               settings: sql`${JSON.stringify({

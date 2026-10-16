@@ -3,6 +3,7 @@ import { currentUserAtom } from "@/features/user/atoms/current-user-atom";
 import React, { useEffect } from "react";
 import useCurrentUser from "@/features/user/hooks/use-current-user";
 import { useTranslation } from "react-i18next";
+import { useWorkspaceLocale } from "@/ee/workspace-locale/use-workspace-locale";
 import { socketAtom } from "@/features/websocket/atoms/socket-atom.ts";
 import { io } from "socket.io-client";
 import { SOCKET_URL } from "@/features/websocket/types";
@@ -48,6 +49,7 @@ export function UserProvider({ children }: React.PropsWithChildren) {
   }, [isError, isLoading]);
 
   useQuerySubscription();
+  useWorkspaceLocale();
   useTreeSocket();
   useNotificationSocket();
 

@@ -10,6 +10,7 @@ import WorkspaceDefaultPageEditMode from "@/features/workspace/components/settin
 import PersonalSpacesSetting from "@/ee/personal-space/components/personal-spaces-setting.tsx";
 import AllowPublicSpaces from "@/features/workspace/components/settings/components/allow-public-spaces.tsx";
 import { DocumentTitle } from "@/components/ui/document-title.tsx";
+import WorkspaceLanguageSetting from "@/ee/workspace-locale/workspace-language-setting.tsx";
 
 export default function WorkspaceSettings() {
   const { t } = useTranslation();
@@ -42,6 +43,9 @@ export default function WorkspaceSettings() {
 
       <Divider my="md" />
       <WorkspaceDefaultPageEditMode />
+
+      <Divider my="md" />
+      <WorkspaceLanguageSetting />
     </>
   );
 }
