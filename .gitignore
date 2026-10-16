@@ -45,3 +45,6 @@ _ee_dist_extract/
 
 .claude/worktrees
 samples/
+# Docker image exports / large artifacts
+*.tar
+*.tar.gz
