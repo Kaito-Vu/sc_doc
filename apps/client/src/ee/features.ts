@@ -25,6 +25,8 @@ export const Feature = {
   BASES: 'bases',
   STATISTICS: 'statistics',
   DETAIL_INFO_PANEL: 'detail:info-panel',
+  INTEGRATIONS: 'integrations',
+  INTEGRATIONS_ADVANCED: 'integrations:advanced',
   OAUTH: 'oauth',
   AI_CONTROLS: 'ai:controls',
   MCP_CONTROLS: 'mcp:controls',

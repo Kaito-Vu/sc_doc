@@ -8,8 +8,10 @@ import BillingDetails from "@/ee/billing/components/billing-details.tsx";
 import { useBillingQuery } from "@/ee/billing/queries/billing-query.ts";
 import useUserRole from "@/hooks/use-user-role.tsx";
 import { DocumentTitle } from "@/components/ui/document-title.tsx";
+import { useTranslation } from "react-i18next";
 
 export default function Billing() {
+  const { t } = useTranslation();
   const { data: billing, isError: isBillingError } = useBillingQuery();
   const { isAdmin } = useUserRole();
 
@@ -19,8 +21,8 @@ export default function Billing() {
 
   return (
     <>
-      <DocumentTitle title="Billing" />
-      <SettingsTitle title="Billing" />
+      <DocumentTitle title={t("Billing")} />
+      <SettingsTitle title={t("Billing")} />
 
       <BillingTrial />
       <BillingDetails />

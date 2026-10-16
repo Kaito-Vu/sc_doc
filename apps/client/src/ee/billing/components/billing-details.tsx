@@ -6,8 +6,10 @@ import { Group, Text, SimpleGrid, Paper } from "@mantine/core";
 import classes from "./billing.module.css";
 import { formatInterval } from "@/ee/billing/utils.ts";
 import { formatLocalized, useDateFnsLocale } from "@/lib/date-locale.ts";
+import { useTranslation } from "react-i18next";
 
 export default function BillingDetails() {
+  const { t } = useTranslation();
   const { data: billing } = useBillingQuery();
   const { data: plans } = useBillingPlans();
   const locale = useDateFnsLocale();
@@ -29,14 +31,14 @@ export default function BillingDetails() {
                 fz="xs"
                 className={classes.label}
               >
-                Plan
+                {t("Plan")}
               </Text>
               <Text fw={700} fz="lg" tt="capitalize">
                 {plans.find(
                   (plan) => plan.productId === billing.stripeProductId,
                 )?.name ||
                   billing.planName ||
-                  "Standard"}
+                  t("Standard")}
               </Text>
             </div>
           </Group>
@@ -52,7 +54,7 @@ export default function BillingDetails() {
                 fz="xs"
                 className={classes.label}
               >
-                Billing Period
+                {t("Billing Period")}
               </Text>
               <Text fw={700} fz="lg" tt="capitalize">
                 {formatInterval(billing.interval)}
@@ -72,8 +74,8 @@ export default function BillingDetails() {
                 className={classes.label}
               >
                 {billing.cancelAtPeriodEnd
-                  ? "Cancellation date"
-                  : "Renewal date"}
+                  ? t("Cancellation date")
+                  : t("Renewal date")}
               </Text>
               <Text fw={700} fz="lg">
                 {formatLocalized(
@@ -99,7 +101,7 @@ export default function BillingDetails() {
                 fz="xs"
                 className={classes.label}
               >
-                Seat count
+                {t("Seat count")}
               </Text>
               <Text fw={700} fz="lg">
                 {billing.quantity}
@@ -118,7 +120,7 @@ export default function BillingDetails() {
                 fz="xs"
                 className={classes.label}
               >
-                Cost
+                {t("Cost")}
               </Text>
               {billing.billingScheme === "tiered" && (
                 <>
@@ -127,7 +129,7 @@ export default function BillingDetails() {
                     {billing.interval}
                   </Text>
                   <Text c="dimmed" fz="sm">
-                    per {billing.interval}
+                    {t("per {{interval}}", { interval: billing.interval })}
                   </Text>
                 </>
               )}
@@ -158,10 +160,10 @@ export default function BillingDetails() {
                   fz="xs"
                   className={classes.label}
                 >
-                  Current Tier
+                  {t("Current Tier")}
                 </Text>
                 <Text fw={700} fz="lg">
-                  For {billing.tieredUpTo} users
+                  {t("For {{users}} users", { users: billing.tieredUpTo })}
                 </Text>
                 {/*billing.tieredFlatAmount && (
                   <Text c="dimmed" fz="sm">

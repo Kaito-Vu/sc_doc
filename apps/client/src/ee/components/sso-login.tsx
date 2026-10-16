@@ -9,6 +9,7 @@ import { GoogleIcon } from "@/components/icons/google-icon.tsx";
 import { LdapLoginModal } from "@/ee/components/ldap-login-modal.tsx";
 import { getRedirectParam } from "@/lib/app-route.ts";
 import useCurrentUser from "@/features/user/hooks/use-current-user.ts";
+import { useTranslation } from "react-i18next";
 
 const SSO_AUTO_ATTEMPT_KEY = "docmost:ssoAutoAttempt";
 const SSO_AUTO_ATTEMPT_TTL_MS = 5 * 60_000;
@@ -33,6 +34,7 @@ function markAutoAttempt(): void {
 }
 
 export default function SsoLogin() {
+  const { t } = useTranslation();
   const { data, isLoading } = useWorkspacePublicDataQuery();
   const { data: currentUser } = useCurrentUser();
   const [ldapModalOpened, setLdapModalOpened] = useState(false);
@@ -133,7 +135,7 @@ export default function SsoLogin() {
           </Stack>
 
           {!data.enforceSso && (
-            <Divider my="xs" label="OR" labelPosition="center" />
+            <Divider my="xs" label={t("OR")} labelPosition="center" />
           )}
         </>
       )}

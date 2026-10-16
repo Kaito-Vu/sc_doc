@@ -22,13 +22,14 @@ import JoinedWorkspaces from "@/ee/components/joined-workspaces.tsx";
 import { useJoinedWorkspacesQuery } from "@/ee/cloud/query/cloud-query.ts";
 import { findWorkspacesByEmail } from "@/ee/cloud/service/cloud-service.ts";
 import { AuthLayout } from "@/features/auth/components/auth-layout.tsx";
+import i18n from "@/i18n";
 
 const formSchema = z.object({
-  hostname: z.string().min(1, { message: "subdomain is required" }),
+  hostname: z.string().min(1, { message: i18n.t("subdomain is required") }),
 });
 
 const findWorkspaceSchema = z.object({
-  email: z.string().email({ message: "Please enter a valid email" }),
+  email: z.string().email({ message: i18n.t("Please enter a valid email") }),
 });
 
 export function CloudLoginForm() {
@@ -60,9 +61,9 @@ export function CloudLoginForm() {
       window.location.href = checkHostname.hostname;
     } catch (err) {
       if (err?.status === 404) {
-        form.setFieldError("hostname", "We could not find this workspace");
+        form.setFieldError("hostname", t("We could not find this workspace"));
       } else {
-        form.setFieldError("hostname", "An error occurred");
+        form.setFieldError("hostname", t("An error occurred"));
       }
     }
 
@@ -76,7 +77,7 @@ export function CloudLoginForm() {
       await findWorkspacesByEmail(data.email);
       setFindEmailSent(true);
     } catch {
-      findForm.setFieldError("email", "An error occurred. Please try again.");
+      findForm.setFieldError("email", t("An error occurred. Please try again."));
     }
 
     setIsFindLoading(false);
@@ -93,15 +94,15 @@ export function CloudLoginForm() {
           <JoinedWorkspaces />
 
           {joinedWorkspaces?.length > 0 && (
-            <Divider my="xs" label="OR" labelPosition="center" />
+            <Divider my="xs" label={t("OR")} labelPosition="center" />
           )}
 
           <form onSubmit={form.onSubmit(onSubmit)}>
             <TextInput
               type="text"
-              placeholder="my-team"
-              description="Enter your workspace hostname"
-              label="Workspace hostname"
+              placeholder={t("my-team")}
+              description={t("Enter your workspace hostname")}
+              label={t("Workspace hostname")}
               rightSection={<Text fw={500}>.{getSubdomainHost()}</Text>}
               rightSectionWidth={150}
               withErrorStyles={false}
@@ -112,7 +113,7 @@ export function CloudLoginForm() {
             </Button>
           </form>
 
-          <Divider my="lg" label="or" labelPosition="center" />
+          <Divider my="lg" label={t("or")} labelPosition="center" />
 
           {findEmailSent ? (
             <Text ta="center" size="sm" c="dimmed">
@@ -125,7 +126,7 @@ export function CloudLoginForm() {
               </Text>
               <TextInput
                 type="email"
-                placeholder="name@company.com"
+                placeholder={t("name@company.com")}
                 description={t(
                   "We'll send a list of your workspaces to this email.",
                 )}

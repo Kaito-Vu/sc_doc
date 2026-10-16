@@ -22,6 +22,8 @@ import {
   isCloud,
   isPostHogEnabled,
 } from "@/lib/config.ts";
+import { installChunkLoadRecovery } from "@/lib/chunk-load-recovery.ts";
+import { AppErrorBoundary } from "@/components/ui/app-error-boundary.tsx";
 import posthog from "posthog-js";
 
 export const queryClient = new QueryClient({
@@ -44,6 +46,8 @@ if (isCloud() && isPostHogEnabled) {
   });
 }
 
+installChunkLoadRecovery();
+
 const container = document.getElementById("root") as HTMLElement;
 const root = (container as any).__reactRoot ??= ReactDOM.createRoot(container);
 
@@ -55,7 +59,9 @@ root.render(
           <AppNotifications />
           <HelmetProvider>
             <PostHogProvider client={posthog}>
-              <App />
+              <AppErrorBoundary>
+                <App />
+              </AppErrorBoundary>
             </PostHogProvider>
           </HelmetProvider>
         </QueryClientProvider>
