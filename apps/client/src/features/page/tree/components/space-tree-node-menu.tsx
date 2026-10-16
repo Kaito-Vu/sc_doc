@@ -140,6 +140,7 @@ export function NodeMenu({ node, canEdit }: NodeMenuProps) {
             variant="subtle"
             color="gray"
             className={classes.actionIcon}
+            data-node-menu-trigger
             aria-label={t("Page menu for {{name}}", { name: getPageTitle(node.name, node.isBase, t) })}
             tabIndex={-1}
             onClick={(e) => {

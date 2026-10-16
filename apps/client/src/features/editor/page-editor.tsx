@@ -83,6 +83,7 @@ import { PageSubpagesSection } from "@/ee/subpages-section/page-subpages-section
 import { useRestoreEditorFocus } from "@/ee/editor/restore-focus/use-restore-editor-focus";
 import { EditorAiMenu } from "@/ee/ai/components/editor/ai-menu/ai-menu";
 import { EditorLinkMenu } from "@/features/editor/components/link/link-menu";
+import { EditorContextMenu } from "@/ee/editor/context-menu/editor-context-menu";
 import ColumnsMenu from "@/features/editor/components/columns/columns-menu.tsx";
 import { TransclusionLookupProvider } from "@/features/editor/components/transclusion/transclusion-lookup-context";
 import { useTranslation } from "react-i18next";
@@ -508,6 +509,7 @@ function CollabPageEditor({
           <div>
             <EditorAiMenu editor={editor} />
             <EditorLinkMenu editor={editor} />
+            <EditorContextMenu editor={editor} />
             <EditorBubbleMenu editor={editor} />
             <TableMenu editor={editor} />
             <TableHandlesLayer editor={editor} />

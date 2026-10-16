@@ -33,6 +33,7 @@ import { NodeMenu } from "./space-tree-node-menu";
 import classes from "@/features/page/tree/styles/tree.module.css";
 import { updateTreeNodeIcon } from "@/features/page/tree/utils/utils.ts";
 import CreatePageMenu from "@/ee/template/components/create-page-menu";
+import { onTreeRowContextMenu } from "@/ee/sidebar/tree-row-context-menu";
 
 type SpaceTreeRowProps = RenderRowProps<SpaceTreeNode> & {
   readOnly: boolean;
@@ -150,6 +151,7 @@ export function SpaceTreeRow({
           toggleMobileSidebar();
         }
       }}
+      onContextMenu={onTreeRowContextMenu}
       onMouseEnter={prefetchPage}
       onMouseLeave={cancelPagePrefetch}
     >
