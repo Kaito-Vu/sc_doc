@@ -37,4 +37,15 @@ describe("keepFormattingOnly", () => {
     expect(out).toMatch(/<ul><li><p[^>]*>dot<\/p><\/li><li><p[^>]*>dot2<\/p><\/li><\/ul>/);
     expect(out).not.toContain("mso-list");
   });
+
+  it("round-trips the editor's own copied HTML", () => {
+    const out = keepFormattingOnly(
+      `<p data-pm-slice="1 1 []" style="text-align: center"><span style="color: rgb(224, 49, 49)">r</span></p>` +
+        `<table><tbody><tr><td><p style="text-align: right"><span style="color: #00f">c</span></p></td></tr></tbody></table>`,
+    );
+    expect(out).toContain("text-align: center");
+    expect(out).toContain("text-align: right");
+    expect(out).toContain("color: rgb(224, 49, 49)");
+    expect(out).toContain("color: rgb(0, 0, 255)");
+  });
 });
