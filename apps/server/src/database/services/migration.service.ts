@@ -14,6 +14,7 @@ export class MigrationService {
   async migrateToLatest(): Promise<void> {
     const migrator = new Migrator({
       db: this.db,
+      allowUnorderedMigrations: true, // fork: upstream migrations may sort before ee ones already run
       provider: new FileMigrationProvider({
         fs,
         path,

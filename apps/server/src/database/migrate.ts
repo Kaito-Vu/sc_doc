@@ -19,6 +19,7 @@ const db = new Kysely<any>({
 
 const migrator = new Migrator({
   db,
+  allowUnorderedMigrations: true, // fork: upstream migrations may sort before ee ones already run
   provider: new FileMigrationProvider({
     fs,
     path,
