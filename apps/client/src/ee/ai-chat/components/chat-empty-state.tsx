@@ -92,7 +92,7 @@ export default function ChatEmptyState({ isStreaming, onSend, onStop }: Props) {
               onClick={() => handleSuggestionClick(s.prompt)}
             >
               <span className={classes.suggestionIcon}>{s.icon}</span>
-              <span className={classes.suggestionText}>{s.text}</span>
+              <span className={classes.suggestionText}>{t(s.text)}</span>
             </button>
           ))}
         </div>

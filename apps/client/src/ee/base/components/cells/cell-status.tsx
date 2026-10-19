@@ -10,6 +10,8 @@ import { ChoiceBadge } from "@/ee/base/components/cells/choice-badge";
 import cellClasses from "@/ee/base/styles/cells.module.css";
 import clsx from "clsx";
 import { useListKeyboardNav } from "@/ee/base/hooks/use-list-keyboard-nav";
+import i18n from "@/i18n";
+import { useTranslation } from "react-i18next";
 
 type CellStatusProps = {
   value: unknown;
@@ -26,9 +28,9 @@ type CategoryGroup = {
 };
 
 const categoryLabels: Record<string, string> = {
-  todo: "To Do",
-  inProgress: "In Progress",
-  complete: "Complete",
+  todo: i18n.t("To Do"),
+  inProgress: i18n.t("In Progress"),
+  complete: i18n.t("Complete"),
 };
 
 export function CellStatus({
@@ -38,6 +40,7 @@ export function CellStatus({
   onCommit,
   onCancel,
 }: CellStatusProps) {
+  const { t } = useTranslation();
   const typeOptions = property.typeOptions as SelectTypeOptions | undefined;
   const choices = typeOptions?.choices ?? [];
   const selectedId = typeof value === "string" ? value : null;
@@ -145,7 +148,7 @@ export function CellStatus({
           <TextInput
             ref={searchRef}
             size="xs"
-            placeholder="Search..."
+            placeholder={t("Search...")}
             value={search}
             onChange={(e) => setSearch(e.currentTarget.value)}
             onKeyDown={handleKeyDown}

@@ -62,6 +62,7 @@ export function CellPage({
   onCommit,
   onCancel,
 }: CellPageProps) {
+  const { t } = useTranslation();
   const pageId = parsePageId(value);
   const { data: base } = useBaseQuery(property.pageId);
 
@@ -92,7 +93,7 @@ export function CellPage({
     return (
       <span className={cellClasses.pageMissing}>
         <IconFileDescription size={14} />
-        <span>Page not found</span>
+        <span>{t("Page not found")}</span>
       </span>
     );
   }

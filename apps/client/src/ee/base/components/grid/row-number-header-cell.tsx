@@ -2,6 +2,7 @@ import { memo, useMemo } from "react";
 import { Checkbox, Tooltip } from "@mantine/core";
 import { useRowSelection } from "@/ee/base/hooks/use-row-selection";
 import classes from "@/ee/base/styles/grid.module.css";
+import { useTranslation } from "react-i18next";
 
 type RowNumberHeaderCellProps = {
   loadedRowIds: string[];
@@ -12,6 +13,7 @@ export const RowNumberHeaderCell = memo(function RowNumberHeaderCell({
   loadedRowIds,
   pageId,
 }: RowNumberHeaderCellProps) {
+  const { t } = useTranslation();
   const { selectedIds, toggleAll } = useRowSelection(pageId);
 
   const { checked, indeterminate } = useMemo(() => {
@@ -35,13 +37,13 @@ export const RowNumberHeaderCell = memo(function RowNumberHeaderCell({
     <div className={classes.rowNumberHeaderInner}>
       <span className={classes.rowNumberHeaderHash}>#</span>
       <span className={classes.rowNumberHeaderCheckbox}>
-        <Tooltip label="Select all loaded rows" withinPortal>
+        <Tooltip label={t("Select all loaded rows")} withinPortal>
           <Checkbox
             size="xs"
             checked={checked}
             indeterminate={indeterminate}
             onChange={() => toggleAll(loadedRowIds)}
-            aria-label="Select all loaded rows"
+            aria-label={t("Select all loaded rows")}
             tabIndex={-1}
           />
         </Tooltip>

@@ -137,7 +137,7 @@ export function CellFile({
         <Popover.Dropdown p={8} onKeyDown={handleKeyDown}>
           {!readOnly && files.length === 0 && !uploading && (
             <Text size="xs" c="dimmed" mb={8}>
-              No files attached
+              {t("No files attached")}
             </Text>
           )}
 

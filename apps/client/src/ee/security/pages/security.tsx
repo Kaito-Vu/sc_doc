@@ -65,7 +65,7 @@ export default function Security() {
 
   return (
     <>
-      <DocumentTitle title="Security" />
+      <DocumentTitle title={t("Security")} />
       <SettingsTitle title={t("Security")} />
 
       <EnforceMfa />

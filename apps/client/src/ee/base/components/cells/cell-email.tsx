@@ -2,6 +2,7 @@ import { IBaseProperty } from "@/ee/base/types/base.types";
 import { Tooltip } from "@mantine/core";
 import { useEditableTextCell } from "@/ee/base/hooks/use-editable-text-cell";
 import cellClasses from "@/ee/base/styles/cells.module.css";
+import { useTranslation } from "react-i18next";
 
 type CellEmailProps = {
   value: unknown;
@@ -16,6 +17,7 @@ const toDraft = (value: unknown) => (typeof value === "string" ? value : "");
 const parse = (draft: string) => draft || null;
 
 export function CellEmail({ value, property, rowId, isEditing, onCommit, onCancel }: CellEmailProps) {
+  const { t } = useTranslation();
   const { draft, setDraft, inputRef, handleKeyDown, handleBlur } =
     useEditableTextCell({
       value,
@@ -35,7 +37,7 @@ export function CellEmail({ value, property, rowId, isEditing, onCommit, onCance
         type="email"
         className={cellClasses.cellInput}
         value={draft}
-        placeholder="email@example.com"
+        placeholder={t("email@example.com")}
         onChange={(e) => setDraft(e.target.value)}
         onKeyDown={handleKeyDown}
         onBlur={handleBlur}

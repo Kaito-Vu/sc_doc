@@ -17,16 +17,17 @@ import { useUpdateSsoProviderMutation } from "@/ee/security/queries/security-que
 import { OpenIdIcon } from "@/components/icons/openid-icon.tsx";
 import { EntraIdIcon } from "@/components/icons/entra-id-icon.tsx";
 import { SsoSwitchRow, copyDirty } from "@/ee/security/components/sso-form-fields.tsx";
+import i18n from "@/i18n";
 
 type OidcTemplate = "generic" | "azuread";
 
 const ssoSchema = z
   .object({
-    name: z.string().min(1, "Display name is required"),
+    name: z.string().min(1, i18n.t("Display name is required")),
     template: z.enum(["generic", "azuread"]),
     oidcIssuer: z.string().optional(),
     oidcTenantId: z.string().optional(),
-    oidcClientId: z.string().min(1, "Client id is required"),
+    oidcClientId: z.string().min(1, i18n.t("Client id is required")),
     oidcClientSecret: z.string().optional(),
     isEnabled: z.boolean(),
     allowSignup: z.boolean(),
@@ -35,13 +36,13 @@ const ssoSchema = z
   .refine(
     (data) =>
       data.template !== "generic" || (data.oidcIssuer && data.oidcIssuer.length > 0),
-    { message: "Issuer URL is required", path: ["oidcIssuer"] },
+    { message: i18n.t("Issuer URL is required"), path: ["oidcIssuer"] },
   )
   .refine(
     (data) =>
       data.template !== "azuread" ||
       (data.oidcTenantId && data.oidcTenantId.length > 0),
-    { message: "Tenant ID is required", path: ["oidcTenantId"] },
+    { message: i18n.t("Tenant ID is required"), path: ["oidcTenantId"] },
   );
 
 type SSOFormValues = z.infer<typeof ssoSchema>;
@@ -145,12 +146,12 @@ export function SsoOIDCForm({ provider, onClose }: Readonly<SsoFormProps>) {
 
           <TextInput
             label={t("Display name")}
-            placeholder="e.g Google SSO"
+            placeholder={t("e.g Google SSO")}
             data-autofocus
             {...form.getInputProps("name")}
           />
           <TextInput
-            label="Callback URL"
+            label={t("Callback URL")}
             variant="filled"
             value={callbackUrl}
             pointer
@@ -161,14 +162,14 @@ export function SsoOIDCForm({ provider, onClose }: Readonly<SsoFormProps>) {
           {isAzureAd ? (
             <>
               <TextInput
-                label="Tenant ID"
-                description="Enter your Microsoft Entra tenant ID"
-                placeholder="e.g 3f8e8b1a-1234-4a1b-9c8d-abcdef123456"
+                label={t("Tenant ID")}
+                description={t("Enter your Microsoft Entra tenant ID")}
+                placeholder={t("e.g 3f8e8b1a-1234-4a1b-9c8d-abcdef123456")}
                 {...form.getInputProps("oidcTenantId")}
               />
               <TextInput
-                label="Issuer URL"
-                description="Automatically derived from Tenant ID"
+                label={t("Issuer URL")}
+                description={t("Automatically derived from Tenant ID")}
                 variant="filled"
                 value={displayedIssuer}
                 readOnly
@@ -176,31 +177,31 @@ export function SsoOIDCForm({ provider, onClose }: Readonly<SsoFormProps>) {
             </>
           ) : (
             <TextInput
-              label="Issuer URL"
-              description="Enter your OIDC issuer URL"
-              placeholder="e.g https://accounts.google.com/"
+              label={t("Issuer URL")}
+              description={t("Enter your OIDC issuer URL")}
+              placeholder={t("e.g https://accounts.google.com/")}
               {...form.getInputProps("oidcIssuer")}
             />
           )}
 
           <TextInput
-            label="Client ID"
+            label={t("Client ID")}
             description={
               isAzureAd
-                ? "Enter your Azure App Registration client ID"
-                : "Enter your OIDC ClientId"
+                ? t("Enter your Azure App Registration client ID")
+                : t("Enter your OIDC ClientId")
             }
-            placeholder="e.g 292085223830.apps.googleusercontent.com"
+            placeholder={t("e.g 292085223830.apps.googleusercontent.com")}
             {...form.getInputProps("oidcClientId")}
           />
           <TextInput
-            label="Client Secret"
+            label={t("Client Secret")}
             description={
               provider.oidcClientSecret
-                ? "Leave blank to keep the current secret"
-                : "Enter your OIDC Client Secret"
+                ? t("Leave blank to keep the current secret")
+                : t("Enter your OIDC Client Secret")
             }
-            placeholder={provider.oidcClientSecret || "e.g OCSPX-zVCkotEPGRnJA1XKUrbgjlf7PQQ-"}
+            placeholder={provider.oidcClientSecret || t("e.g OCSPX-zVCkotEPGRnJA1XKUrbgjlf7PQQ-")}
             {...form.getInputProps("oidcClientSecret")}
           />
 

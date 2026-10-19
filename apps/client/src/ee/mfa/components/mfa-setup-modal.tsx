@@ -35,6 +35,7 @@ import { useTranslation } from "react-i18next";
 import { setupMfa, enableMfa } from "@/ee/mfa";
 import { zod4Resolver } from "mantine-form-zod-resolver";
 import { z } from "zod/v4";
+import i18n from "@/i18n";
 
 interface MfaSetupModalProps {
   opened: boolean;
@@ -51,7 +52,7 @@ interface SetupData {
 const formSchema = z.object({
   verificationCode: z
     .string()
-    .length(6, { message: "Please enter a 6-digit code" }),
+    .length(6, { message: i18n.t("Please enter a 6-digit code") }),
 });
 
 export function MfaSetupModal({

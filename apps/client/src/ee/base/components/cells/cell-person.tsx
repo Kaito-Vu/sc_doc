@@ -15,6 +15,7 @@ import { PersonReadList } from "@/ee/base/components/cells/person-read-list";
 import cellClasses from "@/ee/base/styles/cells.module.css";
 import { useListKeyboardNav } from "@/ee/base/hooks/use-list-keyboard-nav";
 import { usePersonSearch } from "@/ee/base/hooks/use-person-search";
+import { useTranslation } from "react-i18next";
 
 type CellPersonProps = {
   value: unknown;
@@ -34,6 +35,7 @@ export function CellPerson({
   onValueChange,
   onCancel,
 }: CellPersonProps) {
+  const { t } = useTranslation();
   const allowMultiple =
     (property.typeOptions as PersonTypeOptions)?.allowMultiple === true;
 
@@ -179,7 +181,7 @@ export function CellPerson({
             <input
               ref={searchRef}
               className={cellClasses.personTagInput}
-              placeholder={personIds.length === 0 ? "Search for a person..." : ""}
+              placeholder={personIds.length === 0 ? t("Search for a person...") : ""}
               value={search}
               onChange={(e) => setSearch(e.currentTarget.value)}
               onKeyDown={handleKeyDown}
@@ -190,7 +192,7 @@ export function CellPerson({
           <div className={cellClasses.personDropdownDivider} />
           {allowMultiple && (
             <div className={cellClasses.personDropdownHint}>
-              Select as many as you like
+              {t("Select as many as you like")}
             </div>
           )}
           <div className={cellClasses.selectDropdown}>
@@ -229,7 +231,7 @@ export function CellPerson({
             })}
             {filteredMembers.length === 0 && (
               <div className={cellClasses.personDropdownHint}>
-                No members found
+                {t("No members found")}
               </div>
             )}
           </div>

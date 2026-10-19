@@ -23,6 +23,7 @@ import { useTranslation } from "react-i18next";
 import { z } from "zod/v4";
 import { MfaBackupCodeInput } from "./mfa-backup-code-input";
 import { AuthLayout } from "@/features/auth/components/auth-layout.tsx";
+import i18n from "@/i18n";
 
 const formSchema = z.object({
   code: z
@@ -30,7 +31,7 @@ const formSchema = z.object({
     .refine(
       (val) => (val.length === 6 && /^\d{6}$/.test(val)) || val.length === 8,
       {
-        message: "Enter a 6-digit code or 8-character backup code",
+        message: i18n.t("Enter a 6-digit code or 8-character backup code"),
       },
     ),
 });

@@ -4,6 +4,7 @@ import { useDebouncedCallback } from "@mantine/hooks";
 import { IBaseProperty } from "@/ee/base/types/base.types";
 import { formatLongTextPreview } from "@/ee/base/formatters/cell-formatters";
 import cellClasses from "@/ee/base/styles/cells.module.css";
+import { useTranslation } from "react-i18next";
 
 type CellLongTextProps = {
   value: unknown;
@@ -30,6 +31,7 @@ export function CellLongText({
   onCancel,
   onTabNavigate,
 }: CellLongTextProps) {
+  const { t } = useTranslation();
   const [draft, setDraft] = useState(() => toText(value));
   const cancelledRef = useRef(false);
   const committedRef = useRef(false);
@@ -112,7 +114,7 @@ export function CellLongText({
         {isEditing && (
           <>
             <Group justify="flex-end" mb={2}>
-              <CloseButton size="sm" onClick={commit} aria-label="Close" />
+              <CloseButton size="sm" onClick={commit} aria-label={t("Close")} />
             </Group>
             <Textarea
               ref={textareaRef}

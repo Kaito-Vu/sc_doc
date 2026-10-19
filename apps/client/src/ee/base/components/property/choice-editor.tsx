@@ -17,6 +17,7 @@ import {
   IconArrowsSort,
 } from "@tabler/icons-react";
 import classes from "@/ee/base/styles/property.module.css";
+import i18n from "@/i18n";
 import { combine } from "@atlaskit/pragmatic-drag-and-drop/combine";
 import {
   draggable,
@@ -44,9 +45,9 @@ const CHOICE_COLORS = [
 ];
 
 const STATUS_CATEGORIES = [
-  { value: "todo", label: "To Do" },
-  { value: "inProgress", label: "In Progress" },
-  { value: "complete", label: "Complete" },
+  { value: "todo", label: i18n.t("To Do") },
+  { value: "inProgress", label: i18n.t("In Progress") },
+  { value: "complete", label: i18n.t("Complete") },
 ] as const;
 
 // Default choices for a new status property, one per category.

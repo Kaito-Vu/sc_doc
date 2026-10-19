@@ -228,7 +228,7 @@ function PageField({
     return (
       <span className={cellClasses.pageMissing}>
         <IconFileDescription size={14} />
-        <span>Page not found</span>
+        <span>{t("Page not found")}</span>
       </span>
     );
   }

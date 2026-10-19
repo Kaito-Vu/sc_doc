@@ -64,7 +64,7 @@ export const TableAutoNumberButton: FC<{ editor: Editor | null }> = ({
           <TextInput
             size="xs"
             label={t("Prefix")}
-            placeholder="1."
+            placeholder={t("1.")}
             disabled={!state.format}
             value={state.prefix}
             onChange={(e) => update({ autoNumberPrefix: e.currentTarget.value })}

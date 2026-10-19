@@ -331,7 +331,7 @@ const EditorAiMenu = ({ editor }: EditorAiMenuProps): JSX.Element | null => {
           <TextInput
             ref={inputRef}
             className={classes.aiInput}
-            placeholder="Ask AI..."
+            placeholder={t("Ask AI...")}
             data-autofocus
             value={prompt}
             disabled={isLoading}

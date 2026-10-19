@@ -12,6 +12,8 @@ import { useUpdatePropertyMutation } from "@/ee/base/queries/base-property-query
 import { generateBaseChoiceId } from "@/ee/base/utils/generate-base-id";
 import { useListKeyboardNav } from "@/ee/base/hooks/use-list-keyboard-nav";
 import cellClasses from "@/ee/base/styles/cells.module.css";
+import i18n from "@/i18n";
+import { useTranslation } from "react-i18next";
 
 const CHOICE_COLORS = [
   "gray", "red", "pink", "grape", "violet", "indigo",
@@ -19,9 +21,9 @@ const CHOICE_COLORS = [
 ];
 
 const STATUS_CATEGORY_LABELS: Record<string, string> = {
-  todo: "To Do",
-  inProgress: "In Progress",
-  complete: "Complete",
+  todo: i18n.t("To Do"),
+  inProgress: i18n.t("In Progress"),
+  complete: i18n.t("Complete"),
 };
 const STATUS_CATEGORY_ORDER = ["todo", "inProgress", "complete"];
 
@@ -56,6 +58,7 @@ export function ChoicePicker({
   onToggle,
   onEscape,
 }: ChoicePickerProps) {
+  const { t } = useTranslation();
   const typeOptions = property.typeOptions as SelectTypeOptions | undefined;
   const choices = typeOptions?.choices ?? [];
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
@@ -197,7 +200,7 @@ export function ChoicePicker({
       <TextInput
         ref={searchRef}
         size="xs"
-        placeholder="Search..."
+        placeholder={t("Search...")}
         value={search}
         onChange={(e) => setSearch(e.currentTarget.value)}
         onKeyDown={handleKeyDown}

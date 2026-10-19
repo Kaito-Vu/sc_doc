@@ -4,8 +4,10 @@ import { BaseView } from "@/ee/base/components/base-view";
 import { useBaseQuery } from "@/ee/base/queries/base-query";
 import { useHasFeature } from "@/ee/hooks/use-feature";
 import { Feature } from "@/ee/features";
+import { useTranslation } from "react-i18next";
 
 export default function BasePage() {
+  const { t } = useTranslation();
   const { pageId } = useParams<{ pageId: string }>();
   const hasBases = useHasFeature(Feature.BASES);
   const { data: base } = useBaseQuery(pageId ?? "");
@@ -13,7 +15,7 @@ export default function BasePage() {
   if (!pageId) {
     return (
       <Stack align="center" p="xl">
-        <Text c="dimmed">No base ID provided</Text>
+        <Text c="dimmed">{t("No base ID provided")}</Text>
       </Stack>
     );
   }

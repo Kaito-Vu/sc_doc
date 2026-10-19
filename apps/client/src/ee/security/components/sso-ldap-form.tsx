@@ -18,15 +18,16 @@ import { useTranslation } from "react-i18next";
 import { useUpdateSsoProviderMutation } from "@/ee/security/queries/security-query.ts";
 import { IconInfoCircle } from "@tabler/icons-react";
 import { SsoSwitchRow, copyDirty } from "@/ee/security/components/sso-form-fields.tsx";
+import i18n from "@/i18n";
 
 const ssoSchema = z.object({
-  name: z.string().min(1, "Display name is required"),
+  name: z.string().min(1, i18n.t("Display name is required")),
   ldapUrl: z
-    .url({ message: "Must be a valid URL" })
-    .refine((url) => url.startsWith("ldap"), "Must be an LDAP URL"),
-  ldapBindDn: z.string().min(1, "Bind DN is required"),
-  ldapBindPassword: z.string().min(1, "Bind password is required"),
-  ldapBaseDn: z.string().min(1, "Base DN is required"),
+    .url({ message: i18n.t("Must be a valid URL") })
+    .refine((url) => url.startsWith("ldap"), i18n.t("Must be an LDAP URL")),
+  ldapBindDn: z.string().min(1, i18n.t("Bind DN is required")),
+  ldapBindPassword: z.string().min(1, i18n.t("Bind password is required")),
+  ldapBaseDn: z.string().min(1, i18n.t("Base DN is required")),
   ldapUserSearchFilter: z.string().optional(),
   ldapTlsEnabled: z.boolean(),
   ldapTlsCaCert: z.string().optional(),
@@ -81,44 +82,44 @@ export function SsoLDAPForm({ provider, onClose }: Readonly<SsoFormProps>) {
         <Stack>
           <TextInput
             label={t("Display name")}
-            placeholder="e.g Company LDAP"
+            placeholder={t("e.g Company LDAP")}
             data-autofocus
             {...form.getInputProps("name")}
           />
 
           <TextInput
-            label="LDAP Server URL"
-            description="URL of your LDAP server"
-            placeholder="ldap://ldap.example.com:389 or ldaps://ldap.example.com:636"
+            label={t("LDAP Server URL")}
+            description={t("URL of your LDAP server")}
+            placeholder={t("ldap://ldap.example.com:389 or ldaps://ldap.example.com:636")}
             {...form.getInputProps("ldapUrl")}
           />
 
           <TextInput
-            label="Bind DN"
-            description="Distinguished Name of the service account for searching"
-            placeholder="cn=admin,dc=example,dc=com"
+            label={t("Bind DN")}
+            description={t("Distinguished Name of the service account for searching")}
+            placeholder={t("cn=admin,dc=example,dc=com")}
             {...form.getInputProps("ldapBindDn")}
           />
 
           <TextInput
-            label="Bind Password"
-            description="Password for the service account"
+            label={t("Bind Password")}
+            description={t("Password for the service account")}
             type="password"
-            placeholder="••••••••"
+            placeholder={t("••••••••")}
             {...form.getInputProps("ldapBindPassword")}
           />
 
           <TextInput
-            label="Base DN"
-            description="Base DN where user searches will start"
-            placeholder="ou=users,dc=example,dc=com"
+            label={t("Base DN")}
+            description={t("Base DN where user searches will start")}
+            placeholder={t("ou=users,dc=example,dc=com")}
             {...form.getInputProps("ldapBaseDn")}
           />
 
           <TextInput
-            label="User Search Filter"
-            description="LDAP filter to find users. Use {{username}} as placeholder"
-            placeholder="(mail={{username}})"
+            label={t("User Search Filter")}
+            description={t("LDAP filter to find users. Use {{username}} as placeholder")}
+            placeholder={t("(mail={{username}})")}
             {...form.getInputProps("ldapUserSearchFilter")}
           />
 
@@ -133,7 +134,7 @@ export function SsoLDAPForm({ provider, onClose }: Readonly<SsoFormProps>) {
                     <div>
                       <Text size="sm">{t("Enable TLS/SSL")}</Text>
                       <Text size="xs" c="dimmed">
-                        Use secure connection to LDAP server
+                        {t("Use secure connection to LDAP server")}
                       </Text>
                     </div>
                     <Switch
@@ -145,11 +146,9 @@ export function SsoLDAPForm({ provider, onClose }: Readonly<SsoFormProps>) {
 
                   {form.values.ldapTlsEnabled && (
                     <Textarea
-                      label="CA Certificate"
-                      description="PEM-encoded CA certificate for TLS verification (optional)"
-                      placeholder="-----BEGIN CERTIFICATE-----
-...
------END CERTIFICATE-----"
+                      label={t("CA Certificate")}
+                      description={t("PEM-encoded CA certificate for TLS verification (optional)")}
+                      placeholder={t("-----BEGIN CERTIFICATE-----")}
                       minRows={4}
                       {...form.getInputProps("ldapTlsCaCert")}
                     />

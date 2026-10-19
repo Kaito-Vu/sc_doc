@@ -19,6 +19,7 @@ import { FunctionPalette } from "./function-palette";
 import { useFormulaParser } from "@/ee/base/hooks/use-formula-parser";
 import type { IBaseProperty } from "@/ee/base/types/base.types";
 import classes from "@/ee/base/styles/formula.module.css";
+import { useTranslation } from "react-i18next";
 
 type Props = {
   properties: IBaseProperty[];
@@ -44,6 +45,7 @@ export function FormulaEditor({
   onSave,
   onCancel,
 }: Props) {
+  const { t } = useTranslation();
   const [source, setSource] = useState(initialSource);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const pendingCursorRef = useRef<number | null>(null);
@@ -149,7 +151,7 @@ export function FormulaEditor({
               <Group gap={6} c="dimmed">
                 <IconPointFilled size={10} color="var(--mantine-color-teal-6)" />
                 <Text size="xs">
-                  Returns{" "}
+                  {t("Returns")}{" "}
                   <Text span fw={600} c="gray.8">
                     {parseState.resultType}
                   </Text>
@@ -157,7 +159,7 @@ export function FormulaEditor({
               </Group>
             ) : (
               <Text size="xs" c="dimmed">
-                Click a property or function below to insert.
+                {t("Click a property or function below to insert.")}
               </Text>
             )}
           </Group>

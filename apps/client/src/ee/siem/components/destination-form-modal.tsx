@@ -147,7 +147,7 @@ export function DestinationFormModal({ opened, onClose, destination }: Destinati
             <>
               <TextInput
                 label={t("HEC URL")}
-                placeholder="https://splunk.example.com:8088"
+                placeholder={t("https://splunk.example.com:8088")}
                 required
                 {...form.getInputProps("url")}
               />
@@ -179,7 +179,7 @@ export function DestinationFormModal({ opened, onClose, destination }: Destinati
             <>
               <TextInput
                 label={t("Endpoint URL")}
-                placeholder="https://collector.example.com/docmost"
+                placeholder={t("https://collector.example.com/docmost")}
                 required
                 {...form.getInputProps("url")}
               />
@@ -224,7 +224,7 @@ export function DestinationFormModal({ opened, onClose, destination }: Destinati
               {type === "datadog" && (
                 <>
                   <TextInput label={t("Service")} {...form.getInputProps("service")} />
-                  <TextInput label={t("Tags")} placeholder="env:prod,team:security" {...form.getInputProps("tags")} />
+                  <TextInput label={t("Tags")} placeholder={t("env:prod,team:security")} {...form.getInputProps("tags")} />
                 </>
               )}
 
@@ -238,7 +238,7 @@ export function DestinationFormModal({ opened, onClose, destination }: Destinati
                     label={t("Body format")}
                     data={[
                       { value: "json", label: t("JSON array") },
-                      { value: "ndjson", label: "NDJSON" },
+                      { value: "ndjson", label: t("NDJSON") },
                     ]}
                     allowDeselect={false}
                     {...form.getInputProps("format")}

@@ -3,6 +3,7 @@ import { sanitizeUrl } from "@docmost/editor-ext";
 import { Tooltip } from "@mantine/core";
 import { useEditableTextCell } from "@/ee/base/hooks/use-editable-text-cell";
 import cellClasses from "@/ee/base/styles/cells.module.css";
+import { useTranslation } from "react-i18next";
 
 type CellUrlProps = {
   value: unknown;
@@ -17,6 +18,7 @@ const toDraft = (value: unknown) => (typeof value === "string" ? value : "");
 const parse = (draft: string) => draft || null;
 
 export function CellUrl({ value, property, rowId, isEditing, onCommit, onCancel }: CellUrlProps) {
+  const { t } = useTranslation();
   const { draft, setDraft, inputRef, handleKeyDown, handleBlur } =
     useEditableTextCell({
       value,
@@ -36,7 +38,7 @@ export function CellUrl({ value, property, rowId, isEditing, onCommit, onCancel 
         type="url"
         className={cellClasses.cellInput}
         value={draft}
-        placeholder="https://..."
+        placeholder={t("https://...")}
         onChange={(e) => setDraft(e.target.value)}
         onKeyDown={handleKeyDown}
         onBlur={handleBlur}

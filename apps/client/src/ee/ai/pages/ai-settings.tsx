@@ -45,7 +45,7 @@ export default function AiSettings() {
 
   return (
     <>
-      <DocumentTitle title="AI settings" />
+      <DocumentTitle title={t("AI settings")} />
       <SettingsTitle title={t("AI settings")} />
 
       <Tabs color="dark" value={activeTab} onChange={handleTabChange}>

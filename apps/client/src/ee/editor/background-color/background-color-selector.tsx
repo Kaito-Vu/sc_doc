@@ -149,7 +149,7 @@ const ColorSelectorBase: FC<Props & { mode: keyof typeof MODES }> = ({
               value={custom}
               onChange={setCustom}
               onChangeEnd={apply}
-              placeholder="#FFFF00 / rgb(255, 255, 0)"
+              placeholder={t("#FFFF00 / rgb(255, 255, 0)")}
             />
           </Box>
 

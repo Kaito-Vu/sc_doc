@@ -13,6 +13,7 @@ import {
 import { useListKeyboardNav } from "@/ee/base/hooks/use-list-keyboard-nav";
 import { CustomAvatar } from "@/components/ui/custom-avatar";
 import cellClasses from "@/ee/base/styles/cells.module.css";
+import { useTranslation } from "react-i18next";
 
 type FilterPersonInputProps = {
   pageId: string;
@@ -41,6 +42,7 @@ export function FilterPersonInput({
   w,
   portalTarget,
 }: FilterPersonInputProps) {
+  const { t } = useTranslation();
   const ids = toIds(value);
   const selectedSet = new Set(ids);
 
@@ -198,7 +200,7 @@ export function FilterPersonInput({
           <input
             ref={searchRef}
             className={cellClasses.personTagInput}
-            placeholder="Find a user..."
+            placeholder={t("Find a user...")}
             value={search}
             onChange={(e) => setSearch(e.currentTarget.value)}
             onKeyDown={handleKeyDown}
@@ -237,7 +239,7 @@ export function FilterPersonInput({
             </div>
           ))}
           {filtered.length === 0 && (
-            <div className={cellClasses.personDropdownHint}>No users found</div>
+            <div className={cellClasses.personDropdownHint}>{t("No users found")}</div>
           )}
         </div>
       </Popover.Dropdown>

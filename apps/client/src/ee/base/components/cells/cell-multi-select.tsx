@@ -19,6 +19,7 @@ import { useUpdatePropertyMutation } from "@/ee/base/queries/base-property-query
 import { generateBaseChoiceId } from "@/ee/base/utils/generate-base-id";
 import cellClasses from "@/ee/base/styles/cells.module.css";
 import { useListKeyboardNav } from "@/ee/base/hooks/use-list-keyboard-nav";
+import { useTranslation } from "react-i18next";
 
 const CHOICE_COLORS = [
   "gray", "red", "pink", "grape", "violet", "indigo",
@@ -46,6 +47,7 @@ export function CellMultiSelect({
   onValueChange,
   onCancel,
 }: CellMultiSelectProps) {
+  const { t } = useTranslation();
   const typeOptions = property.typeOptions as SelectTypeOptions | undefined;
   const choices = typeOptions?.choices ?? [];
   const selectedIds = Array.isArray(value) ? (value as string[]) : [];
@@ -199,7 +201,7 @@ export function CellMultiSelect({
           <TextInput
             ref={searchRef}
             size="xs"
-            placeholder="Search..."
+            placeholder={t("Search...")}
             value={search}
             onChange={(e) => setSearch(e.currentTarget.value)}
             onKeyDown={handleKeyDown}

@@ -40,7 +40,7 @@ export function MfaBackupCodeInput({
 
       <TextInput
         label={t("Backup code")}
-        placeholder="XXXXXXXX"
+        placeholder={t("XXXXXXXX")}
         value={value}
         onChange={(e) => onChange(e.currentTarget.value.toUpperCase())}
         error={error}

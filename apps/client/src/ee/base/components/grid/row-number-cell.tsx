@@ -9,6 +9,7 @@ import { FocusedCell } from "@/ee/base/types/base.types";
 import { useBaseEditable } from "@/ee/base/context/base-editable";
 import { useGridRowOrder } from "@/ee/base/context/grid-row-order";
 import classes from "@/ee/base/styles/grid.module.css";
+import { useTranslation } from "react-i18next";
 
 type RowNumberCellProps = {
   rowId: string;
@@ -25,6 +26,7 @@ export const RowNumberCell = memo(function RowNumberCell({
   pinOffset,
   pageId,
 }: RowNumberCellProps) {
+  const { t } = useTranslation();
   const { isSelected, toggle } = useRowSelection(pageId);
   const selected = isSelected(rowId);
   const editable = useBaseEditable();
@@ -89,7 +91,7 @@ export const RowNumberCell = memo(function RowNumberCell({
     >
       <div className={classes.rowNumberCellInner}>
         {editable && (
-          <span className={classes.rowNumberDragHandle} aria-label="Drag row">
+          <span className={classes.rowNumberDragHandle} aria-label={t("Drag row")}>
             <IconGripVertical size={12} />
           </span>
         )}
@@ -99,7 +101,7 @@ export const RowNumberCell = memo(function RowNumberCell({
               size="xs"
               checked={selected}
               onChange={handleCheckboxChange}
-              aria-label="Select row"
+              aria-label={t("Select row")}
               tabIndex={-1}
             />
           </span>

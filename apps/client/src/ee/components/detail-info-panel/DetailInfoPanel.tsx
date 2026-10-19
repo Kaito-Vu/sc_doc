@@ -200,7 +200,7 @@ const DetailInfoPanelComponent: React.FC<DetailInfoPanelProps> = (props) => {
                 variant="subtle"
                 color="gray"
                 size="sm"
-                aria-label="Toggle favorite"
+                aria-label={t("Toggle favorite")}
               >
                 <IconStar size={15} />
               </ActionIcon>
@@ -284,7 +284,7 @@ const DetailInfoPanelComponent: React.FC<DetailInfoPanelProps> = (props) => {
             }}
             disabled={fullWidthMutation.isPending}
             size="xs"
-            aria-label="Toggle full-width"
+            aria-label={t("Toggle full-width")}
           />
         </div>
 
@@ -306,7 +306,7 @@ const DetailInfoPanelComponent: React.FC<DetailInfoPanelProps> = (props) => {
             size="xs"
             color="blue"
             disabled={protectionMutation.isPending}
-            aria-label="Toggle page protection"
+            aria-label={t("Toggle page protection")}
           />
         </div>
 

@@ -18,11 +18,12 @@ import CopyTextButton from "@/components/common/copy.tsx";
 import { useTranslation } from "react-i18next";
 import { useUpdateSsoProviderMutation } from "@/ee/security/queries/security-query.ts";
 import { SsoSwitchRow, copyDirty } from "@/ee/security/components/sso-form-fields.tsx";
+import i18n from "@/i18n";
 
 const ssoSchema = z.object({
-  name: z.string().min(1, "Display name is required"),
-  samlUrl: z.url({ message: "Must be a valid URL" }),
-  samlCertificate: z.string().min(1, "SAML Idp Certificate is required"),
+  name: z.string().min(1, i18n.t("Display name is required")),
+  samlUrl: z.url({ message: i18n.t("Must be a valid URL") }),
+  samlCertificate: z.string().min(1, i18n.t("SAML Idp Certificate is required")),
   isEnabled: z.boolean(),
   allowSignup: z.boolean(),
   groupSync: z.boolean(),
@@ -74,12 +75,12 @@ export function SsoSamlForm({ provider, onClose }: Readonly<SsoFormProps>) {
         <Stack>
           <TextInput
             label={t("Display name")}
-            placeholder="e.g Azure Entra"
+            placeholder={t("e.g Azure Entra")}
             data-autofocus
             {...form.getInputProps("name")}
           />
           <TextInput
-            label="Entity ID"
+            label={t("Entity ID")}
             variant="filled"
             value={buildSamlEntityId(provider.id)}
             rightSection={<CopyTextButton text={samlEntityId} />}
@@ -87,7 +88,7 @@ export function SsoSamlForm({ provider, onClose }: Readonly<SsoFormProps>) {
             readOnly
           />
           <TextInput
-            label="Callback URL (ACS)"
+            label={t("Callback URL (ACS)")}
             variant="filled"
             value={callbackUrl}
             pointer
@@ -95,15 +96,15 @@ export function SsoSamlForm({ provider, onClose }: Readonly<SsoFormProps>) {
             rightSection={<CopyTextButton text={callbackUrl} />}
           />
           <TextInput
-            label="IDP Login URL"
-            description="Enter your IDP login URL"
-            placeholder="e.g https://login.microsoftonline.com/7d6246d1-273b-4981-ad1e-e7bb27b86569/saml2"
+            label={t("IDP Login URL")}
+            description={t("Enter your IDP login URL")}
+            placeholder={t("e.g https://login.microsoftonline.com/7d6246d1-273b-4981-ad1e-e7bb27b86569/saml2")}
             {...form.getInputProps("samlUrl")}
           />
           <Textarea
-            label="IDP Certificate"
-            description="Enter your IDP certificate"
-            placeholder="-----BEGIN CERTIFICATE-----"
+            label={t("IDP Certificate")}
+            description={t("Enter your IDP certificate")}
+            placeholder={t("-----BEGIN CERTIFICATE-----")}
             autosize
             minRows={3}
             maxRows={5}

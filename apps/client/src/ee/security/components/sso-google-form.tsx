@@ -6,9 +6,10 @@ import { IAuthProvider } from "@/ee/security/types/security.types.ts";
 import { useTranslation } from "react-i18next";
 import { useUpdateSsoProviderMutation } from "@/ee/security/queries/security-query.ts";
 import { SsoSwitchRow, copyDirty } from "@/ee/security/components/sso-form-fields.tsx";
+import i18n from "@/i18n";
 
 const ssoSchema = z.object({
-  name: z.string().min(1, "Provider name is required"),
+  name: z.string().min(1, i18n.t("Provider name is required")),
   isEnabled: z.boolean(),
   allowSignup: z.boolean(),
 });
@@ -48,8 +49,8 @@ export function SsoGoogleForm({ provider, onClose }: Readonly<SsoFormProps>) {
       <form onSubmit={form.onSubmit(handleSubmit)}>
         <Stack>
           <TextInput
-            label="Display name"
-            placeholder="e.g Okta SSO"
+            label={t("Display name")}
+            placeholder={t("e.g Okta SSO")}
             readOnly
             {...form.getInputProps("name")}
           />

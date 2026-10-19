@@ -3,6 +3,7 @@ import { Group, TextInput, UnstyledButton, Text } from "@mantine/core";
 import { IconSearch } from "@tabler/icons-react";
 import type { IBaseProperty } from "@/ee/base/types/base.types";
 import classes from "@/ee/base/styles/formula.module.css";
+import { useTranslation } from "react-i18next";
 
 export function PropertyChipRow({
   properties,
@@ -11,6 +12,7 @@ export function PropertyChipRow({
   properties: IBaseProperty[];
   onInsert: (name: string) => void;
 }) {
+  const { t } = useTranslation();
   const [query, setQuery] = useState("");
 
   const visible = useMemo(() => {
@@ -23,11 +25,11 @@ export function PropertyChipRow({
     <div>
       <Group justify="space-between" mb={8}>
         <Text size="xs" fw={600} c="gray.7">
-          Properties
+          {t("Properties")}
         </Text>
         <TextInput
           size="xs"
-          placeholder="Search"
+          placeholder={t("Search")}
           leftSection={<IconSearch size={12} />}
           value={query}
           onChange={(e) => setQuery(e.currentTarget.value)}
@@ -36,7 +38,7 @@ export function PropertyChipRow({
       </Group>
       {visible.length === 0 ? (
         <Text size="xs" c="dimmed" py={6}>
-          No matches.
+          {t("No matches.")}
         </Text>
       ) : (
         <Group gap={6}>
