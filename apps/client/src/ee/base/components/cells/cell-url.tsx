@@ -1,6 +1,5 @@
 import { IBaseProperty } from "@/ee/base/types/base.types";
-import { sanitizeUrl } from "@docmost/editor-ext";
-import { Tooltip } from "@mantine/core";
+import { SafeUrlLink } from "./safe-url-link";
 import { useEditableTextCell } from "@/ee/base/hooks/use-editable-text-cell";
 import cellClasses from "@/ee/base/styles/cells.module.css";
 import { useTranslation } from "react-i18next";
@@ -51,22 +50,7 @@ export function CellUrl({ value, property, rowId, isEditing, onCommit, onCancel 
     return <span className={cellClasses.emptyValue} />;
   }
 
-  const safeHref = sanitizeUrl(displayValue);
-  if (!safeHref) {
-    return <span>{displayValue}</span>;
-  }
-
   return (
-    <Tooltip label={displayValue} multiline withinPortal openDelay={400} maw={420}>
-      <a
-        className={cellClasses.urlLink}
-        href={safeHref}
-        target="_blank"
-        rel="noopener noreferrer"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {displayValue}
-      </a>
-    </Tooltip>
+    <SafeUrlLink value={displayValue} fallback={<span>{displayValue}</span>} />
   );
 }

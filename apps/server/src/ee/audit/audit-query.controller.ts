@@ -1,7 +1,7 @@
+import { assertWorkspaceAdmin } from '../common/workspace-admin';
 import {
   Body,
   Controller,
-  ForbiddenException,
   HttpCode,
   HttpStatus,
   Post,
@@ -19,10 +19,6 @@ import {
   UpdateAuditRetentionDto,
 } from './dto/audit-query.dto';
 import WorkspaceAbilityFactory from '../../core/casl/abilities/workspace-ability.factory';
-import {
-  WorkspaceCaslAction,
-  WorkspaceCaslSubject,
-} from '../../core/casl/interfaces/workspace-ability.type';
 
 @UseGuards(JwtAuthGuard)
 @Controller('audit')
@@ -33,10 +29,7 @@ export class AuditQueryController {
   ) {}
 
   private assertOwner(user: User, workspace: Workspace) {
-    const ability = this.workspaceAbility.createForUser(user, workspace);
-    if (ability.cannot(WorkspaceCaslAction.Manage, WorkspaceCaslSubject.Settings)) {
-      throw new ForbiddenException();
-    }
+    assertWorkspaceAdmin(this.workspaceAbility, user, workspace);
   }
 
   @HttpCode(HttpStatus.OK)

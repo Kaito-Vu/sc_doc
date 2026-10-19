@@ -1,5 +1,5 @@
+import { assertWorkspaceAdmin } from '../common/workspace-admin';
 import {
-  ForbiddenException,
   Inject,
   Injectable,
   NotFoundException,
@@ -10,10 +10,6 @@ import { ScimTokenRepo } from './scim-token.repo';
 import { PaginationOptions } from '@docmost/db/pagination/pagination-options';
 import { User } from '@docmost/db/types/entity.types';
 import WorkspaceAbilityFactory from '../../core/casl/abilities/workspace-ability.factory';
-import {
-  WorkspaceCaslAction,
-  WorkspaceCaslSubject,
-} from '../../core/casl/interfaces/workspace-ability.type';
 import {
   AUDIT_SERVICE,
   IAuditService,
@@ -29,14 +25,7 @@ export class ScimTokenService {
   ) {}
 
   private assertWorkspaceAdmin(user: User, workspaceId: string) {
-    const ability = this.workspaceAbility.createForUser(user, {
-      id: workspaceId,
-    } as any);
-    if (
-      ability.cannot(WorkspaceCaslAction.Manage, WorkspaceCaslSubject.Settings)
-    ) {
-      throw new ForbiddenException();
-    }
+    assertWorkspaceAdmin(this.workspaceAbility, user, { id: workspaceId });
   }
 
   async list(workspaceId: string, user: User, pagination: PaginationOptions) {

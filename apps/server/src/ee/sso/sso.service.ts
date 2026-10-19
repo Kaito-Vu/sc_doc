@@ -1,6 +1,6 @@
+import { assertWorkspaceAdmin } from '../common/workspace-admin';
 import {
   BadRequestException,
-  ForbiddenException,
   Inject,
   Injectable,
   NotFoundException,
@@ -12,10 +12,6 @@ import { PaginationOptions } from '@docmost/db/pagination/pagination-options';
 import { User } from '@docmost/db/types/entity.types';
 import { KyselyDB } from '@docmost/db/types/kysely.types';
 import WorkspaceAbilityFactory from '../../core/casl/abilities/workspace-ability.factory';
-import {
-  WorkspaceCaslAction,
-  WorkspaceCaslSubject,
-} from '../../core/casl/interfaces/workspace-ability.type';
 import { Workspace } from '@docmost/db/types/entity.types';
 import {
   AUDIT_SERVICE,
@@ -65,12 +61,7 @@ export class SsoService {
   }
 
   private assertAdmin(user: User, workspace: Workspace) {
-    const ability = this.workspaceAbility.createForUser(user, workspace);
-    if (
-      ability.cannot(WorkspaceCaslAction.Manage, WorkspaceCaslSubject.Settings)
-    ) {
-      throw new ForbiddenException();
-    }
+    assertWorkspaceAdmin(this.workspaceAbility, user, workspace);
   }
 
   private getSecretEncryptionKey(): Buffer {

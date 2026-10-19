@@ -1,16 +1,12 @@
+import { assertWorkspaceAdmin } from '../common/workspace-admin';
 import {
   BadRequestException,
-  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { BillingRepo } from './billing.repo';
 import { User } from '@docmost/db/types/entity.types';
 import WorkspaceAbilityFactory from '../../core/casl/abilities/workspace-ability.factory';
-import {
-  WorkspaceCaslAction,
-  WorkspaceCaslSubject,
-} from '../../core/casl/interfaces/workspace-ability.type';
 
 @Injectable()
 export class BillingService {
@@ -20,14 +16,7 @@ export class BillingService {
   ) {}
 
   private assertAdmin(user: User, workspaceId: string) {
-    const ability = this.workspaceAbility.createForUser(user, {
-      id: workspaceId,
-    } as any);
-    if (
-      ability.cannot(WorkspaceCaslAction.Manage, WorkspaceCaslSubject.Settings)
-    ) {
-      throw new ForbiddenException();
-    }
+    assertWorkspaceAdmin(this.workspaceAbility, user, { id: workspaceId });
   }
 
   private mapBilling(row: any) {

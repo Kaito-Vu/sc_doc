@@ -1,3 +1,4 @@
+import { isWorkspaceAdmin } from '../common/workspace-admin';
 import {
   Body,
   Controller,
@@ -17,10 +18,6 @@ import { PaginationOptions } from '@docmost/db/pagination/pagination-options';
 import { RequireFeature } from '../common/decorators/require-feature.decorator';
 import { Feature } from '../../common/features';
 import WorkspaceAbilityFactory from '../../core/casl/abilities/workspace-ability.factory';
-import {
-  WorkspaceCaslAction,
-  WorkspaceCaslSubject,
-} from '../../core/casl/interfaces/workspace-ability.type';
 
 @UseGuards(JwtAuthGuard)
 @Controller('api-keys')
@@ -97,8 +94,6 @@ export class ApiKeyController {
   }
 
   private isAdmin(user: User, workspace: Workspace): boolean {
-    return this.workspaceAbility
-      .createForUser(user, workspace)
-      .can(WorkspaceCaslAction.Manage, WorkspaceCaslSubject.Settings);
+    return isWorkspaceAdmin(this.workspaceAbility, user, workspace);
   }
 }

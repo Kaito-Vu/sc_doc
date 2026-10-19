@@ -588,30 +588,7 @@ export class EaImportService {
     );
     lap('pages inserted');
 
-    if (pageIds.length > 0) {
-      this.eventEmitter.emit(EventName.PAGE_CREATED, {
-        pageIds,
-        workspaceId,
-      });
-    }
-    if (filledIds.length > 0) {
-      this.eventEmitter.emit(EventName.PAGE_UPDATED, {
-        pageIds: filledIds,
-        workspaceId,
-      });
-    }
-
-    await this.auditService.log({
-      event: AuditEvent.PAGE_IMPORTED,
-      resourceType: AuditResource.PAGE,
-      resourceId: spaceId,
-      spaceId,
-      metadata: {
-        source: EA_SOURCE,
-        fileName,
-        pageCount: pageIds.length,
-      },
-    });
+    await this.announceImport(scope, fileName, pageIds, filledIds);
 
     if (existingImport && mode === 'replace') {
       await this.replaceExistingImport(existingImport, scope, warnings);
@@ -637,6 +614,32 @@ export class EaImportService {
         ...this.mergeBookkeeping(prepared, work, merge, filledIds),
       },
     };
+  }
+
+  /** Notify listeners (indexing, watchers) and audit-log a committed import. */
+  private async announceImport(
+    scope: ImportScope,
+    fileName: string,
+    pageIds: string[],
+    filledIds: string[],
+  ): Promise<void> {
+    const { workspaceId, spaceId } = scope;
+    if (pageIds.length > 0) {
+      this.eventEmitter.emit(EventName.PAGE_CREATED, { pageIds, workspaceId });
+    }
+    if (filledIds.length > 0) {
+      this.eventEmitter.emit(EventName.PAGE_UPDATED, {
+        pageIds: filledIds,
+        workspaceId,
+      });
+    }
+    await this.auditService.log({
+      event: AuditEvent.PAGE_IMPORTED,
+      resourceType: AuditResource.PAGE,
+      resourceId: spaceId,
+      spaceId,
+      metadata: { source: EA_SOURCE, fileName, pageCount: pageIds.length },
+    });
   }
 
   /** ZIP without an XMI document: an EA HTML report. */
@@ -719,8 +722,8 @@ export class EaImportService {
     const queue: Array<{ node: EaPackageNode; parent: EaPackageNode | null }> =
       roots.map((node) => ({ node, parent: null }));
 
-    while (queue.length > 0) {
-      const { node, parent } = queue.shift()!;
+    for (let head = 0; head < queue.length; head++) {
+      const { node, parent } = queue[head];
       const hit = merge?.targets.get(node.id);
       let action: PreparedPage['action'] = 'insert';
       if (hit) {

@@ -1,3 +1,4 @@
+import { assertWorkspaceAdmin } from '../common/workspace-admin';
 import {
   Body,
   Controller,
@@ -15,10 +16,6 @@ import { StatisticsService } from './statistics.service';
 import { RequireFeature } from '../common/decorators/require-feature.decorator';
 import { Feature } from '../../common/features';
 import WorkspaceAbilityFactory from '../../core/casl/abilities/workspace-ability.factory';
-import {
-  WorkspaceCaslAction,
-  WorkspaceCaslSubject,
-} from '../../core/casl/interfaces/workspace-ability.type';
 import SpaceAbilityFactory from '../../core/casl/abilities/space-ability.factory';
 import {
   SpaceCaslAction,
@@ -38,12 +35,7 @@ export class StatisticsController {
   ) {}
 
   private assertWorkspaceAdmin(user: User, workspace: Workspace) {
-    const ability = this.workspaceAbility.createForUser(user, workspace);
-    if (
-      ability.cannot(WorkspaceCaslAction.Manage, WorkspaceCaslSubject.Settings)
-    ) {
-      throw new ForbiddenException();
-    }
+    assertWorkspaceAdmin(this.workspaceAbility, user, workspace);
   }
 
   private async assertSpaceAdmin(user: User, spaceId: string) {

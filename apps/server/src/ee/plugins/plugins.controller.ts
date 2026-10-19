@@ -1,3 +1,4 @@
+import { assertWorkspaceAdmin } from '../common/workspace-admin'
 import {
   Controller,
   Get,
@@ -9,17 +10,12 @@ import {
   Logger,
   NotFoundException,
   BadRequestException,
-  ForbiddenException,
 } from '@nestjs/common'
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard'
 import { AuthUser } from '../../common/decorators/auth-user.decorator'
 import { AuthWorkspace } from '../../common/decorators/auth-workspace.decorator'
 import { User, Workspace } from '@docmost/db/types/entity.types'
 import WorkspaceAbilityFactory from '../../core/casl/abilities/workspace-ability.factory'
-import {
-  WorkspaceCaslAction,
-  WorkspaceCaslSubject,
-} from '../../core/casl/interfaces/workspace-ability.type'
 import {
   PluginConfigService,
   REDACTED_PLACEHOLDER,
@@ -202,12 +198,7 @@ export class PluginsController {
   // Plugin settings (and their secrets) are workspace-admin only: a member
   // toggling reCAPTCHA off or reading its secret key is a privilege escalation.
   private assertAdmin(user: User, workspace: Workspace) {
-    const ability = this.workspaceAbility.createForUser(user, workspace)
-    if (
-      ability.cannot(WorkspaceCaslAction.Manage, WorkspaceCaslSubject.Settings)
-    ) {
-      throw new ForbiddenException()
-    }
+    assertWorkspaceAdmin(this.workspaceAbility, user, workspace)
   }
 
   private redactSecrets<T extends { config?: Record<string, any> }>(
