@@ -35,6 +35,7 @@ import { getApiErrorMessage } from "@/lib/api-error";
 import { useHydrateReferences } from "@/ee/base/reference/reference-store";
 import { markRequestIdOutbound } from "@/ee/base/hooks/use-base-socket";
 import { v7 as uuid7 } from "uuid";
+import { patchRowIn, removeRowsIn } from "./row-cache";
 
 type RowCacheContext = {
   snapshots: [readonly unknown[], InfiniteData<IBaseRowsPage> | undefined][];
@@ -193,26 +194,13 @@ export function useUpdateRowMutation() {
 
       queryClient.setQueriesData<InfiniteData<IBaseRowsPage>>(
         { queryKey: ["base-rows", variables.pageId] },
-        (old) => {
-          if (!old) return old;
-          return {
-            ...old,
-            pages: old.pages.map((page) => ({
-              ...page,
-              items: page.items.map((row) =>
-                row.id === variables.rowId
-                  ? {
-                      ...row,
-                      cells: { ...row.cells, ...variables.cells },
-                      ...(variables.position !== undefined && {
-                        position: variables.position,
-                      }),
-                    }
-                  : row,
-              ),
-            })),
-          };
-        },
+        patchRowIn(variables.rowId, (row) => ({
+          ...row,
+          cells: { ...row.cells, ...variables.cells },
+          ...(variables.position !== undefined && {
+            position: variables.position,
+          }),
+        })),
       );
 
       queryClient.setQueryData<IBaseRow>(
@@ -242,20 +230,11 @@ export function useUpdateRowMutation() {
     onSuccess: (updatedRow, variables) => {
       queryClient.setQueriesData<InfiniteData<IBaseRowsPage>>(
         { queryKey: ["base-rows", updatedRow.pageId] },
-        (old) => {
-          if (!old) return old;
-          return {
-            ...old,
-            pages: old.pages.map((page) => ({
-              ...page,
-              items: page.items.map((row) =>
-                row.id === updatedRow.id
-                  ? { ...row, ...updatedRow, cells: { ...row.cells, ...updatedRow.cells } }
-                  : row,
-              ),
-            })),
-          };
-        },
+        patchRowIn(updatedRow.id, (row) => ({
+          ...row,
+          ...updatedRow,
+          cells: { ...row.cells, ...updatedRow.cells },
+        })),
       );
       queryClient.setQueryData<IBaseRow>(
         ["base-row", updatedRow.pageId, updatedRow.id],
@@ -295,16 +274,7 @@ export function useDeleteRowMutation() {
 
       queryClient.setQueriesData<InfiniteData<IBaseRowsPage>>(
         { queryKey: ["base-rows", variables.pageId] },
-        (old) => {
-          if (!old) return old;
-          return {
-            ...old,
-            pages: old.pages.map((page) => ({
-              ...page,
-              items: page.items.filter((row) => row.id !== variables.rowId),
-            })),
-          };
-        },
+        removeRowsIn(new Set([variables.rowId])),
       );
 
       return { snapshots };
@@ -336,19 +306,9 @@ export function useDeleteRowsMutation() {
         InfiniteData<IBaseRowsPage>
       >({ queryKey: ["base-rows", variables.pageId] });
 
-      const removeSet = new Set(variables.rowIds);
       queryClient.setQueriesData<InfiniteData<IBaseRowsPage>>(
         { queryKey: ["base-rows", variables.pageId] },
-        (old) => {
-          if (!old) return old;
-          return {
-            ...old,
-            pages: old.pages.map((page) => ({
-              ...page,
-              items: page.items.filter((row) => !removeSet.has(row.id)),
-            })),
-          };
-        },
+        removeRowsIn(new Set(variables.rowIds)),
       );
 
       return { snapshots };
@@ -385,20 +345,10 @@ export function useReorderRowMutation() {
 
       queryClient.setQueriesData<InfiniteData<IBaseRowsPage>>(
         { queryKey: ["base-rows", variables.pageId] },
-        (old) => {
-          if (!old) return old;
-          return {
-            ...old,
-            pages: old.pages.map((page) => ({
-              ...page,
-              items: page.items.map((row) =>
-                row.id === variables.rowId
-                  ? { ...row, position: variables.position }
-                  : row,
-              ),
-            })),
-          };
-        },
+        patchRowIn(variables.rowId, (row) => ({
+          ...row,
+          position: variables.position,
+        })),
       );
 
       return { snapshots };
@@ -459,16 +409,10 @@ export function useKanbanMoveCardMutation() {
       ];
 
       if (columnChanged) {
-        queryClient.setQueryData<InfiniteData<IBaseRowsPage>>(sourceKey, (old) => {
-          if (!old) return old;
-          return {
-            ...old,
-            pages: old.pages.map((page) => ({
-              ...page,
-              items: page.items.filter((r) => r.id !== rowId),
-            })),
-          };
-        });
+        queryClient.setQueryData<InfiniteData<IBaseRowsPage>>(
+          sourceKey,
+          removeRowsIn(new Set([rowId])),
+        );
 
         const movingRow = findRowInInfinite(sourceSnapshot, rowId);
         if (movingRow) {
@@ -492,18 +436,10 @@ export function useKanbanMoveCardMutation() {
         }
 
       } else {
-        queryClient.setQueryData<InfiniteData<IBaseRowsPage>>(destKey, (old) => {
-          if (!old) return old;
-          return {
-            ...old,
-            pages: old.pages.map((page) => ({
-              ...page,
-              items: page.items.map((r) =>
-                r.id === rowId ? { ...r, position } : r,
-              ),
-            })),
-          };
-        });
+        queryClient.setQueryData<InfiniteData<IBaseRowsPage>>(
+          destKey,
+          patchRowIn(rowId, (r) => ({ ...r, position })),
+        );
       }
 
       return { snapshots };

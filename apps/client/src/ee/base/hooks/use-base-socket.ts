@@ -13,6 +13,7 @@ import { selectedRowIdsAtomFamily } from "@/ee/base/atoms/base-atoms";
 import { formulaRecomputeAtom } from "@/ee/base/atoms/formula-recompute-atom";
 import { IPagination } from "@/lib/types";
 import { invalidateBaseRows } from "@/ee/base/queries/base-row-query";
+import { patchRowIn, removeRowsIn } from "@/ee/base/queries/row-cache";
 
 type BaseRowCreated = {
   operation: "base:row:created";
@@ -140,9 +141,6 @@ export function markRequestIdOutbound(requestId: string): void {
 
 type RowsCache = InfiniteData<IPagination<IBaseRow>>;
 
-// Cache writers below keep the reference of every page the event does not
-// touch (and of the whole cache when nothing matched), so React Query's
-// structural sharing and downstream selectors skip the unchanged rows.
 function patchCachedRow(
   queryClient: QueryClient,
   pageId: string,
@@ -151,19 +149,7 @@ function patchCachedRow(
 ): void {
   queryClient.setQueriesData<RowsCache>(
     { queryKey: ["base-rows", pageId] },
-    (old) => {
-      if (!old) return old;
-      let changed = false;
-      const pages = old.pages.map((page) => {
-        const index = page.items.findIndex((row) => row.id === rowId);
-        if (index === -1) return page;
-        changed = true;
-        const items = page.items.slice();
-        items[index] = patch(items[index]);
-        return { ...page, items };
-      });
-      return changed ? { ...old, pages } : old;
-    },
+    patchRowIn(rowId, patch),
   );
 }
 
@@ -174,19 +160,7 @@ function removeCachedRows(
 ): void {
   queryClient.setQueriesData<RowsCache>(
     { queryKey: ["base-rows", pageId] },
-    (old) => {
-      if (!old) return old;
-      let changed = false;
-      const pages = old.pages.map((page) => {
-        if (!page.items.some((row) => rowIds.has(row.id))) return page;
-        changed = true;
-        return {
-          ...page,
-          items: page.items.filter((row) => !rowIds.has(row.id)),
-        };
-      });
-      return changed ? { ...old, pages } : old;
-    },
+    removeRowsIn(rowIds),
   );
 }
 
