@@ -23,10 +23,11 @@ import {
   FxpNode,
   attributeOf,
   childrenOf,
-  createXmlParser,
-  decodeBuffer,
   findChildren,
+  leadingInteger,
   normalizeName,
+  parseNumeric,
+  parseXmlDocument,
   tagOf,
   textOf,
 } from './ea-xml.util';
@@ -73,19 +74,6 @@ export function isEaNativeDocument(buffer: Buffer): boolean {
 }
 
 type Row = Map<string, string>;
-
-function parseNumeric(value: string | undefined): number | undefined {
-  if (value === undefined || value === null || value === '') {
-    return undefined;
-  }
-  const parsed = parseInt(value, 10);
-  return Number.isFinite(parsed) ? parsed : undefined;
-}
-
-function leadingInteger(name: string): number | undefined {
-  const match = /^\s*(\d+)/.exec(name);
-  return match ? parseNumeric(match[1]) : undefined;
-}
 
 /**
  * Read one `t_*` table into an array of column-name -> value maps. Multi-line
@@ -249,11 +237,13 @@ function buildPackages(root: FxpNode): {
   return { nodes, roots, byPackageId };
 }
 
-function attachObjects(root: FxpNode, byPackageId: Map<string, EaPackageNode>): {
+function attachObjects(
+  objectRows: Row[],
+  stereotypes: Map<string, string>,
+  byPackageId: Map<string, EaPackageNode>,
+): {
   packageByObjectId: Map<string, string>;
 } {
-  const objectRows = readTable(root, 't_object');
-  const stereotypes = readStereotypes(readTable(root, 't_xref'));
 
   const objectsByPackage = new Map<string, Row[]>();
   for (const row of objectRows) {
@@ -361,6 +351,7 @@ function attachEdges(
 
 function attachDocuments(
   root: FxpNode,
+  objectRows: Row[],
   byPackageId: Map<string, EaPackageNode>,
   warnings: EaParseWarning[],
 ): void {
@@ -375,7 +366,7 @@ function attachDocuments(
   // and EA's displayed name; DOCNAME only carries "package::title" by name,
   // which is ambiguous when packages share a name.
   const objectByGuid = new Map<string, Row>();
-  for (const row of readTable(root, 't_object')) {
+  for (const row of objectRows) {
     const guid = row.get('EA_GUID');
     if (guid) {
       objectByGuid.set(guid, row);
@@ -422,10 +413,12 @@ function attachDocuments(
 }
 
 /** Wireframing controls by `OBJECT_ID` (stereotype from the row or `t_xref`). */
-function readWireframeControls(root: FxpNode): Map<string, EaWireframeControl> {
-  const stereotypes = readStereotypes(readTable(root, 't_xref'));
+function readWireframeControls(
+  objectRows: Row[],
+  stereotypes: Map<string, string>,
+): Map<string, EaWireframeControl> {
   const controls = new Map<string, EaWireframeControl>();
-  for (const row of readTable(root, 't_object')) {
+  for (const row of objectRows) {
     const id = row.get('OBJECT_ID');
     const control = wireframeControl(
       row.get('STEREOTYPE') || stereotypes.get(row.get('EA_GUID') ?? ''),
@@ -444,8 +437,8 @@ function attachDiagrams(
   byPackageId: Map<string, EaPackageNode>,
   warnings: EaParseWarning[],
   imagesById: Map<string, EaImageAsset>,
+  controls: Map<string, EaWireframeControl>,
 ): void {
-  const controls = readWireframeControls(root);
   const objectsByDiagram = new Map<string, Row[]>();
   for (const row of readTable(root, 't_diagramobjects')) {
     const diagramId = row.get('DIAGRAM_ID') ?? '';
@@ -521,15 +514,7 @@ export function parseEaNative(buffer: Buffer): EaParseResult {
     throw new Error('parseEaNative expects a Buffer');
   }
 
-  const text = decodeBuffer(buffer);
-  if (/<!DOCTYPE/i.test(text) || /<!ENTITY/i.test(text)) {
-    throw new Error(
-      'EA XML input contains a DTD or entity declaration; refusing to parse',
-    );
-  }
-
-  const parser = createXmlParser();
-  const parsed = parser.parse(text) as FxpNode[];
+  const parsed = parseXmlDocument(buffer, 'EA XML');
   const warnings: EaParseWarning[] = [];
 
   const root = parsed.find((node) => tagOf(node) === 'Package');
@@ -548,10 +533,23 @@ export function parseEaNative(buffer: Buffer): EaParseResult {
     };
   }
 
-  const { packageByObjectId } = attachObjects(root, byPackageId);
+  // t_object / t_xref are needed by several passes: read them once.
+  const objectRows = readTable(root, 't_object');
+  const stereotypes = readStereotypes(readTable(root, 't_xref'));
+  const { packageByObjectId } = attachObjects(
+    objectRows,
+    stereotypes,
+    byPackageId,
+  );
   attachEdges(root, byPackageId, packageByObjectId);
-  attachDocuments(root, byPackageId, warnings);
-  attachDiagrams(root, byPackageId, warnings, readImages(root));
+  attachDocuments(root, objectRows, byPackageId, warnings);
+  attachDiagrams(
+    root,
+    byPackageId,
+    warnings,
+    readImages(root),
+    readWireframeControls(objectRows, stereotypes),
+  );
   splitMultiItems(roots);
 
   return { roots, warnings };

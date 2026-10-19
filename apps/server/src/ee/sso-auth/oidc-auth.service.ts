@@ -13,30 +13,36 @@ import { AuthProviderRepo } from '../sso/auth-provider.repo';
 import { AuthAccountRepo } from '../sso/auth-account.repo';
 import { SsoService } from '../sso/sso.service';
 import { UserRepo } from '@docmost/db/repos/user/user.repo';
-import { GroupUserRepo } from '@docmost/db/repos/group/group-user.repo';
 import { KyselyDB } from '@docmost/db/types/kysely.types';
 import { executeTx } from '@docmost/db/utils';
 import { User, Workspace } from '@docmost/db/types/entity.types';
-import { WorkspaceService } from '../../core/workspace/services/workspace.service';
 import { EnvironmentService } from '../../integrations/environment/environment.service';
 import { AttachmentService } from '../../core/attachment/services/attachment.service';
 import { MfaGateService } from '../mfa/services/mfa-gate.service';
 import { encodeOidcState, decodeOidcState } from './oidc-state.util';
-import { UserRole } from '../../common/helpers/types/permission';
-import { nanoIdGen } from '../../common/helpers';
 import { OidcProviderStrategyFactory } from './oidc-provider-strategy.factory';
+import { SsoUserProvisioningService } from './sso-user-provisioning.service';
+
+const DISCOVERY_CACHE_TTL_MS = 10 * 60 * 1000;
 
 @Injectable()
 export class OidcAuthService {
   private readonly logger = new Logger(OidcAuthService.name);
+  // Discovery (+ the JWKS cached inside the Configuration) costs several
+  // HTTP round-trips; reuse it across the login and callback requests.
+  // ponytail: per-process cache keyed on provider.updatedAt; move to Redis
+  // only if multi-node discovery load ever matters.
+  private readonly configCache = new Map<
+    string,
+    { config: client.Configuration; expiresAt: number }
+  >();
 
   constructor(
     private readonly authProviderRepo: AuthProviderRepo,
     private readonly authAccountRepo: AuthAccountRepo,
     private readonly ssoService: SsoService,
     private readonly userRepo: UserRepo,
-    private readonly groupUserRepo: GroupUserRepo,
-    private readonly workspaceService: WorkspaceService,
+    private readonly userProvisioning: SsoUserProvisioningService,
     private readonly environmentService: EnvironmentService,
     private readonly attachmentService: AttachmentService,
     private readonly mfaGateService: MfaGateService,
@@ -82,20 +88,40 @@ export class OidcAuthService {
 
   private async discover(
     provider: {
+      id?: string;
+      updatedAt?: Date | string | null;
       oidcIssuer: string;
       oidcClientId: string;
       oidcClientSecret: string;
       settings?: any;
     },
   ) {
+    const cacheKey = provider.id
+      ? `${provider.id}:${new Date(provider.updatedAt ?? 0).getTime()}`
+      : undefined;
+    const cached = cacheKey && this.configCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.config;
+    }
+
     const issuerUrl = this.normalizeIssuerUrl(provider.oidcIssuer, provider);
     const clientSecret = this.ssoService.decryptSecret(provider.oidcClientSecret);
     try {
-      return await client.discovery(
+      const config = await client.discovery(
         issuerUrl,
         provider.oidcClientId,
         clientSecret,
       );
+      if (cacheKey) {
+        for (const [key, entry] of this.configCache) {
+          if (entry.expiresAt <= Date.now()) this.configCache.delete(key);
+        }
+        this.configCache.set(cacheKey, {
+          config,
+          expiresAt: Date.now() + DISCOVERY_CACHE_TTL_MS,
+        });
+      }
+      return config;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       this.logger.error(
@@ -234,12 +260,16 @@ export class OidcAuthService {
     if (!email) {
       throw new BadRequestException('SSO provider did not return an email claim');
     }
+    // Only an explicit `false` is rejected: many IdPs (e.g. Entra ID) never
+    // emit email_verified, and their email claim is admin-controlled.
+    const emailVerified = claims?.email_verified !== false;
 
     const avatarImage = await strategy.fetchAvatar(tokens);
 
     const user = await this.resolveUser({
       email,
       name,
+      emailVerified,
       providerUserId,
       provider,
       workspaceId: params.workspaceId,
@@ -270,19 +300,30 @@ export class OidcAuthService {
    * Resolves the login to a user, preferring the authAccounts link (keyed on
    * the IdP's own subject claim, so it survives the user's email changing at
    * the provider) and falling back to an email lookup for first-time logins -
-   * mirroring this repo's own signup provisioning steps (addUserToWorkspace +
-   * addUserToDefaultGroup) rather than creating a bare row.
+   * provisioning a new user when signup is allowed.
+   *
+   * An unverified email is never used to match or create an account: an IdP
+   * that lets users set an arbitrary unverified address would otherwise let
+   * them take over the workspace account owning that address.
    */
   private async resolveUser(params: {
     email: string;
     name: string | undefined;
+    emailVerified: boolean;
     providerUserId: string;
     provider: { id: string; allowSignup: boolean };
     workspaceId: string;
     avatarImage?: { buffer: Buffer; mimeType: string };
   }): Promise<User> {
-    const { email, name, providerUserId, provider, workspaceId, avatarImage } =
-      params;
+    const {
+      email,
+      name,
+      emailVerified,
+      providerUserId,
+      provider,
+      workspaceId,
+      avatarImage,
+    } = params;
 
     const user = await executeTx(this.db, async (trx) => {
       const linkedAccount = await this.authAccountRepo.findByProviderUserId(
@@ -299,31 +340,37 @@ export class OidcAuthService {
         });
       }
 
+      if (!user && !emailVerified) {
+        throw new UnauthorizedException('SSO email address is not verified');
+      }
+
       if (!user) {
         user = await this.userRepo.findByEmail(email, workspaceId, { trx });
+        // An account already linked to another subject of this IdP must not
+        // be re-linked by email: a recycled/reassigned address at the IdP
+        // would otherwise hand the old owner's account to the new holder.
+        if (user) {
+          const existingLink = await this.authAccountRepo.findByUserAndProvider(
+            user.id,
+            provider.id,
+            trx,
+          );
+          if (existingLink && existingLink.providerUserId !== providerUserId) {
+            throw new UnauthorizedException(
+              'Account is linked to a different SSO identity',
+            );
+          }
+        }
       }
 
       if (!user) {
         if (!provider.allowSignup) {
           throw new UnauthorizedException('User not provisioned');
         }
-        user = await this.userRepo.insertUser(
-          {
-            email,
-            name: name || email,
-            password: nanoIdGen(16),
-            workspaceId,
-            role: UserRole.MEMBER,
-          },
+        user = await this.userProvisioning.provision(
+          { email, name, workspaceId },
           trx,
         );
-        await this.workspaceService.addUserToWorkspace(
-          user.id,
-          workspaceId,
-          undefined,
-          trx,
-        );
-        await this.groupUserRepo.addUserToDefaultGroup(user.id, workspaceId, trx);
       }
 
       await this.authAccountRepo.upsert(
@@ -372,6 +419,12 @@ export function isSafeRedirectPath(path: string | undefined): path is string {
     return false;
   }
   if (path.includes('\\') || path.includes('@')) {
+    return false;
+  }
+  // Browsers strip tab/CR/LF from URLs ("/\t/evil.com" becomes
+  // "//evil.com"), so reject all control characters and whitespace.
+  // eslint-disable-next-line no-control-regex
+  if (/[\x00-\x20\x7f]/.test(path)) {
     return false;
   }
   return true;

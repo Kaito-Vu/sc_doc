@@ -18,6 +18,7 @@ import { AttachmentType } from '../../core/attachment/attachment.constants';
 import { createByteCountingStream } from '../../common/helpers/utils';
 import { v7 as uuid7 } from 'uuid';
 import { MultipartFile } from '@fastify/multipart';
+import { writeSse } from '../ai/sse.util';
 
 @Injectable()
 export class AiChatService {
@@ -34,6 +35,18 @@ export class AiChatService {
     if (!settings?.ai?.chatEnabled) {
       throw new ForbiddenException('AI chat is not enabled');
     }
+  }
+
+  private async getOwnedChat(
+    chatId: string,
+    user: User,
+    workspaceId: string,
+  ) {
+    const chat = await this.aiChatRepo.findById(chatId, workspaceId, user.id);
+    if (!chat) {
+      throw new NotFoundException('Chat not found');
+    }
+    return chat;
   }
 
   private mapChat(chat: any) {
@@ -78,10 +91,7 @@ export class AiChatService {
 
   async getChatInfo(chatId: string, user: User, workspaceId: string) {
     await this.assertAiChatEnabled(workspaceId);
-    const chat = await this.aiChatRepo.findById(chatId, workspaceId, user.id);
-    if (!chat) {
-      throw new NotFoundException('Chat not found');
-    }
+    const chat = await this.getOwnedChat(chatId, user, workspaceId);
     const messages = await this.aiChatRepo.getMessages(chatId);
     return {
       chat: this.mapChat(chat),
@@ -91,10 +101,7 @@ export class AiChatService {
 
   async deleteChat(chatId: string, user: User, workspaceId: string) {
     await this.assertAiChatEnabled(workspaceId);
-    const chat = await this.aiChatRepo.findById(chatId, workspaceId, user.id);
-    if (!chat) {
-      throw new NotFoundException('Chat not found');
-    }
+    await this.getOwnedChat(chatId, user, workspaceId);
     await this.aiChatRepo.softDelete(chatId);
   }
 
@@ -105,10 +112,7 @@ export class AiChatService {
     workspaceId: string,
   ) {
     await this.assertAiChatEnabled(workspaceId);
-    const chat = await this.aiChatRepo.findById(chatId, workspaceId, user.id);
-    if (!chat) {
-      throw new NotFoundException('Chat not found');
-    }
+    await this.getOwnedChat(chatId, user, workspaceId);
     await this.aiChatRepo.updateTitle(chatId, title);
   }
 
@@ -133,22 +137,17 @@ export class AiChatService {
   ) {
     await this.assertAiChatEnabled(workspaceId);
 
+    // NOTE: mentionedPageIds / contextPageId / attachmentIds are accepted
+    // but unused by this stub. When an LLM is wired in, every page/attachment
+    // must be permission-checked for `user` before its content reaches the
+    // prompt (page-level restrictions included), or chat becomes a data leak.
     let chatId = data.chatId;
     if (!chatId) {
       const chat = await this.aiChatRepo.createChat(workspaceId, user.id);
       chatId = chat.id;
-      res.raw.write(
-        `data: ${JSON.stringify({ type: 'chat_created', chatId })}\n\n`,
-      );
+      writeSse(res, { type: 'chat_created', chatId });
     } else {
-      const chat = await this.aiChatRepo.findById(
-        chatId,
-        workspaceId,
-        user.id,
-      );
-      if (!chat) {
-        throw new NotFoundException('Chat not found');
-      }
+      await this.getOwnedChat(chatId, user, workspaceId);
     }
 
     await this.aiChatRepo.insertMessage({
@@ -178,13 +177,9 @@ export class AiChatService {
       );
     }
 
-    res.raw.write(
-      `data: ${JSON.stringify({ type: 'content', text: assistantText })}\n\n`,
-    );
-    res.raw.write(
-      `data: ${JSON.stringify({ type: 'done', messageId: assistantMsg.id })}\n\n`,
-    );
-    res.raw.write('data: [DONE]\n\n');
+    writeSse(res, { type: 'content', text: assistantText });
+    writeSse(res, { type: 'done', messageId: assistantMsg.id });
+    writeSse(res, '[DONE]');
   }
 
   async uploadFile(
@@ -194,6 +189,8 @@ export class AiChatService {
     chatId?: string,
   ) {
     await this.assertAiChatEnabled(workspaceId);
+    // Attachments may only be linked to the caller's own chat.
+    if (chatId) await this.getOwnedChat(chatId, user, workspaceId);
     const prepared = await prepareFile(Promise.resolve(file), {
       skipBuffer: true,
     });

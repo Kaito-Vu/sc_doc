@@ -1,6 +1,20 @@
 import { createHash } from 'crypto';
 import { EaPackageNode } from './types/ea-import.types';
 
+export function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+/** Escape text for HTML/XML element content and double-quoted attributes. */
+export function escapeHtml(value: string): string {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 /**
  * Stable, order-independent signature of an EA export's root packages, derived
  * from the root package `xmi:id`s. Two exports of the same EA root package

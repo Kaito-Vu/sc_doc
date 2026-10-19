@@ -53,26 +53,17 @@ export function PluginList({
   const inFlightRef = useRef<Set<string>>(new Set());
 
   const handleToggle = async (plugin: IPlugin, enabled: boolean) => {
-    if (inFlightRef.current.has(plugin.id)) {
-      console.warn(`[Toggle] Ignored duplicate toggle for ${plugin.id} (already in flight)`);
-      return;
-    }
+    if (inFlightRef.current.has(plugin.id)) return;
     inFlightRef.current.add(plugin.id);
     setToggling(plugin.id);
     try {
-      console.log(`[Toggle] Starting toggle for ${plugin.id} to ${enabled}`);
-      const toggleResponse = await togglePlugin(plugin.id, enabled);
-      console.log(`[Toggle] Toggle response:`, toggleResponse);
-
+      await togglePlugin(plugin.id, enabled);
       await onRefresh({ silent: true });
-      console.log(`[Toggle] Refresh completed`);
-
       notifications.show({
         message: t("Plugin toggled successfully"),
         color: "green",
       });
     } catch (err: any) {
-      console.error(`[Toggle] Error:`, err);
       notifications.show({
         message:
           err?.response?.data?.message || err?.message || t("Unknown error"),

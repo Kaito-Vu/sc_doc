@@ -5,22 +5,33 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectKysely } from 'nestjs-kysely';
-import { KyselyDB } from '@docmost/db/types/kysely.types';
+import { KyselyDB, KyselyTransaction } from '@docmost/db/types/kysely.types';
 import { BaseRepo } from './base.repo';
 import { PageRepo } from '@docmost/db/repos/page/page.repo';
 import { PageService } from '../../core/page/services/page.service';
+import { PagePermissionRepo } from '@docmost/db/repos/page/page-permission.repo';
 import { SpaceMemberRepo } from '@docmost/db/repos/space/space-member.repo';
+import { PageAccessService } from '../../core/page/page-access/page-access.service';
 import SpaceAbilityFactory from '../../core/casl/abilities/space-ability.factory';
 import {
   SpaceCaslAction,
   SpaceCaslSubject,
 } from '../../core/casl/interfaces/space-ability.type';
-import { User } from '@docmost/db/types/entity.types';
+import { Page, User } from '@docmost/db/types/entity.types';
 import { PaginationOptions } from '@docmost/db/pagination/pagination-options';
 import { generateJitteredKeyBetween } from 'fractional-indexing-jittered';
-import { v7 as uuid7 } from 'uuid';
+import { randomBytes } from 'crypto';
 import { executeTx } from '@docmost/db/utils';
 import { JsonValue } from '@docmost/db/types/db';
+import { buildCsv } from './base-csv';
+
+// ponytail: CSV export is built in memory; stream rows if bases grow past this.
+const CSV_EXPORT_MAX_ROWS = 10000;
+
+// 16 hex chars, same shape as before. The previous uuid7 prefix only carried
+// 12 random bits, so two properties created in the same millisecond (e.g. the
+// kanban seed) could collide on the (page_id, id) primary key.
+const newPropertyId = () => randomBytes(8).toString('hex');
 
 const DEFAULT_STATUS_OPTIONS = {
   choices: [
@@ -45,6 +56,8 @@ export class BaseService {
     private readonly pageService: PageService,
     private readonly spaceMemberRepo: SpaceMemberRepo,
     private readonly spaceAbility: SpaceAbilityFactory,
+    private readonly pageAccessService: PageAccessService,
+    private readonly pagePermissionRepo: PagePermissionRepo,
   ) {}
 
   private mapDate(d: unknown) {
@@ -97,16 +110,13 @@ export class BaseService {
     };
   }
 
-  private async assertSpaceAccess(user: User, spaceId: string) {
-    const spaceIds = await this.spaceMemberRepo.getUserSpaceIds(user.id);
-    if (!spaceIds.includes(spaceId)) {
-      throw new ForbiddenException();
-    }
-  }
-
-  private async assertCanEdit(user: User, spaceId: string) {
+  private async assertSpaceAction(
+    user: User,
+    spaceId: string,
+    action: SpaceCaslAction,
+  ) {
     const ability = await this.spaceAbility.createForUser(user, spaceId);
-    if (ability.cannot(SpaceCaslAction.Edit, SpaceCaslSubject.Page)) {
+    if (ability.cannot(action, SpaceCaslSubject.Page)) {
       throw new ForbiddenException();
     }
   }
@@ -122,15 +132,43 @@ export class BaseService {
     return page;
   }
 
-  private async buildBaseDto(page: any, includeChildren = true) {
-    const properties = includeChildren
-      ? (await this.baseRepo.getProperties(page.id)).map((p) =>
-          this.mapProperty(p),
-        )
-      : [];
-    const views = includeChildren
-      ? (await this.baseRepo.getViews(page.id)).map((v) => this.mapView(v))
-      : [];
+  // Page-level checks (space role + page restrictions + page lock), same as
+  // the core page controller; space membership alone ignores restricted pages.
+  private async getViewableBase(
+    pageId: string,
+    user: User,
+    workspaceId: string,
+  ) {
+    const page = await this.getBasePageOrThrow(pageId, workspaceId);
+    await this.pageAccessService.validateCanView(page, user);
+    return page;
+  }
+
+  private async getEditableBase(
+    pageId: string,
+    user: User,
+    workspaceId: string,
+  ) {
+    const page = await this.getBasePageOrThrow(pageId, workspaceId);
+    await this.pageAccessService.validateCanEdit(page, user);
+    return page;
+  }
+
+  private async buildBaseDto(
+    page: Page,
+    includeChildren = true,
+    permissions = { canEdit: true, hasRestriction: false },
+  ) {
+    const [properties, views] = includeChildren
+      ? await Promise.all([
+          this.baseRepo
+            .getProperties(page.id)
+            .then((ps) => ps.map((p) => this.mapProperty(p))),
+          this.baseRepo
+            .getViews(page.id)
+            .then((vs) => vs.map((v) => this.mapView(v))),
+        ])
+      : [[], []];
 
     return {
       id: page.id,
@@ -146,7 +184,7 @@ export class BaseService {
       createdAt: this.mapDate(page.createdAt),
       updatedAt: this.mapDate(page.updatedAt),
       baseSchemaVersion: page.baseSchemaVersion ?? 0,
-      permissions: { canEdit: true, hasRestriction: false },
+      permissions,
     };
   }
 
@@ -154,10 +192,10 @@ export class BaseService {
     pageId: string,
     workspaceId: string,
     userId: string,
-    trx: any,
+    trx: KyselyTransaction,
     template?: string,
   ) {
-    const namePropId = uuid7().replace(/-/g, '').slice(0, 16);
+    const namePropId = newPropertyId();
     const namePosition = generateJitteredKeyBetween(null, null);
 
     await this.baseRepo.insertProperty(
@@ -176,7 +214,7 @@ export class BaseService {
 
     let statusPropId: string | undefined;
     if (template === 'kanban') {
-      statusPropId = uuid7().replace(/-/g, '').slice(0, 16);
+      statusPropId = newPropertyId();
       const statusPosition = generateJitteredKeyBetween(namePosition, null);
       await this.baseRepo.insertProperty(
         {
@@ -237,8 +275,21 @@ export class BaseService {
       pageId?: string;
     },
   ) {
-    await this.assertSpaceAccess(user, data.spaceId);
-    await this.assertCanEdit(user, data.spaceId);
+    if (data.pageId) {
+      // Nested under a page: same rule as core page create (edit on parent).
+      const parent = await this.pageRepo.findById(data.pageId);
+      if (
+        !parent ||
+        parent.deletedAt ||
+        parent.spaceId !== data.spaceId ||
+        parent.workspaceId !== workspaceId
+      ) {
+        throw new NotFoundException('Parent page not found');
+      }
+      await this.pageAccessService.validateCanEdit(parent, user);
+    } else {
+      await this.assertSpaceAction(user, data.spaceId, SpaceCaslAction.Create);
+    }
 
     return executeTx(this.db, async (trx) => {
       const page = await this.pageService.create(
@@ -261,8 +312,9 @@ export class BaseService {
 
   async getInfo(pageId: string, user: User, workspaceId: string) {
     const page = await this.getBasePageOrThrow(pageId, workspaceId);
-    await this.assertSpaceAccess(user, page.spaceId);
-    return this.buildBaseDto(page);
+    const permissions =
+      await this.pageAccessService.validateCanViewWithPermissions(page, user);
+    return this.buildBaseDto(page, true, permissions);
   }
 
   async update(
@@ -270,8 +322,7 @@ export class BaseService {
     workspaceId: string,
     data: { pageId: string; name?: string; icon?: string; description?: string },
   ) {
-    const page = await this.getBasePageOrThrow(data.pageId, workspaceId);
-    await this.assertCanEdit(user, page.spaceId);
+    await this.getEditableBase(data.pageId, user, workspaceId);
 
     if (data.name !== undefined || data.icon !== undefined) {
       await this.pageRepo.updatePage(
@@ -289,8 +340,7 @@ export class BaseService {
   }
 
   async delete(pageId: string, user: User, workspaceId: string) {
-    const page = await this.getBasePageOrThrow(pageId, workspaceId);
-    await this.assertCanEdit(user, page.spaceId);
+    await this.getEditableBase(pageId, user, workspaceId);
     await this.pageService.removePage(pageId, user.id, workspaceId);
   }
 
@@ -304,10 +354,10 @@ export class BaseService {
     if (!page || page.deletedAt || page.workspaceId !== workspaceId) {
       throw new NotFoundException('Page not found');
     }
+    await this.pageAccessService.validateCanEdit(page, user);
     if (page.isBase) {
       return this.buildBaseDto(page);
     }
-    await this.assertCanEdit(user, page.spaceId);
 
     await executeTx(this.db, async (trx) => {
       await this.baseRepo.markPageAsBase(pageId, trx);
@@ -319,14 +369,16 @@ export class BaseService {
   }
 
   async revert(pageId: string, user: User, workspaceId: string) {
-    const page = await this.getBasePageOrThrow(pageId, workspaceId);
-    await this.assertCanEdit(user, page.spaceId);
+    await this.getEditableBase(pageId, user, workspaceId);
     if (await this.baseRepo.hasRowData(pageId)) {
       throw new BadRequestException(
         'Base already contains data and cannot be reverted to a page',
       );
     }
-    await this.baseRepo.revertBaseToPage(pageId);
+    // Four statements (rows, views, properties, page flag): keep atomic.
+    await executeTx(this.db, (trx) =>
+      this.baseRepo.revertBaseToPage(pageId, trx),
+    );
   }
 
   async list(
@@ -335,17 +387,23 @@ export class BaseService {
     workspaceId: string,
     pagination: PaginationOptions,
   ) {
-    await this.assertSpaceAccess(user, spaceId);
+    await this.assertSpaceAction(user, spaceId, SpaceCaslAction.Read);
     const result = await this.baseRepo.listBasesInSpace(
       spaceId,
       workspaceId,
       pagination,
     );
-    const items = await Promise.all(
-      result.items.map(async (page) => {
-        const dto = await this.buildBaseDto(page, false);
-        return dto;
+    const accessible = new Set(
+      await this.pagePermissionRepo.filterAccessiblePageIds({
+        pageIds: result.items.map((p) => p.id),
+        userId: user.id,
+        spaceId,
       }),
+    );
+    const items = await Promise.all(
+      result.items
+        .filter((page) => accessible.has(page.id))
+        .map((page) => this.buildBaseDto(page, false)),
     );
     return { ...result, items };
   }
@@ -360,13 +418,12 @@ export class BaseService {
       typeOptions?: JsonValue;
     },
   ) {
-    const page = await this.getBasePageOrThrow(data.pageId, workspaceId);
-    await this.assertCanEdit(user, page.spaceId);
+    await this.getEditableBase(data.pageId, user, workspaceId);
 
     const lastPos = await this.baseRepo.getLastPropertyPosition(data.pageId);
     const position = generateJitteredKeyBetween(lastPos, null);
     const property = await this.baseRepo.insertProperty({
-      id: uuid7().replace(/-/g, '').slice(0, 16),
+      id: newPropertyId(),
       pageId: data.pageId,
       name: data.name.trim(),
       type: data.type,
@@ -388,8 +445,7 @@ export class BaseService {
       typeOptions?: JsonValue;
     },
   ) {
-    const page = await this.getBasePageOrThrow(data.pageId, workspaceId);
-    await this.assertCanEdit(user, page.spaceId);
+    await this.getEditableBase(data.pageId, user, workspaceId);
 
     const existing = await this.baseRepo.getProperty(
       data.pageId,
@@ -416,8 +472,7 @@ export class BaseService {
     workspaceId: string,
     data: { pageId: string; propertyId: string },
   ) {
-    const page = await this.getBasePageOrThrow(data.pageId, workspaceId);
-    await this.assertCanEdit(user, page.spaceId);
+    await this.getEditableBase(data.pageId, user, workspaceId);
     const existing = await this.baseRepo.getProperty(
       data.pageId,
       data.propertyId,
@@ -436,8 +491,7 @@ export class BaseService {
     workspaceId: string,
     data: { pageId: string; propertyId: string; position: string },
   ) {
-    const page = await this.getBasePageOrThrow(data.pageId, workspaceId);
-    await this.assertCanEdit(user, page.spaceId);
+    await this.getEditableBase(data.pageId, user, workspaceId);
     await this.baseRepo.updateProperty(data.pageId, data.propertyId, {
       position: data.position,
     });
@@ -453,8 +507,7 @@ export class BaseService {
       afterRowId?: string;
     },
   ) {
-    const page = await this.getBasePageOrThrow(data.pageId, workspaceId);
-    await this.assertCanEdit(user, page.spaceId);
+    await this.getEditableBase(data.pageId, user, workspaceId);
 
     let position = data.position;
     if (!position) {
@@ -478,8 +531,7 @@ export class BaseService {
     user: User,
     workspaceId: string,
   ) {
-    const page = await this.getBasePageOrThrow(pageId, workspaceId);
-    await this.assertSpaceAccess(user, page.spaceId);
+    await this.getViewableBase(pageId, user, workspaceId);
     const row = await this.baseRepo.getRow(pageId, rowId);
     if (!row) {
       throw new NotFoundException('Row not found');
@@ -497,8 +549,7 @@ export class BaseService {
       position?: string;
     },
   ) {
-    const page = await this.getBasePageOrThrow(data.pageId, workspaceId);
-    await this.assertCanEdit(user, page.spaceId);
+    await this.getEditableBase(data.pageId, user, workspaceId);
     const row = await this.baseRepo.updateRow(data.pageId, data.rowId, {
       cells: data.cells as JsonValue,
       position: data.position,
@@ -515,8 +566,7 @@ export class BaseService {
     workspaceId: string,
     data: { pageId: string; rowId: string },
   ) {
-    const page = await this.getBasePageOrThrow(data.pageId, workspaceId);
-    await this.assertCanEdit(user, page.spaceId);
+    await this.getEditableBase(data.pageId, user, workspaceId);
     await this.baseRepo.softDeleteRow(data.pageId, data.rowId);
   }
 
@@ -525,8 +575,7 @@ export class BaseService {
     workspaceId: string,
     data: { pageId: string; rowIds: string[] },
   ) {
-    const page = await this.getBasePageOrThrow(data.pageId, workspaceId);
-    await this.assertCanEdit(user, page.spaceId);
+    await this.getEditableBase(data.pageId, user, workspaceId);
     await this.baseRepo.softDeleteRows(data.pageId, data.rowIds);
   }
 
@@ -536,8 +585,7 @@ export class BaseService {
     workspaceId: string,
     pagination: PaginationOptions,
   ) {
-    const page = await this.getBasePageOrThrow(pageId, workspaceId);
-    await this.assertSpaceAccess(user, page.spaceId);
+    await this.getViewableBase(pageId, user, workspaceId);
     const result = await this.baseRepo.listRows(pageId, pagination);
     return {
       ...result,
@@ -551,8 +599,7 @@ export class BaseService {
     workspaceId: string,
     data: { pageId: string; rowId: string; position: string },
   ) {
-    const page = await this.getBasePageOrThrow(data.pageId, workspaceId);
-    await this.assertCanEdit(user, page.spaceId);
+    await this.getEditableBase(data.pageId, user, workspaceId);
     await this.baseRepo.updateRow(data.pageId, data.rowId, {
       position: data.position,
       lastUpdatedById: user.id,
@@ -565,18 +612,17 @@ export class BaseService {
     data: {
       pageId: string;
       name: string;
-      type: string;
+      type?: string;
       config?: JsonValue;
     },
   ) {
-    const page = await this.getBasePageOrThrow(data.pageId, workspaceId);
-    await this.assertCanEdit(user, page.spaceId);
+    await this.getEditableBase(data.pageId, user, workspaceId);
     const views = await this.baseRepo.getViews(data.pageId);
     const lastPos = views.length > 0 ? views[views.length - 1].position : null;
     const view = await this.baseRepo.insertView({
       pageId: data.pageId,
       name: data.name,
-      type: data.type,
+      type: data.type ?? 'table',
       position: generateJitteredKeyBetween(lastPos, null),
       config: data.config,
       creatorId: user.id,
@@ -597,8 +643,7 @@ export class BaseService {
       position?: string;
     },
   ) {
-    const page = await this.getBasePageOrThrow(data.pageId, workspaceId);
-    await this.assertCanEdit(user, page.spaceId);
+    await this.getEditableBase(data.pageId, user, workspaceId);
     const view = await this.baseRepo.updateView(data.pageId, data.viewId, data);
     if (!view) {
       throw new NotFoundException('View not found');
@@ -611,8 +656,7 @@ export class BaseService {
     workspaceId: string,
     data: { pageId: string; viewId: string },
   ) {
-    const page = await this.getBasePageOrThrow(data.pageId, workspaceId);
-    await this.assertCanEdit(user, page.spaceId);
+    await this.getEditableBase(data.pageId, user, workspaceId);
     const views = await this.baseRepo.getViews(data.pageId);
     if (views.length <= 1) {
       throw new BadRequestException('Cannot delete the last view');
@@ -621,14 +665,24 @@ export class BaseService {
   }
 
   async listViews(pageId: string, user: User, workspaceId: string) {
-    const page = await this.getBasePageOrThrow(pageId, workspaceId);
-    await this.assertSpaceAccess(user, page.spaceId);
+    await this.getViewableBase(pageId, user, workspaceId);
     const views = await this.baseRepo.getViews(pageId);
     return views.map((v) => this.mapView(v));
   }
 
   async expandPages(pageIds: string[], user: User, workspaceId: string) {
-    const rows = await this.baseRepo.expandPages(pageIds, workspaceId);
+    const fetched = await this.baseRepo.expandPages(
+      pageIds,
+      workspaceId,
+      this.spaceMemberRepo.getUserSpaceIdsQuery(user.id),
+    );
+    const accessible = new Set(
+      await this.pagePermissionRepo.filterAccessiblePageIds({
+        pageIds: fetched.map((r) => r.id),
+        userId: user.id,
+      }),
+    );
+    const rows = fetched.filter((r) => accessible.has(r.id));
     return {
       items: rows.map((r) => ({
         id: r.id,
@@ -646,19 +700,9 @@ export class BaseService {
   async exportCsv(pageId: string, user: User, workspaceId: string) {
     const base = await this.getInfo(pageId, user, workspaceId);
     const rows = await this.baseRepo.listRows(pageId, {
-      limit: 10000,
+      limit: CSV_EXPORT_MAX_ROWS,
     } as PaginationOptions);
-    const headers = base.properties.map((p) => p.name);
-    const lines = [headers.map((h) => `"${h.replace(/"/g, '""')}"`).join(',')];
-    for (const row of rows.items) {
-      const cells = base.properties.map((p) => {
-        const val = (row.cells as Record<string, unknown>)?.[p.id];
-        const text = val == null ? '' : String(val);
-        return `"${text.replace(/"/g, '""')}"`;
-      });
-      lines.push(cells.join(','));
-    }
-    const csv = lines.join('\n');
+    const csv = buildCsv(base.properties, rows.items);
     const fileName = `${base.name || 'base'}.csv`;
     return { csv, fileName };
   }

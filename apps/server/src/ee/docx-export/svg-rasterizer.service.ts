@@ -12,6 +12,20 @@ const SCALE = 2;
 // Chromium is the scarce resource: cap concurrent renders across ALL exports.
 const MAX_RENDERS = Number(process.env.DOCX_RENDER_CONCURRENCY) || 2;
 const RENDER_TIMEOUT_MS = 60_000;
+// Caps the screenshot viewport: SVG width/height are user-controlled.
+const MAX_RENDER_PX = 8000;
+/**
+ * The SVG is an uploaded attachment rendered by Gotenberg's Chromium, which can
+ * reach the internal network. Block scripts and every outbound load (SSRF /
+ * exfiltration via <script>, <image href>, <foreignObject><iframe>, CSS url()).
+ */
+const SVG_CSP =
+  `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; ` +
+  `style-src 'unsafe-inline'; img-src data:; font-src data:">`;
+/** Mermaid needs its bundled script; still no network, frames or remote images. */
+const MERMAID_CSP =
+  `<meta http-equiv="Content-Security-Policy" content="connect-src 'none'; ` +
+  `frame-src 'none'; object-src 'none'; img-src data:; font-src data:">`;
 let mermaidJs: Buffer | undefined;
 
 /** Renders SVG (e.g. draw.io diagrams, which rely on foreignObject text) to PNG via Gotenberg's Chromium. */
@@ -97,8 +111,9 @@ export class SvgRasterizerService {
   private async render(svg: Buffer): Promise<Buffer> {
     const text = svg.toString('utf8');
     const { width, height } = this.dimensions(text);
-    const w = Math.ceil(width * SCALE);
-    const h = Math.ceil(height * SCALE);
+    const fit = Math.min(1, MAX_RENDER_PX / (Math.max(width, height) * SCALE));
+    const w = Math.max(1, Math.ceil(width * SCALE * fit));
+    const h = Math.max(1, Math.ceil(height * SCALE * fit));
     // Force the root <svg> to the scaled size so the screenshot is crisp.
     const sized = text
       .replace(/<\?xml[^>]*\?>/, '')
@@ -111,7 +126,7 @@ export class SvgRasterizerService {
           : ` viewBox="0 0 ${width} ${height}"`;
         return `<svg${rest}${vb} width="${w}" height="${h}">`;
       });
-    const html = `<!doctype html><html><body style="margin:0;background:#fff">${sized}</body></html>`;
+    const html = `<!doctype html><html><head>${SVG_CSP}</head><body style="margin:0;background:#fff">${sized}</body></html>`;
 
     // Rendered at SCALE x for sharpness; the density tells Word the logical (1x) size.
     return withPngDpi(
@@ -128,7 +143,7 @@ export class SvgRasterizerService {
     const esc = code.replace(/&/g, '&amp;').replace(/</g, '&lt;');
     // Full-page screenshot sizes itself to the content, so use a narrow
     // viewport and non-responsive diagrams. On a syntax error the source is shown instead.
-    const html = `<!doctype html><html><body style="margin:0;padding:16px;background:#fff">
+    const html = `<!doctype html><html><head>${MERMAID_CSP}</head><body style="margin:0;padding:16px;background:#fff">
 <pre class="mermaid" id="m">${esc}</pre>
 <script src="mermaid.min.js"></script>
 <script>

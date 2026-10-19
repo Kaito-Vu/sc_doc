@@ -17,6 +17,7 @@ import { EnvironmentService } from '../../integrations/environment/environment.s
 import { AttachmentService } from '../../core/attachment/services/attachment.service';
 import { MfaGateService } from '../mfa/services/mfa-gate.service';
 import { OidcProviderStrategyFactory } from './oidc-provider-strategy.factory';
+import { SsoUserProvisioningService } from './sso-user-provisioning.service';
 import { AUDIT_SERVICE } from '../../integrations/audit/audit.service';
 import { encodeOidcState, decodeOidcState } from './oidc-state.util';
 
@@ -59,6 +60,7 @@ describe('OidcAuthService.buildAuthorizationUrl', () => {
     const moduleRef = await Test.createTestingModule({
       providers: [
         OidcAuthService,
+        SsoUserProvisioningService,
         { provide: AuthProviderRepo, useValue: authProviderRepo },
         { provide: AuthAccountRepo, useValue: {} },
         { provide: SsoService, useValue: { decryptSecret: (v: string) => v } },
@@ -193,7 +195,11 @@ describe('OidcAuthService.buildAuthorizationUrl', () => {
 describe('OidcAuthService.handleCallback', () => {
   let service: OidcAuthService;
   let authProviderRepo: { findById: jest.Mock };
-  let authAccountRepo: { findByProviderUserId: jest.Mock; upsert: jest.Mock };
+  let authAccountRepo: {
+    findByProviderUserId: jest.Mock;
+    findByUserAndProvider: jest.Mock;
+    upsert: jest.Mock;
+  };
   let userRepo: {
     findById: jest.Mock;
     findByEmail: jest.Mock;
@@ -222,6 +228,7 @@ describe('OidcAuthService.handleCallback', () => {
     authProviderRepo = { findById: jest.fn().mockResolvedValue(provider) };
     authAccountRepo = {
       findByProviderUserId: jest.fn().mockResolvedValue(undefined),
+      findByUserAndProvider: jest.fn().mockResolvedValue(undefined),
       upsert: jest.fn().mockResolvedValue({}),
     };
     userRepo = {
@@ -249,6 +256,7 @@ describe('OidcAuthService.handleCallback', () => {
     const moduleRef = await Test.createTestingModule({
       providers: [
         OidcAuthService,
+        SsoUserProvisioningService,
         { provide: AuthProviderRepo, useValue: authProviderRepo },
         { provide: AuthAccountRepo, useValue: authAccountRepo },
         { provide: SsoService, useValue: { decryptSecret: (v: string) => v } },
@@ -431,6 +439,76 @@ describe('OidcAuthService.handleCallback', () => {
     );
   });
 
+  it('refuses to match an existing account by an explicitly unverified email', async () => {
+    (client.authorizationCodeGrant as jest.Mock).mockResolvedValue({
+      claims: () => ({
+        sub: 'sub-attacker',
+        email: 'user@example.com',
+        email_verified: false,
+      }),
+      access_token: 'access-token',
+    });
+
+    await expect(
+      service.handleCallback({
+        code: 'auth-code',
+        state: 's1',
+        stateCookie: stateCookieFor(),
+        workspaceId: 'ws1',
+        workspace: fakeWorkspace,
+        res: fakeRes,
+      }),
+    ).rejects.toThrow(UnauthorizedException);
+    expect(userRepo.findByEmail).not.toHaveBeenCalled();
+    expect(authAccountRepo.upsert).not.toHaveBeenCalled();
+  });
+
+  it('refuses to re-link an email-matched account bound to another subject', async () => {
+    authAccountRepo.findByUserAndProvider.mockResolvedValue({
+      userId: 'u1',
+      providerUserId: 'sub-original',
+    });
+    (client.authorizationCodeGrant as jest.Mock).mockResolvedValue({
+      claims: () => ({ sub: 'sub-new', email: 'user@example.com' }),
+      access_token: 'access-token',
+    });
+
+    await expect(
+      service.handleCallback({
+        code: 'auth-code',
+        state: 's1',
+        stateCookie: stateCookieFor(),
+        workspaceId: 'ws1',
+        workspace: fakeWorkspace,
+        res: fakeRes,
+      }),
+    ).rejects.toThrow(UnauthorizedException);
+    expect(authAccountRepo.upsert).not.toHaveBeenCalled();
+  });
+
+  it('flags provisioned users as having a generated password', async () => {
+    authProviderRepo.findById.mockResolvedValue({ ...provider, allowSignup: true });
+    userRepo.findByEmail.mockResolvedValue(undefined);
+    (client.authorizationCodeGrant as jest.Mock).mockResolvedValue({
+      claims: () => ({ sub: 'sub-new', email: 'new@example.com' }),
+      access_token: 'access-token',
+    });
+
+    await service.handleCallback({
+      code: 'auth-code',
+      state: 's1',
+      stateCookie: stateCookieFor(),
+      workspaceId: 'ws1',
+      workspace: fakeWorkspace,
+      res: fakeRes,
+    });
+
+    expect(userRepo.insertUser).toHaveBeenCalledWith(
+      expect.objectContaining({ hasGeneratedPassword: true }),
+      expect.anything(),
+    );
+  });
+
   it('throws UnauthorizedException when nothing matched and allowSignup is false', async () => {
     userRepo.findByEmail.mockResolvedValue(undefined);
     (client.authorizationCodeGrant as jest.Mock).mockResolvedValue({
@@ -583,5 +661,10 @@ describe('isSafeRedirectPath', () => {
 
   it('rejects undefined', () => {
     expect(isSafeRedirectPath(undefined)).toBe(false);
+  });
+
+  it('rejects paths with control characters browsers strip (tab/newline)', () => {
+    expect(isSafeRedirectPath('/\t/evil.com')).toBe(false);
+    expect(isSafeRedirectPath('/\n/evil.com')).toBe(false);
   });
 });

@@ -1,59 +1,77 @@
 import React from 'react';
-import { Stack, Group, Avatar, Text, Box, Skeleton } from '@mantine/core';
+import { Avatar } from '@mantine/core';
+import { IconEdit, IconUser, IconUsers } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
+import StarButton from '@/features/favorite/components/star-button';
 import type { SectionProps } from '../detail-info-panel.types';
-import commonClasses from './common.module.css';
-import classes from './PeopleSection.module.css';
+import classes from '../DetailInfoPanel.module.css';
 
-const PeopleSectionComponent: React.FC<SectionProps> = ({ page, isLoading }) => {
+/** Owner card (title, contributors, favorite toggle) + creator / last editor rows. */
+const PeopleSectionComponent: React.FC<SectionProps> = ({ page }) => {
   const { t } = useTranslation();
-
-  if (isLoading) {
-    return (
-      <Stack gap="sm">
-        <Skeleton height={8} width="30%" />
-        <Skeleton height={40} />
-        <Skeleton height={40} />
-      </Stack>
-    );
-  }
+  const { creator, lastUpdatedBy } = page;
+  const contributorsCount = page.contributors?.length ?? 0;
+  const contributorLabel = contributorsCount === 0
+    ? t('Owner, no contributors')
+    : `${t('Owner')}, ${contributorsCount} ${t('contributors')}`;
 
   return (
-    <Stack gap="sm">
-      <div className={commonClasses.title}>{t('PEOPLE')}</div>
-
-      {/* Creator */}
-      <div className={classes.creatorItem}>
+    <>
+      <div className={classes.ownerCard}>
         <Avatar
-          name={page.creator?.name}
-          size="sm"
-          radius="md"
+          src={creator?.avatarUrl}
+          name={creator?.name ?? page.title ?? '?'}
+          size="lg"
           color="blue"
+          radius="md"
         />
-        <Box className={classes.creatorInfo}>
-          <Text className={classes.creatorName}>{t('Creator')}</Text>
-          <Text className={classes.creatorName}>
-            {page.creator?.name || t('Unknown')}
-          </Text>
-        </Box>
+        <div className={classes.ownerInfo}>
+          <p className={classes.ownerName}>{page.title ?? '—'}</p>
+          <p className={classes.ownerRole}>{contributorLabel}</p>
+        </div>
+        <div className={classes.ownerActions}>
+          <StarButton type="page" pageId={page.id} name={page.title} size={15} />
+        </div>
       </div>
 
-      {/* Last Updated By */}
-      <div className={classes.creatorItem}>
-        <Avatar
-          name={page.lastUpdatedBy?.name}
-          size="sm"
-          radius="md"
-          color="blue"
-        />
-        <Box className={classes.creatorInfo}>
-          <Text className={classes.creatorName}>{t('Last updated by')}</Text>
-          <Text className={classes.creatorName}>
-            {page.lastUpdatedBy?.name || t('Unknown')}
-          </Text>
-        </Box>
-      </div>
-    </Stack>
+      <p className={classes.sectionLabel}>{t('People')}</p>
+
+      {creator && (
+        <div className={classes.personRow}>
+          <span className={classes.personLabel}>
+            <IconUser size={13} />
+            {t('Creator')}
+          </span>
+          <div className={classes.personRight}>
+            <Avatar src={creator.avatarUrl} name={creator.name} size="xs" color="blue" />
+            <span className={classes.personName}>{creator.name}</span>
+          </div>
+        </div>
+      )}
+
+      {lastUpdatedBy && (
+        <div className={classes.personRow}>
+          <span className={classes.personLabel}>
+            <IconEdit size={13} />
+            {t('Last updated by')}
+          </span>
+          <div className={classes.personRight}>
+            <Avatar src={lastUpdatedBy.avatarUrl} name={lastUpdatedBy.name} size="xs" color="blue" />
+            <span className={classes.personName}>{lastUpdatedBy.name}</span>
+          </div>
+        </div>
+      )}
+
+      {contributorsCount > 0 && (
+        <div className={classes.personRow}>
+          <span className={classes.personLabel}>
+            <IconUsers size={13} />
+            {t('Contributors')}
+          </span>
+          <span className={classes.rowValue}>{contributorsCount}</span>
+        </div>
+      )}
+    </>
   );
 };
 

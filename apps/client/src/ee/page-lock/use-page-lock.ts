@@ -20,12 +20,8 @@ const LOCK_TTL_MS = 24 * 60 * 60 * 1000;
 
 // Mirrors the server: a lock lapses 24h after the last update.
 export function isLockActive(page?: IPage): boolean {
-  if (!page?.isLocked) return false;
-  const last = Math.max(
-    new Date(page.updatedAt).getTime(),
-    page.lockedAt ? new Date(page.lockedAt).getTime() : 0,
-  );
-  return Date.now() - last < LOCK_TTL_MS;
+  const expiresAt = getLockExpiresAt(page);
+  return !!expiresAt && Date.now() < expiresAt.getTime();
 }
 
 export function getLockExpiresAt(page?: IPage): Date | null {

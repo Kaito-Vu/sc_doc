@@ -1,35 +1,22 @@
 import React from 'react';
-import { Stack, Switch, Text } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
+import { PageWidthToggle } from '@/features/user/components/page-width-pref';
 import type { SectionProps } from '../detail-info-panel.types';
-import commonClasses from './common.module.css';
-import classes from './DisplaySection.module.css';
+import classes from '../DetailInfoPanel.module.css';
 
-const DisplaySectionComponent: React.FC<SectionProps> = ({ page, pageId }) => {
+// Full-width is a user preference: reuse the account-settings toggle, which
+// saves via updateUser() and refreshes the user atom.
+const DisplaySectionComponent: React.FC<SectionProps> = () => {
   const { t } = useTranslation();
-  const [isFullWidth, setIsFullWidth] = React.useState(page.isFullWidth ?? false);
-
-  const handleToggle = () => {
-    // Will be connected to API in Phase 3
-    setIsFullWidth(!isFullWidth);
-  };
 
   return (
-    <Stack gap="sm">
-      <div className={commonClasses.title}>{t('DISPLAY')}</div>
-
-      <div className={classes.setting}>
-        <Text size="sm">{t('Full-width')}</Text>
-        <Switch
-          checked={isFullWidth}
-          onChange={handleToggle}
-          aria-label={t('Toggle full-width mode')}
-        />
+    <>
+      <p className={classes.sectionLabel}>{t('Display')}</p>
+      <div className={classes.toggleRow}>
+        <span className={classes.toggleLabel}>{t('Full-width')}</span>
+        <PageWidthToggle size="xs" />
       </div>
-      <Text className={classes.description} size="xs">
-        {t('Content spans full width when enabled')}
-      </Text>
-    </Stack>
+    </>
   );
 };
 

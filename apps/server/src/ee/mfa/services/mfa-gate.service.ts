@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, UnauthorizedException } from '@nestjs/common';
 import { FastifyReply } from 'fastify';
 import { UserMfaRepo } from '../repos/user-mfa.repo';
 import { TokenService } from '../../../core/auth/services/token.service';
@@ -11,10 +11,14 @@ import {
 } from '../../../integrations/audit/audit.service';
 import { AuditEvent, AuditResource } from '../../../common/events/audit-events';
 import { LoginContext } from '../types/login-context';
+import { isUserDisabled } from '../../../common/helpers';
 
 export interface MfaGateResult {
   requiresMfa: boolean;
   authToken?: string;
+  userHasMfa?: boolean;
+  requiresMfaSetup?: boolean;
+  isMfaEnforced?: boolean;
 }
 
 @Injectable()
@@ -33,6 +37,12 @@ export class MfaGateService {
     res: FastifyReply,
     loginContext: LoginContext,
   ): Promise<MfaGateResult> {
+    // SSO callers resolve users by email/link, which also returns
+    // deactivated or deleted rows - this is the single choke point to stop them.
+    if (isUserDisabled(user)) {
+      throw new UnauthorizedException();
+    }
+
     const mfa = await this.userMfaRepo.findByUserId(user.id);
     const userHasMfa = mfa?.isEnabled === true;
     const isMfaEnforced = workspace.enforceMfa === true;
@@ -50,7 +60,12 @@ export class MfaGateService {
         expires: new Date(Date.now() + 5 * 60 * 1000),
         secure: this.environmentService.isHttps(),
       });
-      return { requiresMfa: true };
+      return {
+        requiresMfa: true,
+        userHasMfa,
+        requiresMfaSetup: isMfaEnforced && !userHasMfa,
+        isMfaEnforced,
+      };
     }
 
     this.auditService.setActorId(user.id);

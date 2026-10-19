@@ -21,15 +21,16 @@ import {
   FxpNode,
   attributeOf,
   childrenOf,
-  createXmlParser,
-  decodeBuffer,
   findChildren,
   firstChild,
+  leadingInteger,
   normalizeName,
+  parseNumeric,
+  parseXmlDocument,
   tagOf,
   textOf,
 } from './ea-xml.util';
-import { splitMultiItems } from './ea-import.util';
+import { errorMessage, splitMultiItems } from './ea-import.util';
 
 /**
  * Pure Enterprise Architect XMI -> package tree parser. No Nest / DB
@@ -80,29 +81,8 @@ function modelDocumentOf(element: FxpNode): string | undefined {
   return undefined;
 }
 
-function parseNumeric(value: string | undefined): number | undefined {
-  if (value === undefined) {
-    return undefined;
-  }
-  const parsed = parseInt(value, 10);
-  return Number.isFinite(parsed) ? parsed : undefined;
-}
-
-function leadingInteger(name: string): number | undefined {
-  const match = /^\s*(\d+)/.exec(name);
-  if (!match) {
-    return undefined;
-  }
-  const parsed = parseInt(match[1], 10);
-  return Number.isFinite(parsed) ? parsed : undefined;
-}
-
 function orderOf(name: string, tagged: Map<string, string>, fallback: number): number {
   return leadingInteger(name) ?? parseNumeric(tagged.get('tpos')) ?? fallback;
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }
 
 /**
@@ -569,16 +549,7 @@ export function parseEaXmi(buffer: Buffer): EaParseResult {
     throw new Error('parseEaXmi expects a Buffer');
   }
 
-  const text = decodeBuffer(buffer);
-  if (/<!DOCTYPE/i.test(text) || /<!ENTITY/i.test(text)) {
-    throw new Error(
-      'EA XMI input contains a DTD or entity declaration; refusing to parse',
-    );
-  }
-
-  const parser = createXmlParser();
-
-  const parsed = parser.parse(text) as FxpNode[];
+  const parsed = parseXmlDocument(buffer, 'EA XMI');
   const warnings: EaParseWarning[] = [];
 
   const xmi = firstChild(parsed, 'XMI');

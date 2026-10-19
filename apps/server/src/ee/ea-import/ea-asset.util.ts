@@ -1,6 +1,7 @@
 import * as path from 'path';
 import * as yauzl from 'yauzl';
 import { EaDiagram, EaImageAsset } from './types/ea-import.types';
+import { errorMessage } from './ea-import.util';
 
 /**
  * Pure helpers for the EA import companion assets (the ZIP container and its
@@ -125,10 +126,6 @@ export function sniffImageMime(buffer: Buffer): string | undefined {
   return undefined;
 }
 
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
 /**
  * Read an EA companion ZIP exactly once and collect everything the importer
  * may need: the first `.xml`/`.xmi` document, every image entry (keyed for the
@@ -221,7 +218,7 @@ export function inspectEaArchive(
             }
 
             const chunks: Buffer[] = [];
-            stream.on('data', (chunk) => chunks.push(Buffer.from(chunk)));
+            stream.on('data', (chunk: Buffer) => chunks.push(chunk));
             stream.on('error', (readError) =>
               fail(
                 new Error(
@@ -284,21 +281,6 @@ export function inspectEaArchive(
       },
     );
   });
-}
-
-/**
- * Extract the XMI document plus every image entry from an EA companion ZIP.
- * The XMI is the first `.xml`/`.xmi` entry; images are every entry whose
- * extension is a supported image extension.
- */
-export async function extractEaZip(
-  buffer: Buffer,
-): Promise<{ xmi: Buffer; images: EaImageAsset[] }> {
-  const { xmi, images } = await inspectEaArchive(buffer);
-  if (!xmi) {
-    throw new Error('EA archive does not contain an .xml or .xmi entry');
-  }
-  return { xmi, images };
 }
 
 /**

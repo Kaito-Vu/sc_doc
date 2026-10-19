@@ -3,14 +3,18 @@ import { InjectKysely } from 'nestjs-kysely';
 import { KyselyDB } from '@docmost/db/types/kysely.types';
 import { PaginationOptions } from '@docmost/db/pagination/pagination-options';
 import { executeWithCursorPagination } from '@docmost/db/pagination/cursor-pagination';
-import { sql } from 'kysely';
 import { jsonObjectFrom } from 'kysely/helpers/postgres';
+import { AuditQueryFilters } from './dto/audit-query.dto';
 
 @Injectable()
 export class AuditQueryService {
   constructor(@InjectKysely() private readonly db: KyselyDB) {}
 
-  async queryLogs(workspaceId: string, pagination: PaginationOptions, filters: any) {
+  async queryLogs(
+    workspaceId: string,
+    pagination: PaginationOptions,
+    filters: AuditQueryFilters,
+  ) {
     let query = this.db
       .selectFrom('audit')
       .selectAll('audit')
@@ -43,14 +47,16 @@ export class AuditQueryService {
       query = query.where('createdAt', '<=', new Date(filters.endDate));
     }
 
-    return executeWithCursorPagination(query.orderBy('createdAt', 'desc'), {
+    // Keyset on the uuid v7 id only: it is time-ordered, matches the
+    // (workspace_id, id desc) index, and avoids createdAt's µs precision being
+    // truncated to ms in the cursor (which skipped rows at page boundaries).
+    // Ordering comes from `fields`; a pre-applied orderBy breaks beforeCursor.
+    return executeWithCursorPagination(query, {
       perPage: pagination.limit ?? 50,
       cursor: pagination.cursor,
       beforeCursor: pagination.beforeCursor,
-      fields: [{ expression: 'createdAt', direction: 'desc' }],
-      parseCursor: (cursor) => ({
-        createdAt: new Date(cursor.createdAt),
-      }),
+      fields: [{ expression: 'id', direction: 'desc' }],
+      parseCursor: (cursor) => ({ id: cursor.id }),
     });
   }
 

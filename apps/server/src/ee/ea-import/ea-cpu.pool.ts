@@ -1,7 +1,7 @@
 import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
 import { Worker } from 'worker_threads';
-import { eaConvertConcurrency } from './ea-convert.pool';
 import { EaCpuJob, EaCpuResult, runEaCpuJob } from './ea-cpu.tasks';
 
 /** Compiled worker next to this module (`dist/ee/ea-import/...`). */
@@ -9,6 +9,26 @@ const WORKER_FILE = path.join(__dirname, 'ea-cpu.worker.js');
 
 /** Below this many jobs a worker's startup cost outweighs the parallelism. */
 const MIN_JOBS_FOR_WORKERS = 6;
+
+/** Upper bound on worker threads (overridable via env). */
+export function eaConvertConcurrency(): number {
+  const parsed = parseInt(
+    process.env.EA_IMPORT_CONVERT_CONCURRENCY ?? '',
+    10,
+  );
+  if (Number.isFinite(parsed) && parsed > 0) {
+    return parsed;
+  }
+  try {
+    const cores =
+      typeof os.availableParallelism === 'function'
+        ? os.availableParallelism()
+        : os.cpus().length;
+    return Math.max(1, Math.min(4, cores - 1));
+  } catch {
+    return 1;
+  }
+}
 
 function rehydrate<T>(value: T): T {
   if (value instanceof Uint8Array && !Buffer.isBuffer(value)) {
@@ -27,13 +47,16 @@ function rehydrate<T>(value: T): T {
 function runChunk(
   jobs: EaCpuJob[],
   onResult: (result: EaCpuResult) => void,
+  workers: Set<Worker>,
 ): Promise<void> {
   return new Promise<void>((resolve, reject) => {
     const worker = new Worker(WORKER_FILE);
+    workers.add(worker);
     let settled = false;
     const finish = (error?: Error): void => {
       if (settled) return;
       settled = true;
+      workers.delete(worker);
       void worker.terminate().catch(() => undefined);
       error ? reject(error) : resolve();
     };
@@ -53,9 +76,9 @@ function runChunk(
 
 /**
  * Run CPU-bound jobs across worker threads (round-robin), falling back to
- * inline execution for few jobs, missing worker file or a worker failure.
- * `onResult` fires per finished job (progress / cancellation hook); it may
- * throw to abort the whole run.
+ * inline execution for few jobs or a missing worker file. `onResult` fires per
+ * finished job (progress / cancellation hook); it may throw to abort the whole
+ * run, which also stops the workers.
  */
 export async function runEaCpuJobs(
   jobs: EaCpuJob[],
@@ -67,15 +90,6 @@ export async function runEaCpuJobs(
     results.set(result.id, result);
     await onResult?.(result);
   };
-  const runInline = async (list: EaCpuJob[]): Promise<void> => {
-    for (const job of list) {
-      if (!results.has(job.id)) {
-        await record(runEaCpuJob(job));
-        // let the event loop breathe between jobs
-        await new Promise((resolve) => setImmediate(resolve));
-      }
-    }
-  };
 
   const concurrency = Math.min(eaConvertConcurrency(), jobs.length);
   if (
@@ -84,40 +98,58 @@ export async function runEaCpuJobs(
     (concurrency === 1 && !opts.forceWorkers) ||
     !fs.existsSync(WORKER_FILE)
   ) {
-    await runInline(jobs);
+    for (const job of jobs) {
+      await record(await runEaCpuJob(job));
+      // let the event loop breathe between jobs
+      await new Promise((resolve) => setImmediate(resolve));
+    }
     return results;
   }
 
   const chunks: EaCpuJob[][] = Array.from({ length: concurrency }, () => []);
   jobs.forEach((job, i) => chunks[i % concurrency].push(job));
 
-  // Results are buffered then replayed on this async chain so `onResult` can
-  // await (and throw) without racing worker message events.
-  const pending: EaCpuResult[] = [];
+  // Results are replayed on this async chain so `onResult` can await (and
+  // throw) without racing worker message events.
+  const workers = new Set<Worker>();
   let chain: Promise<void> = Promise.resolve();
   let abort: unknown;
   const enqueue = (result: EaCpuResult): void => {
-    pending.push(result);
     chain = chain.then(async () => {
-      const next = pending.shift()!;
-      if (abort === undefined) {
-        try {
-          await record(next);
-        } catch (e) {
-          abort = e ?? new Error('aborted');
-        }
+      if (abort !== undefined) return;
+      try {
+        await record(result);
+      } catch (e) {
+        abort = e ?? new Error('aborted');
+        workers.forEach((worker) => void worker.terminate().catch(() => undefined));
       }
     });
   };
 
-  await Promise.all(
+  const failures = await Promise.all(
     chunks
       .filter((chunk) => chunk.length > 0)
-      .map((chunk) => runChunk(chunk, enqueue).catch(() => undefined)),
+      .map((chunk) =>
+        runChunk(chunk, enqueue, workers).then(
+          () => undefined,
+          (error: Error) => error,
+        ),
+      ),
   );
   await chain;
   if (abort !== undefined) throw abort;
-  // A failed worker leaves its jobs unfinished: do those here.
-  await runInline(jobs);
+
+  // A crashed worker (e.g. out of memory on a hostile file) leaves its jobs
+  // unfinished. They fail instead of re-running inline: repeating that job on
+  // the main thread could take the whole API process down with it.
+  const failure = failures.find(Boolean);
+  for (const job of jobs) {
+    if (!results.has(job.id)) {
+      await record({
+        id: job.id,
+        error: `EA import worker failed: ${failure?.message ?? 'no result'}`,
+      });
+    }
+  }
   return results;
 }

@@ -5,9 +5,9 @@ import {
   EaActivity,
   EaDiagramGraph,
   EaPackageNode,
-  EaParseWarning,
   EaRtfImage,
 } from './types/ea-import.types';
+import { errorMessage, escapeHtml } from './ea-import.util';
 
 /**
  * Pure content synthesis helpers for the EA import. No Nest / DB
@@ -28,19 +28,6 @@ const PROVENANCE_CALLOUT =
 
 const WIREFRAME_NOTE =
   'Wireframe images are not embedded in the EA export.';
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
-function escapeHtml(value: string): string {
-  return String(value ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
 
 function callout(text: string): string {
   return `<div data-type="callout" data-callout-type="info"><p>${escapeHtml(
@@ -169,7 +156,7 @@ export function decodeModelDocument(
             }
 
             const chunks: Buffer[] = [];
-            stream.on('data', (chunk) => chunks.push(Buffer.from(chunk)));
+            stream.on('data', (chunk: Buffer) => chunks.push(chunk));
             stream.on('error', (readError) =>
               fail(
                 new Error(
@@ -473,31 +460,6 @@ export function buildContainerHtml(
 ): string {
   // The sub-page list is rendered by the page view itself, not stored in content.
   return code ? `<p><em>${escapeHtml(node.name)}</em></p>` : '<p></p>';
-}
-
-/**
- * Concatenate every RTF document attached to a package, in order. A failed
- * document yields a warning and an empty paragraph rather than aborting.
- */
-export async function buildDocumentsHtml(
-  node: EaPackageNode,
-  limits: DecodeLimits,
-  imageSink?: EaRtfImage[],
-): Promise<{ html: string; warnings: EaParseWarning[] }> {
-  let html = '';
-  const warnings: EaParseWarning[] = [];
-  for (const document of node.documents) {
-    try {
-      html += await decodeModelDocument(document.base64, limits, imageSink);
-    } catch (error) {
-      warnings.push({
-        page: document.ownerName || node.name,
-        reason: errorMessage(error),
-      });
-      html += '<p></p>';
-    }
-  }
-  return { html, warnings };
 }
 
 function headingText(node: any): string {

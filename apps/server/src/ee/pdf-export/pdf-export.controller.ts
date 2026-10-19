@@ -3,6 +3,7 @@ import {
   Controller,
   HttpCode,
   HttpStatus,
+  NotFoundException,
   Post,
   UseGuards,
 } from '@nestjs/common';
@@ -16,6 +17,14 @@ import { RequireFeature } from '../common/decorators/require-feature.decorator';
 import { Feature } from '../../common/features';
 import { PageRepo } from '@docmost/db/repos/page/page.repo';
 import { PageAccessService } from '../../core/page/page-access/page-access.service';
+import { PageIdDto } from '../../core/page/dto/page.dto';
+import { IsNotEmpty, IsString } from 'class-validator';
+
+class PdfRenderDto extends PageIdDto {
+  @IsString()
+  @IsNotEmpty()
+  token: string;
+}
 
 @Controller('pdf-export')
 export class PdfExportController {
@@ -28,7 +37,7 @@ export class PdfExportController {
 
   @HttpCode(HttpStatus.OK)
   @Post('render')
-  async render(@Body() body: { pageId: string; token: string }) {
+  async render(@Body() body: PdfRenderDto) {
     const data = await this.pdfExportService.getRenderPayload(
       body.pageId,
       body.token,
@@ -41,16 +50,18 @@ export class PdfExportController {
   @Post('export')
   @RequireFeature(Feature.PDF_EXPORT)
   async export(
-    @Body() body: { pageId: string },
+    @Body() body: PageIdDto,
     @AuthUser() user: User,
     @AuthWorkspace() workspace: Workspace,
   ) {
     const page = await this.pageRepo.findById(body.pageId);
-    if (page) {
-      await this.pageAccessService.validateCanView(page, user);
+    // Never queue or mint a render token for a page the caller cannot view.
+    if (!page || page.deletedAt || page.workspaceId !== workspace.id) {
+      throw new NotFoundException('Page not found');
     }
+    await this.pageAccessService.validateCanView(page, user);
     const { fileTaskId } = await this.pdfExportService.queuePageExport(
-      body.pageId,
+      page.id,
       user.id,
       workspace.id,
     );
@@ -59,7 +70,7 @@ export class PdfExportController {
       workspace.id,
     );
     const renderToken = await this.tokenService.generatePdfRenderToken(
-      body.pageId,
+      page.id,
       workspace.id,
     );
     return { fileTaskId, downloadToken, renderToken };

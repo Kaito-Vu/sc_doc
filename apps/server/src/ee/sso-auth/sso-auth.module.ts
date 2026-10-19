@@ -9,6 +9,7 @@ import { AttachmentModule } from '../../core/attachment/attachment.module';
 import { GenericOidcStrategy } from './strategies/generic-oidc.strategy';
 import { EntraIdStrategy } from './strategies/entra-id.strategy';
 import { OidcProviderStrategyFactory } from './oidc-provider-strategy.factory';
+import { SsoUserProvisioningService } from './sso-user-provisioning.service';
 
 @Module({
   imports: [SsoModule, MfaModule, WorkspaceModule, AttachmentModule],
@@ -18,6 +19,7 @@ import { OidcProviderStrategyFactory } from './oidc-provider-strategy.factory';
     GenericOidcStrategy,
     EntraIdStrategy,
     OidcProviderStrategyFactory,
+    SsoUserProvisioningService,
   ],
   controllers: [SsoAuthController],
 })

@@ -62,10 +62,10 @@ export async function getRecaptchaConfig(): Promise<RecaptchaConfigResponse> {
       cachedConfig = config
       return config
     } catch (err) {
+      // Not cached: a transient failure must not disable reCAPTCHA on the
+      // client for the rest of the session while the server still enforces it.
       console.warn('Failed to fetch reCAPTCHA config:', err)
-      const fallback = defaultConfig()
-      cachedConfig = fallback
-      return fallback
+      return defaultConfig()
     } finally {
       configFetchPromise = null
     }

@@ -6,6 +6,7 @@ import {
   HttpCode,
   HttpStatus,
   Logger,
+  NotFoundException,
   Post,
   Req,
   UseGuards,
@@ -24,7 +25,9 @@ import { FileInterceptor } from '../../common/interceptors/file.interceptor';
 import { EnvironmentService } from '../../integrations/environment/environment.service';
 import { Feature } from '../../common/features';
 import { RequireFeature } from '../common/decorators/require-feature.decorator';
-import { IsUUID } from 'class-validator';
+import { PageRepo } from '@docmost/db/repos/page/page.repo';
+import { PageAccessService } from '../../core/page/page-access/page-access.service';
+import { IsUUID, isUUID } from 'class-validator';
 import * as bytes from 'bytes';
 import * as path from 'path';
 import { EaImportMode, EaImportService } from './ea-import.service';
@@ -35,6 +38,7 @@ class EaCancelDto {
 }
 
 const VALID_FILE_EXTENSIONS = ['.xml', '.xmi', '.zip'];
+const VALID_MODES: readonly EaImportMode[] = ['replace', 'keep', 'merge'];
 
 @UseGuards(JwtAuthGuard)
 @Controller('pages')
@@ -44,6 +48,8 @@ export class EaImportController {
   constructor(
     private readonly eaImportService: EaImportService,
     private readonly spaceAbility: SpaceAbilityFactory,
+    private readonly pageRepo: PageRepo,
+    private readonly pageAccessService: PageAccessService,
     private readonly environmentService: EnvironmentService,
   ) {}
 
@@ -88,18 +94,28 @@ export class EaImportController {
 
     const spaceId = file.fields?.spaceId?.value;
     const rawMode = file.fields?.mode?.value;
-    const mode: EaImportMode | undefined =
-      rawMode === 'replace' || rawMode === 'keep' || rawMode === 'merge'
-        ? rawMode
-        : undefined;
+    const mode = VALID_MODES.find((m) => m === rawMode);
+    const parentPageId = file.fields?.parentPageId?.value || undefined;
 
-    if (!spaceId) {
+    if (!spaceId || !isUUID(spaceId)) {
       throw new BadRequestException('spaceId is required');
     }
+    if (parentPageId !== undefined && !isUUID(parentPageId)) {
+      throw new BadRequestException('Invalid parent page');
+    }
 
+    // Space editors only: replace/merge rewrite earlier imports in the space.
     const ability = await this.spaceAbility.createForUser(user, spaceId);
     if (ability.cannot(SpaceCaslAction.Edit, SpaceCaslSubject.Page)) {
       throw new ForbiddenException();
+    }
+    if (parentPageId) {
+      // Same rule as creating a sub-page: page-level permissions apply.
+      const parent = await this.pageRepo.findById(parentPageId);
+      if (!parent || parent.deletedAt || parent.spaceId !== spaceId) {
+        throw new NotFoundException('Parent page not found');
+      }
+      await this.pageAccessService.validateCanEdit(parent, user);
     }
 
     return this.eaImportService.enqueueEaImport(
@@ -108,7 +124,7 @@ export class EaImportController {
       spaceId,
       workspace.id,
       mode,
-      file.fields?.parentPageId?.value,
+      parentPageId,
     );
   }
 

@@ -12,6 +12,7 @@ import {
   Req,
   Res,
 } from '@nestjs/common';
+import { AuthThrottle } from '../mfa/auth-throttle.decorator';
 import { SsoAuthService } from './sso-auth.service';
 import { OidcAuthService } from './oidc-auth.service';
 import { FastifyReply, FastifyRequest } from 'fastify';
@@ -19,6 +20,7 @@ import { AuthWorkspace } from '../../common/decorators/auth-workspace.decorator'
 import { Workspace } from '@docmost/db/types/entity.types';
 import { EnvironmentService } from '../../integrations/environment/environment.service';
 import { SkipTransform } from '../../common/decorators/skip-transform.decorator';
+import { LdapLoginDto } from './dto/ldap-login.dto';
 
 @Controller('sso')
 export class SsoAuthController {
@@ -30,11 +32,12 @@ export class SsoAuthController {
     private readonly environmentService: EnvironmentService,
   ) {}
 
+  @AuthThrottle()
   @HttpCode(HttpStatus.OK)
   @Post('ldap/:providerId/login')
   async ldapLogin(
     @Param('providerId') providerId: string,
-    @Body() body: { username: string; password: string },
+    @Body() body: LdapLoginDto,
     @AuthWorkspace() workspace: Workspace,
     @Res({ passthrough: true }) res: FastifyReply,
   ) {
@@ -46,14 +49,17 @@ export class SsoAuthController {
     );
 
     if (result.requiresMfa || !result.authToken) {
-      return { requiresMfa: true };
+      // Same shape as core /auth/login so the client routes to the MFA
+      // challenge or the enforced-setup page.
+      return {
+        requiresMfa: true,
+        userHasMfa: result.userHasMfa,
+        requiresMfaSetup: result.requiresMfaSetup,
+        isMfaEnforced: result.isMfaEnforced,
+      };
     }
 
-    res.setCookie('authToken', result.authToken, {
-      httpOnly: true,
-      path: '/',
-      sameSite: 'lax',
-    });
+    this.setAuthCookie(res, result.authToken);
     return {};
   }
 
@@ -176,13 +182,7 @@ export class SsoAuthController {
         return { url: `${appUrl}/login/mfa`, statusCode: 302 };
       }
 
-      res.setCookie('authToken', result.authToken, {
-        httpOnly: true,
-        sameSite: 'lax',
-        path: '/',
-        expires: this.environmentService.getCookieExpiresIn(),
-        secure: this.environmentService.isHttps(),
-      });
+      this.setAuthCookie(res, result.authToken);
       return { url: `${appUrl}${result.redirect ?? '/'}`, statusCode: 302 };
     } catch (error) {
       this.logger.error(
@@ -192,5 +192,15 @@ export class SsoAuthController {
       res.clearCookie('oidc_state', { path: '/' });
       return { url: `${appUrl}/login?error=sso_failed`, statusCode: 302 };
     }
+  }
+
+  private setAuthCookie(res: FastifyReply, authToken: string) {
+    res.setCookie('authToken', authToken, {
+      httpOnly: true,
+      sameSite: 'lax',
+      path: '/',
+      expires: this.environmentService.getCookieExpiresIn(),
+      secure: this.environmentService.isHttps(),
+    });
   }
 }

@@ -1,4 +1,5 @@
-import { Global, Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
+import { isIP } from 'net';
 import { InjectKysely } from 'nestjs-kysely';
 import { ClsService } from 'nestjs-cls';
 import { KyselyDB } from '@docmost/db/types/kysely.types';
@@ -13,12 +14,16 @@ import {
 import { AuditLogPayload } from '../../common/events/audit-events';
 import { EXCLUDED_AUDIT_EVENTS } from '../../common/events/audit-events';
 import { sql } from 'kysely';
+import { AuditQueryService } from './audit-query.service';
 
 @Injectable()
 export class AuditLogService implements IAuditService {
+  private readonly logger = new Logger(AuditLogService.name);
+
   constructor(
     @InjectKysely() private readonly db: KyselyDB,
     private readonly cls: ClsService,
+    private readonly auditQueryService: AuditQueryService,
   ) {}
 
   log(payload: AuditLogPayload): void {
@@ -26,7 +31,7 @@ export class AuditLogService implements IAuditService {
     if (!context?.workspaceId) return;
     if (EXCLUDED_AUDIT_EVENTS.has(payload.event)) return;
 
-    void this.insertLog(payload, {
+    this.insertLogs([payload], {
       workspaceId: context.workspaceId,
       actorId: context.actorId ?? undefined,
       actorType: context.actorType,
@@ -37,17 +42,17 @@ export class AuditLogService implements IAuditService {
 
   logWithContext(payload: AuditLogPayload, context: AuditLogContext): void {
     if (EXCLUDED_AUDIT_EVENTS.has(payload.event)) return;
-    void this.insertLog(payload, context);
+    this.insertLogs([payload], context);
   }
 
   logBatchWithContext(
     payloads: AuditLogPayload[],
     context: AuditLogContext,
   ): void {
-    for (const payload of payloads) {
-      if (EXCLUDED_AUDIT_EVENTS.has(payload.event)) continue;
-      void this.insertLog(payload, context);
-    }
+    this.insertLogs(
+      payloads.filter((p) => !EXCLUDED_AUDIT_EVENTS.has(p.event)),
+      context,
+    );
   }
 
   setActorId(actorId: string): void {
@@ -70,34 +75,43 @@ export class AuditLogService implements IAuditService {
     workspaceId: string,
     retentionDays: number,
   ): Promise<void> {
-    await this.db
-      .updateTable('workspaces')
-      .set({ auditRetentionDays: retentionDays, updatedAt: new Date() })
-      .where('id', '=', workspaceId)
-      .execute();
+    await this.auditQueryService.updateRetention(workspaceId, retentionDays);
   }
 
-  private async insertLog(
-    payload: AuditLogPayload,
-    context: AuditLogContext,
-  ): Promise<void> {
-    await this.db
+  /**
+   * Fire-and-forget, one INSERT for the whole batch. Failures are logged, never
+   * thrown: callers don't await, so a rejection would be unhandled.
+   */
+  private insertLogs(payloads: AuditLogPayload[], context: AuditLogContext) {
+    if (payloads.length === 0) return;
+    // A non-IP value (proxy junk, "unknown") would fail the ::inet cast and
+    // drop the whole row.
+    const ipAddress =
+      context.ipAddress && isIP(context.ipAddress)
+        ? sql<string>`${context.ipAddress}::inet`
+        : null;
+    this.db
       .insertInto('audit')
-      .values({
-        workspaceId: context.workspaceId,
-        actorId: context.actorId ?? null,
-        actorType: context.actorType ?? 'user',
-        event: payload.event,
-        resourceType: payload.resourceType,
-        resourceId: payload.resourceId ?? null,
-        spaceId: payload.spaceId ?? null,
-        changes: payload.changes ?? null,
-        metadata: payload.metadata ?? null,
-        ipAddress: context.ipAddress
-          ? sql`${context.ipAddress}::inet`
-          : null,
-        userAgent: context.userAgent ?? null,
-      })
-      .execute();
+      .values(
+        payloads.map((payload) => ({
+          workspaceId: context.workspaceId,
+          actorId: context.actorId ?? null,
+          actorType: context.actorType ?? 'user',
+          event: payload.event,
+          resourceType: payload.resourceType,
+          resourceId: payload.resourceId ?? null,
+          spaceId: payload.spaceId ?? null,
+          changes: payload.changes ?? null,
+          metadata: payload.metadata ?? null,
+          ipAddress,
+          userAgent: context.userAgent ?? null,
+        })),
+      )
+      .execute()
+      .catch((err) =>
+        this.logger.error(
+          `Failed to write ${payloads.length} audit log(s): ${err?.message}`,
+        ),
+      );
   }
 }

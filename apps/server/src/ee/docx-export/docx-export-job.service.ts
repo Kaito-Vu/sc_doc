@@ -60,7 +60,9 @@ export class DocxExportJobService {
     body: Omit<DocxExportJobData, 'userId' | 'workspaceId'>,
   ): Promise<{ jobId: string }> {
     const page = await this.pageRepo.findById(body.pageId);
-    if (!page || page.deletedAt) throw new NotFoundException('Page not found');
+    if (!page || page.deletedAt || page.workspaceId !== workspaceId) {
+      throw new NotFoundException('Page not found');
+    }
     await this.pageAccessService.validateCanView(page, user);
 
     if ((await this.queue.getWaitingCount()) >= DOCX_EXPORT_MAX_WAITING) {
@@ -71,7 +73,8 @@ export class DocxExportJobService {
     const job = await this.queue.add(
       DOCX_EXPORT_JOB,
       {
-        pageId: body.pageId,
+        // Canonical id: body.pageId may be a slug.
+        pageId: page.id,
         includeChildren: !!body.includeChildren,
         singleFile: body.singleFile !== false,
         order: Array.isArray(body.order)

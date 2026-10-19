@@ -1,5 +1,9 @@
 import api from "@/lib/api-client";
 
+// Matches PluginsController.redactSecrets() on the backend: stored secrets are
+// returned as this placeholder, never in clear text.
+export const REDACTED_SECRET = "***REDACTED***";
+
 export interface IPlugin {
   id: string;
   name: string;

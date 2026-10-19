@@ -1,7 +1,7 @@
 import { INotification } from "@/features/notification/types/notification.types";
 
 export const docxDownloadUrl = (token: string) =>
-  `/api/docx-export/download/${token}`;
+  `/api/docx-export/download/${encodeURIComponent(token)}`;
 
 /** Download URL for a "docx_export.ready" notification, or undefined once its link has expired. */
 export function getDocxDownloadUrl(

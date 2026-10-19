@@ -33,9 +33,9 @@ export class BeforeInviteCreateHandler {
     if (shouldLog) {
       // For authenticated endpoints, we may not have reCAPTCHA token.
       // In that case, we log but don't block (rate limiting will be enforced separately).
-      // This handler provides additional protection for suspicious patterns.
+      // Log the count only: invitee emails are PII.
       this.logger.debug(
-        `Workspace invitations created by ${userId} for ${inviteInput.emails.join(', ')}`,
+        `Workspace invitations created by ${userId} for ${inviteInput.emails.length} recipient(s)`,
       )
     }
 

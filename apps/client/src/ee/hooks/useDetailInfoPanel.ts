@@ -4,11 +4,8 @@ export const useDetailInfoPanel = () => {
   const [isOpen, setIsOpen] = useState(true);
   const [isCollapsed, setIsCollapsed] = useState(false);
 
-  const toggle = useCallback(() => setIsOpen(!isOpen), [isOpen]);
-  const toggleCollapse = useCallback(
-    () => setIsCollapsed(!isCollapsed),
-    [isCollapsed]
-  );
+  const toggle = useCallback(() => setIsOpen((v) => !v), []);
+  const toggleCollapse = useCallback(() => setIsCollapsed((v) => !v), []);
 
   return {
     isOpen,

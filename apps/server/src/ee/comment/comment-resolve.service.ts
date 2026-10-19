@@ -44,10 +44,7 @@ export class CommentResolveService {
     user: User,
     workspaceId: string,
   ) {
-    const comment = await this.commentRepo.findById(data.commentId, {
-      includeCreator: true,
-      includeResolvedBy: true,
-    });
+    const comment = await this.commentRepo.findById(data.commentId);
     if (!comment || comment.pageId !== data.pageId) {
       throw new NotFoundException('Comment not found');
     }

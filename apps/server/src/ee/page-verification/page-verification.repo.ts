@@ -110,6 +110,23 @@ export class PageVerificationRepo {
       .execute();
   }
 
+  // Active users of the workspace among `userIds` (verifier candidates).
+  async findWorkspaceUserIds(
+    userIds: string[],
+    workspaceId: string,
+  ): Promise<string[]> {
+    if (userIds.length === 0) return [];
+    const rows = await this.db
+      .selectFrom('users')
+      .select('id')
+      .where('id', 'in', userIds)
+      .where('workspaceId', '=', workspaceId)
+      .where('deletedAt', 'is', null)
+      .where('deactivatedAt', 'is', null)
+      .execute();
+    return rows.map((r) => r.id);
+  }
+
   async getVerifiers(pageVerificationId: string) {
     return this.db
       .selectFrom('pageVerifiers')
@@ -300,8 +317,9 @@ export class PageVerificationRepo {
 
   async findLatestByPageId(
     pageId: string,
+    trx?: KyselyTransaction,
   ): Promise<PageVerification | undefined> {
-    return this.db
+    return dbOrTx(this.db, trx)
       .selectFrom('pageVerifications')
       .selectAll()
       .where('pageId', '=', pageId)

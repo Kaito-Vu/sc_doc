@@ -11,12 +11,11 @@ import {
   FxpNode,
   attributeOf,
   childrenOf,
-  createXmlParser,
-  decodeBuffer,
   findChildrenByLocal,
   firstChildByLocal,
   localTagOf,
   normalizeName,
+  parseXmlDocument,
   textOf,
 } from './ea-xml.util';
 
@@ -203,15 +202,7 @@ export function parseEaBpmn(buffer: Buffer): EaParseResult {
     throw new Error('parseEaBpmn expects a Buffer');
   }
 
-  const text = decodeBuffer(buffer);
-  if (/<!DOCTYPE/i.test(text) || /<!ENTITY/i.test(text)) {
-    throw new Error(
-      'BPMN input contains a DTD or entity declaration; refusing to parse',
-    );
-  }
-
-  const parser = createXmlParser();
-  const parsed = parser.parse(text) as FxpNode[];
+  const parsed = parseXmlDocument(buffer, 'BPMN');
   const warnings: EaParseWarning[] = [];
 
   const definitions = parsed.find((node) => localTagOf(node) === 'definitions');

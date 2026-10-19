@@ -6,26 +6,36 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { FastifyReply } from 'fastify';
+import { InjectKysely } from 'nestjs-kysely';
 import { AuthProviderRepo } from '../sso/auth-provider.repo';
+import { SsoService } from '../sso/sso.service';
 import { UserRepo } from '@docmost/db/repos/user/user.repo';
+import { KyselyDB } from '@docmost/db/types/kysely.types';
+import { executeTx } from '@docmost/db/utils';
 import { MfaGateService, MfaGateResult } from '../mfa/services/mfa-gate.service';
-import { Workspace } from '@docmost/db/types/entity.types';
+import { AuthProvider, Workspace } from '@docmost/db/types/entity.types';
 import { Client } from 'ldapts';
-import { UserRole } from '../../common/helpers/types/permission';
-import { nanoIdGen } from '../../common/helpers';
 import {
   AUDIT_SERVICE,
   IAuditService,
 } from '../../integrations/audit/audit.service';
 import { AuditEvent, AuditResource } from '../../common/events/audit-events';
+import { SsoUserProvisioningService } from './sso-user-provisioning.service';
+import { buildLdapUserFilter, firstLdapValue } from './ldap.util';
+
+const LDAP_TIMEOUT_MS = 10_000;
+const LDAP_CONNECT_TIMEOUT_MS = 5_000;
 
 @Injectable()
 export class SsoAuthService {
   constructor(
     private readonly authProviderRepo: AuthProviderRepo,
+    private readonly ssoService: SsoService,
     private readonly userRepo: UserRepo,
+    private readonly userProvisioning: SsoUserProvisioningService,
     private readonly mfaGateService: MfaGateService,
     @Inject(AUDIT_SERVICE) private readonly auditService: IAuditService,
+    @InjectKysely() private readonly db: KyselyDB,
   ) {}
 
   async ldapLogin(
@@ -45,77 +55,109 @@ export class SsoAuthService {
     if (!provider.ldapUrl || !provider.ldapBaseDn) {
       throw new BadRequestException('LDAP provider is not configured');
     }
+    // Defense in depth on top of the DTO: an empty password would make many
+    // LDAP servers accept an unauthenticated bind as a successful login.
+    if (!data.username || !data.password) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
 
-    const client = new Client({ url: provider.ldapUrl });
+    const entry = await this.authenticate(provider, data);
+
+    const email =
+      firstLdapValue(entry.mail) ||
+      `${firstLdapValue(entry.uid) ?? data.username}@${workspaceId}.ldap.local`;
+    const name = firstLdapValue(entry.cn) || data.username;
+
+    const user = await executeTx(this.db, async (trx) => {
+      const existing = await this.userRepo.findByEmail(email, workspaceId, {
+        trx,
+      });
+      if (existing) return existing;
+      if (!provider.allowSignup) return undefined;
+      return this.userProvisioning.provision({ email, name, workspaceId }, trx);
+    });
+    if (!user) {
+      throw new UnauthorizedException('User not provisioned');
+    }
+
+    return this.mfaGateService.checkAndChallenge(user, workspace, res, {
+      method: 'ldap',
+      providerId: provider.id,
+      providerName: provider.name,
+    });
+  }
+
+  /** Finds the user's entry with the service account, then binds as them. */
+  private async authenticate(
+    provider: AuthProvider,
+    data: { username: string; password: string },
+  ) {
+    const client = this.createClient(provider);
     try {
-      if (provider.ldapBindDn && provider.ldapBindPassword) {
-        await client.bind(provider.ldapBindDn, provider.ldapBindPassword);
+      if (provider.ldapTlsEnabled && provider.ldapUrl.startsWith('ldap://')) {
+        await client.startTLS(this.tlsOptions(provider) ?? {});
       }
-      const filter =
-        provider.ldapUserSearchFilter?.replace('{{username}}', data.username) ||
-        `(uid=${data.username})`;
+      if (provider.ldapBindDn && provider.ldapBindPassword) {
+        await client.bind(
+          provider.ldapBindDn,
+          this.ssoService.decryptSecret(provider.ldapBindPassword),
+        );
+      }
       const { searchEntries } = await client.search(provider.ldapBaseDn, {
         scope: 'sub',
-        filter,
+        filter: buildLdapUserFilter(
+          provider.ldapUserSearchFilter,
+          data.username,
+        ),
         attributes: ['mail', 'cn', 'uid'],
       });
-      if (!searchEntries.length) {
-        this.auditService.log({
-          event: AuditEvent.USER_LOGIN_FAILED,
-          resourceType: AuditResource.USER,
-          metadata: {
-            method: 'ldap',
-            providerId: provider.id,
-            providerName: provider.name,
-            failureReason: 'user_not_found',
-            attemptedEmail: data.username,
-          },
-        });
+      // An ambiguous filter must not let the first match win.
+      if (searchEntries.length !== 1) {
+        this.logFailure(provider, data.username, 'user_not_found');
         throw new UnauthorizedException('Invalid credentials');
       }
       const entry = searchEntries[0];
 
       try {
         await client.bind(entry.dn, data.password);
-      } catch (error) {
-        this.auditService.log({
-          event: AuditEvent.USER_LOGIN_FAILED,
-          resourceType: AuditResource.USER,
-          metadata: {
-            method: 'ldap',
-            providerId: provider.id,
-            providerName: provider.name,
-            failureReason: 'bind_failed',
-            attemptedEmail: data.username,
-          },
-        });
+      } catch {
+        this.logFailure(provider, data.username, 'bind_failed');
         throw new UnauthorizedException('Invalid credentials');
       }
-
-      const email =
-        (entry.mail as string) ||
-        `${data.username}@${workspaceId}.ldap.local`;
-      let user = await this.userRepo.findByEmail(email, workspaceId);
-      if (!user && provider.allowSignup) {
-        user = await this.userRepo.insertUser({
-          email,
-          name: (entry.cn as string) || data.username,
-          password: nanoIdGen(16),
-          workspaceId,
-          role: UserRole.MEMBER,
-        });
-      }
-      if (!user) {
-        throw new UnauthorizedException('User not provisioned');
-      }
-
-      return this.mfaGateService.checkAndChallenge(user, workspace, res, {
-        method: 'ldap',
-        providerId: provider.id,
-        providerName: provider.name,
-      });
+      return entry;
     } finally {
       await client.unbind().catch(() => undefined);
     }
+  }
+
+  private createClient(provider: AuthProvider): Client {
+    return new Client({
+      url: provider.ldapUrl,
+      timeout: LDAP_TIMEOUT_MS,
+      connectTimeout: LDAP_CONNECT_TIMEOUT_MS,
+      tlsOptions: this.tlsOptions(provider),
+    });
+  }
+
+  private tlsOptions(provider: AuthProvider) {
+    return provider.ldapTlsCaCert ? { ca: [provider.ldapTlsCaCert] } : undefined;
+  }
+
+  private logFailure(
+    provider: AuthProvider,
+    username: string,
+    failureReason: 'user_not_found' | 'bind_failed',
+  ) {
+    this.auditService.log({
+      event: AuditEvent.USER_LOGIN_FAILED,
+      resourceType: AuditResource.USER,
+      metadata: {
+        method: 'ldap',
+        providerId: provider.id,
+        providerName: provider.name,
+        failureReason,
+        attemptedEmail: username,
+      },
+    });
   }
 }

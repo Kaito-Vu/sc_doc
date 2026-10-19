@@ -36,6 +36,8 @@ export class EntraIdStrategy implements OidcProviderStrategy {
         'https://graph.microsoft.com/v1.0/me/photo/$value',
         {
           headers: { Authorization: `Bearer ${tokens.access_token}` },
+          // Avatar sync is best-effort; never let it stall the login.
+          signal: AbortSignal.timeout(5000),
         },
       );
       if (res.status === 404) {

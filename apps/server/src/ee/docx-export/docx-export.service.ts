@@ -36,6 +36,14 @@ async function pool<T>(items: T[], limit: number, fn: (t: T) => Promise<void>) {
 const swapExt = (src: string, ext: string) =>
   src.replace(/\.[^./?]+$/, '') + '.' + ext;
 
+interface PreparedPage {
+  title: string;
+  level: number;
+  nodes: any[];
+  /** sha1 -> mermaid source of this page's diagrams. */
+  mermaid: Map<string, string>;
+}
+
 @Injectable()
 export class DocxExportService {
   private readonly logger = new Logger(DocxExportService.name);
@@ -103,11 +111,23 @@ export class DocxExportService {
     return items;
   }
 
+  /** Loads the export root, scoped to the user's workspace, and checks view access. */
+  private async getRootOrThrow(
+    pageId: string,
+    user: User,
+    includeContent = false,
+  ) {
+    const root = await this.pageRepo.findById(pageId, { includeContent });
+    if (!root || root.deletedAt || root.workspaceId !== user.workspaceId) {
+      throw new NotFoundException('Page not found');
+    }
+    await this.pageAccessService.validateCanView(root, user);
+    return root;
+  }
+
   /** Flat, ordered subpage list for the export dialog's reorder UI. */
   async listTree(pageId: string, user: User) {
-    const root = await this.pageRepo.findById(pageId);
-    if (!root || root.deletedAt) throw new NotFoundException('Page not found');
-    await this.pageAccessService.validateCanView(root, user);
+    const root = await this.getRootOrThrow(pageId, user);
     const items = await this.collectTree(root, user, { includeContent: false });
     return items.map(({ page, level }) => ({
       id: page.id,
@@ -122,11 +142,7 @@ export class DocxExportService {
     user: User,
     opts: DocxExportOptions,
   ): Promise<{ body: Buffer; ext: 'docx' | 'zip'; title: string }> {
-    const root = await this.pageRepo.findById(pageId, { includeContent: true });
-    if (!root || root.deletedAt) {
-      throw new NotFoundException('Page not found');
-    }
-    await this.pageAccessService.validateCanView(root, user);
+    const root = await this.getRootOrThrow(pageId, user, true);
 
     const title = root.title || 'Untitled';
     const multiFile = !!opts.includeChildren && !opts.singleFile;
@@ -139,51 +155,16 @@ export class DocxExportService {
       : [{ page: root, level: 1 }];
 
     const appUrl = this.env.getAppUrl();
-    const mermaid = new Map<string, string>();
-    const prepared = items.map(({ page, level }) => ({
-      title: page.title || 'Untitled',
-      level,
-      nodes: (getProsemirrorContent(page.content)?.content ?? []).map(
+    const prepared: PreparedPage[] = items.map(({ page, level }) => {
+      const mermaid = new Map<string, string>();
+      const nodes = (getProsemirrorContent(page.content)?.content ?? []).map(
         (n: any) => this.prepareNode(n, multiFile ? 1 : level, appUrl, mermaid),
-      ),
-    }));
-    const images = await this.prefetchImages(
-      prepared,
-      new Set(items.map((i) => i.page.id)),
-      mermaid,
-    );
-
-    const resolver = (src: string) => this.imageFrom(images, src);
-    // Every page after the first starts on a new sheet; with a ToC the first one does too.
-    const render = (parts: typeof prepared, breaks: boolean, toc: boolean) =>
-      pageNodeToDocxBuffer(
-        jsonToNode({
-          type: 'doc',
-          content: parts.flatMap((p, i) => [
-            ...(breaks && (i > 0 || toc) ? [{ type: 'pageBreak' }] : []),
-            {
-              type: 'heading',
-              attrs: { level: Math.min(p.level, 6) },
-              content: [{ type: 'text', text: p.title }],
-            },
-            ...p.nodes,
-          ]),
-        } as any),
-        resolver,
       );
-
-    // One .docx for the given pages, with a ToC when requested (single file and each zip entry alike).
-    const build = async (parts: typeof prepared) => {
-      const toc = !!opts.toc;
-      const buf = await fitDocx(await render(parts, true, toc));
-      return toc
-        ? addToc(
-            buf,
-            this.tocEntries(parts),
-            opts.tocTitle || 'Table of contents',
-          )
-        : buf;
-    };
+      return { title: page.title || 'Untitled', level, nodes, mermaid };
+    });
+    const allowedPageIds = new Set(items.map((i) => i.page.id));
+    const build = (parts: PreparedPage[]) =>
+      this.buildDocx(parts, allowedPageIds, opts);
 
     if (!multiFile) return { body: await build(prepared), ext: 'docx', title };
 
@@ -201,6 +182,40 @@ export class DocxExportService {
       compression: 'DEFLATE',
     });
     return { body, ext: 'zip', title };
+  }
+
+  /**
+   * One .docx for the given pages, with a ToC when requested (single file and
+   * each zip entry alike). Images are fetched per call, so a multi-file export
+   * only holds one page's images in memory at a time.
+   */
+  private async buildDocx(
+    parts: PreparedPage[],
+    allowedPageIds: Set<string>,
+    opts: DocxExportOptions,
+  ): Promise<Buffer> {
+    const images = await this.prefetchImages(parts, allowedPageIds);
+    const toc = !!opts.toc;
+    // Every page after the first starts on a new sheet; with a ToC the first one does too.
+    const docx = await pageNodeToDocxBuffer(
+      jsonToNode({
+        type: 'doc',
+        content: parts.flatMap((p, i) => [
+          ...(i > 0 || toc ? [{ type: 'pageBreak' }] : []),
+          {
+            type: 'heading',
+            attrs: { level: Math.min(p.level, 6) },
+            content: [{ type: 'text', text: p.title }],
+          },
+          ...p.nodes,
+        ]),
+      } as any),
+      (src: string) => this.imageFrom(images, src),
+    );
+    const buf = await fitDocx(docx);
+    return toc
+      ? addToc(buf, this.tocEntries(parts), opts.tocTitle || 'Table of contents')
+      : buf;
   }
 
   /** Page titles and body headings (levels 1-3) for the table of contents. */
@@ -221,10 +236,10 @@ export class DocxExportService {
 
   /** Batch-loads every image of the export (one DB query, bounded parallel reads/renders). */
   private async prefetchImages(
-    pages: { nodes: any[] }[],
+    pages: PreparedPage[],
     allowedPageIds: Set<string>,
-    mermaid: Map<string, string>,
   ): Promise<Map<string, Buffer>> {
+    const mermaid = new Map(pages.flatMap((p) => [...p.mermaid]));
     const json = JSON.stringify(pages.map((p) => p.nodes));
     const ids = [...new Set([...json.matchAll(FILE_ID_RE)].map((m) => m[1]))];
     const atts = (await this.attachmentRepo.findByIds(ids)).filter(

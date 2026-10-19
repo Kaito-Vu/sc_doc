@@ -16,14 +16,14 @@ import {
   FxpNode,
   attributeOf,
   childrenOf,
-  createXmlParser,
-  decodeBuffer,
   findChildren,
   firstChild,
+  leadingInteger,
   normalizeName,
+  parseXmlDocument,
   tagOf,
 } from './ea-xml.util';
-import { splitMultiItems } from './ea-import.util';
+import { errorMessage, splitMultiItems } from './ea-import.util';
 
 /**
  * Enterprise Architect XMI 2.1 (`<xmi:XMI xmi:version="2.1">`) -> package tree.
@@ -37,11 +37,6 @@ export function isXmi21Document(buffer: Buffer): boolean {
 }
 
 const type = (n: FxpNode) => attributeOf(n, 'xmi:type');
-
-function leadingInteger(name: string): number | undefined {
-  const m = /^\s*(\d+)/.exec(name);
-  return m ? parseInt(m[1], 10) : undefined;
-}
 
 function collect(nodes: FxpNode[], out: FxpNode[]): void {
   for (const node of nodes) {
@@ -77,12 +72,11 @@ function extractFlow(direct: FxpNode[], node: EaPackageNode): void {
     }
   }
 
+  const elementSet = new Set(elements);
   for (const el of elements) {
     const id = attributeOf(el, 'xmi:id');
     // leaf activities only: the wrapper activity (EA_Activity1) just holds lanes
-    const nested = elements.some(
-      (o) => o !== el && childrenOf(el).includes(o),
-    );
+    const nested = childrenOf(el).some((child) => elementSet.has(child));
     if (!id || type(el) !== 'uml:Activity' || nested) continue;
     const activity: EaActivity = {
       id,
@@ -95,13 +89,7 @@ function extractFlow(direct: FxpNode[], node: EaPackageNode): void {
 }
 
 export function parseEaXmi21(buffer: Buffer): EaParseResult {
-  const text = decodeBuffer(buffer);
-  if (/<!DOCTYPE/i.test(text) || /<!ENTITY/i.test(text)) {
-    throw new Error(
-      'EA XMI input contains a DTD or entity declaration; refusing to parse',
-    );
-  }
-  const parsed = createXmlParser().parse(text) as FxpNode[];
+  const parsed = parseXmlDocument(buffer, 'EA XMI');
   const warnings: EaParseWarning[] = [];
 
   const xmi = firstChild(parsed, 'xmi:XMI');
@@ -167,7 +155,7 @@ export function parseEaXmi21(buffer: Buffer): EaParseResult {
       } catch (error) {
         warnings.push({
           page: name,
-          reason: `Failed to read child package: ${error instanceof Error ? error.message : error}`,
+          reason: `Failed to read child package: ${errorMessage(error)}`,
         });
       }
     }

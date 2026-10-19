@@ -1,4 +1,8 @@
-import { useQuery, UseQueryResult } from "@tanstack/react-query";
+import {
+  keepPreviousData,
+  useQuery,
+  UseQueryResult,
+} from "@tanstack/react-query";
 import {
   getSpaceStatistics,
   getSpaceTopContributors,
@@ -29,6 +33,8 @@ export function useWorkspaceTopContributorsQuery(
   return useQuery({
     queryKey: ["workspace-top-contributors", period],
     queryFn: () => getWorkspaceTopContributors(period),
+    // Keep the current list on screen while another period loads.
+    placeholderData: keepPreviousData,
     enabled,
   });
 }
@@ -52,6 +58,9 @@ export function useSpaceTopContributorsQuery(
   return useQuery({
     queryKey: ["space-top-contributors", spaceId, period],
     queryFn: () => getSpaceTopContributors(spaceId, period),
+    // Only across a period switch; never show another space's contributors.
+    placeholderData: (prev, prevQuery) =>
+      prevQuery?.queryKey[1] === spaceId ? prev : undefined,
     enabled: enabled && !!spaceId,
   });
 }

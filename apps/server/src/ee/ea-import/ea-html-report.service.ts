@@ -16,13 +16,15 @@ import {
   AUDIT_SERVICE,
   IAuditService,
 } from '../../integrations/audit/audit.service';
-import { ImportService } from '../../integrations/import/services/import.service';
 import { ImportAttachmentService } from '../../integrations/import/services/import-attachment.service';
 import { buildAttachmentCandidates } from '../../integrations/import/utils/import.utils';
 import { PageService } from '../../core/page/services/page.service';
-import { inspectEaArchive } from './ea-asset.util';
+import { generateJitteredKeyBetween } from 'fractional-indexing-jittered';
+import { EaArchiveInspection, inspectEaArchive } from './ea-asset.util';
 import { fileStem, pickPageTitle, pickReportTitle } from './ea-html-report.util';
-import { stripDuplicateLeadingHeading } from './ea-content.builder';
+import { EaCpuJob, toYdoc } from './ea-cpu.tasks';
+import { runEaCpuJobs } from './ea-cpu.pool';
+import { errorMessage } from './ea-import.util';
 import { EaParseWarning } from './types/ea-import.types';
 
 /**
@@ -47,14 +49,12 @@ export interface EaHtmlReportResult {
   warnings: EaParseWarning[];
 }
 
+const INSERT_BATCH = 20;
+
 const EMPTY_DOC = {
   type: 'doc',
   content: [{ type: 'paragraph', content: [] }],
 };
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
 
 /**
  * Resolve `relativePath` inside `rootDir`, rejecting zip-slip entries that
@@ -77,7 +77,6 @@ export class EaHtmlReportService {
   private readonly logger = new Logger(EaHtmlReportService.name);
 
   constructor(
-    private readonly importService: ImportService,
     private readonly pageService: PageService,
     private readonly importAttachmentService: ImportAttachmentService,
     @InjectKysely() private readonly db: KyselyDB,
@@ -87,6 +86,8 @@ export class EaHtmlReportService {
 
   async importHtmlReport(opts: {
     buffer: Buffer;
+    /** The already-inspected archive, to avoid unzipping it twice. */
+    archive?: EaArchiveInspection;
     fileTask: FileTask;
     spaceId: string;
     workspaceId: string;
@@ -96,7 +97,7 @@ export class EaHtmlReportService {
   }): Promise<EaHtmlReportResult> {
     const { buffer, fileTask, spaceId, workspaceId, creatorId } = opts;
 
-    const archive = await inspectEaArchive(buffer);
+    const archive = opts.archive ?? (await inspectEaArchive(buffer));
     if (archive.htmlPages.length === 0) {
       throw new Error('No HTML pages found in EA HTML report');
     }
@@ -137,55 +138,62 @@ export class EaHtmlReportService {
 
       const attachmentCandidates = await buildAttachmentCandidates(tmpDir);
 
-      const prepared: Array<{
-        id: string;
-        title: string;
-        content: any;
-        ydoc: Buffer | null;
-      }> = [];
-
+      // Phase A (I/O): upload each page's attachments, rewriting its HTML.
+      const jobs: Array<Extract<EaCpuJob, { kind: 'page' }>> = [];
       for (const [index, page] of pages.entries()) {
-        await opts.onProgress?.(10 + (80 * index) / pages.length);
-        const pageId = v7();
+        await opts.onProgress?.(10 + (40 * index) / pages.length);
+        const id = v7();
         const html = page.html.toString('utf-8');
         const fallback = fileStem(page.relativePath) || 'Untitled';
         const title = (pickPageTitle(html, fallback) || 'Untitled').normalize(
           'NFC',
         );
-
         try {
           const withAttachments =
             await this.importAttachmentService.processAttachments({
               html,
               pageRelativePath: page.relativePath,
               extractDir: tmpDir,
-              pageId,
+              pageId: id,
               fileTask,
               attachmentCandidates,
             });
-
-          const prosemirrorJson =
-            await this.importService.processHTML(withAttachments);
-          const content = stripDuplicateLeadingHeading(prosemirrorJson, title);
-          const ydoc = await this.importService.createYdoc(content);
-          prepared.push({ id: pageId, title, content, ydoc });
+          jobs.push({ kind: 'page', id, html: withAttachments, title });
         } catch (error) {
           warnings.push({
             page: title,
             reason: `Failed to convert page content: ${errorMessage(error)}`,
           });
-          let ydoc: Buffer | null = null;
-          try {
-            ydoc = await this.importService.createYdoc(EMPTY_DOC);
-          } catch {
-            ydoc = null;
-          }
-          prepared.push({ id: pageId, title, content: EMPTY_DOC, ydoc });
+          jobs.push({ kind: 'page', id, html: '', title });
         }
       }
 
+      // Phase B (CPU): HTML -> ProseMirror -> Yjs on the EA worker pool.
+      let converted = 0;
+      const results = await runEaCpuJobs(jobs, async () => {
+        converted += 1;
+        await opts.onProgress?.(50 + (40 * converted) / jobs.length);
+      });
+      const prepared = jobs.map((job) => {
+        const result = results.get(job.id);
+        if (result?.error) {
+          warnings.push({
+            page: job.title,
+            reason: `Failed to convert page content: ${result.error}`,
+          });
+        }
+        return {
+          id: job.id,
+          title: job.title,
+          content: result?.content ?? EMPTY_DOC,
+          ydoc: result?.ydoc ? Buffer.from(result.ydoc) : null,
+        };
+      });
+
       const containerId = v7();
-      const containerYdoc = await this.importService.createYdoc(EMPTY_DOC);
+      const containerYdoc = Buffer.from(toYdoc(EMPTY_DOC));
+      // Last cancellable point before the pages are committed.
+      await opts.onProgress?.(92);
 
       const pageIds: string[] = [];
       const rootPageIds: string[] = [];
@@ -214,13 +222,12 @@ export class EaHtmlReportService {
         pageIds.push(containerId);
         rootPageIds.push(containerId);
 
+        // The container is new, so its children's positions chain in memory.
+        let position: string | null = null;
+        const rows: InsertablePage[] = [];
         for (const page of prepared) {
-          const position = await this.pageService.nextPagePosition(
-            spaceId,
-            containerId,
-            trx,
-          );
-          const insertable: InsertablePage = {
+          position = generateJitteredKeyBetween(position, null);
+          rows.push({
             id: page.id,
             slugId: generateSlugId(),
             title: page.title,
@@ -233,9 +240,14 @@ export class EaHtmlReportService {
             creatorId,
             lastUpdatedById: creatorId,
             parentPageId: containerId,
-          };
-          await trx.insertInto('pages').values(insertable).execute();
+          });
           pageIds.push(page.id);
+        }
+        for (let i = 0; i < rows.length; i += INSERT_BATCH) {
+          await trx
+            .insertInto('pages')
+            .values(rows.slice(i, i + INSERT_BATCH))
+            .execute();
         }
       });
 

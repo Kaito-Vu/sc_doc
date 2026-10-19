@@ -71,7 +71,8 @@ export class AiChatRepo {
   }
 
   async searchChats(workspaceId: string, creatorId: string, query: string) {
-    const term = `%${query}%`;
+    // Escape LIKE wildcards so the query is matched literally.
+    const term = `%${query.replace(/[\\%_]/g, '\\$&')}%`;
     return this.db
       .selectFrom('aiChats')
       .selectAll()

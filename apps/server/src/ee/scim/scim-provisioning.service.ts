@@ -10,6 +10,15 @@ import { GroupRepo } from '@docmost/db/repos/group/group.repo';
 import { nanoIdGen } from '../../common/helpers';
 import { UserRole } from '../../common/helpers/types/permission';
 
+const MAX_PAGE_SIZE = 200;
+
+/** SCIM paging is 1-based; clamp untrusted query values to sane bounds. */
+function toPage(startIndex: number, count: number) {
+  const start = Math.max(1, Math.floor(startIndex) || 1);
+  const size = Math.min(MAX_PAGE_SIZE, Math.max(0, Math.floor(count) || 0));
+  return { start, size, offset: start - 1 };
+}
+
 @Injectable()
 export class ScimProvisioningService {
   constructor(
@@ -51,14 +60,25 @@ export class ScimProvisioningService {
   }
 
   async listUsers(workspaceId: string, startIndex = 1, count = 100) {
+    const page = toPage(startIndex, count);
     const rows = await this.db
       .selectFrom('users')
-      .selectAll()
+      .select([
+        'id',
+        'email',
+        'name',
+        'scimExternalId',
+        'deactivatedAt',
+        'deletedAt',
+        'createdAt',
+        'updatedAt',
+      ])
       .where('workspaceId', '=', workspaceId)
       .where('deletedAt', 'is', null)
       .orderBy('createdAt', 'asc')
-      .offset(Math.max(0, startIndex - 1))
-      .limit(count)
+      .orderBy('id', 'asc')
+      .offset(page.offset)
+      .limit(page.size)
       .execute();
 
     const total = await this.db
@@ -71,8 +91,8 @@ export class ScimProvisioningService {
     return {
       schemas: ['urn:ietf:params:scim:api:messages:2.0:ListResponse'],
       totalResults: Number(total?.count ?? 0),
-      startIndex,
-      itemsPerPage: count,
+      startIndex: page.start,
+      itemsPerPage: rows.length,
       Resources: rows.map((u) => this.mapUser(u)),
     };
   }
@@ -88,7 +108,7 @@ export class ScimProvisioningService {
   async createUser(workspaceId: string, body: any) {
     const email =
       body?.emails?.[0]?.value || body?.userName || body?.email;
-    if (!email) {
+    if (typeof email !== 'string' || !email.includes('@')) {
       throw new BadRequestException('userName or emails required');
     }
     const existing = await this.userRepo.findByEmail(email, workspaceId);
@@ -133,30 +153,39 @@ export class ScimProvisioningService {
   }
 
   async listGroups(workspaceId: string, startIndex = 1, count = 100) {
+    const page = toPage(startIndex, count);
     const groups = await this.db
       .selectFrom('groups')
       .selectAll()
       .where('workspaceId', '=', workspaceId)
       .where('deletedAt', 'is', null)
       .orderBy('createdAt', 'asc')
-      .offset(Math.max(0, startIndex - 1))
-      .limit(count)
+      .orderBy('id', 'asc')
+      .offset(page.offset)
+      .limit(page.size)
       .execute();
 
-    const resources = [];
-    for (const group of groups) {
-      const members = await this.db
+    // One query for all groups' members instead of one per group.
+    const membersByGroup = new Map<string, string[]>();
+    if (groups.length) {
+      const rows = await this.db
         .selectFrom('groupUsers')
-        .select('userId')
-        .where('groupId', '=', group.id)
+        .select(['groupId', 'userId'])
+        .where(
+          'groupId',
+          'in',
+          groups.map((g) => g.id),
+        )
         .execute();
-      resources.push(
-        this.mapGroup(
-          group,
-          members.map((m) => m.userId),
-        ),
-      );
+      for (const row of rows) {
+        const list = membersByGroup.get(row.groupId) ?? [];
+        list.push(row.userId);
+        membersByGroup.set(row.groupId, list);
+      }
     }
+    const resources = groups.map((group) =>
+      this.mapGroup(group, membersByGroup.get(group.id) ?? []),
+    );
 
     const total = await this.db
       .selectFrom('groups')
@@ -168,8 +197,8 @@ export class ScimProvisioningService {
     return {
       schemas: ['urn:ietf:params:scim:api:messages:2.0:ListResponse'],
       totalResults: Number(total?.count ?? 0),
-      startIndex,
-      itemsPerPage: count,
+      startIndex: page.start,
+      itemsPerPage: resources.length,
       Resources: resources,
     };
   }

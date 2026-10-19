@@ -22,7 +22,7 @@ import {
   PagePermissionRole,
 } from '../../common/helpers/types/permission';
 import { PaginationOptions } from '@docmost/db/pagination/pagination-options';
-import { KyselyDB } from '@docmost/db/types/kysely.types';
+import { KyselyDB, KyselyTransaction } from '@docmost/db/types/kysely.types';
 import { sql } from 'kysely';
 import {
   AUDIT_SERVICE,
@@ -31,6 +31,8 @@ import {
 import { AuditEvent, AuditResource } from '../../common/events/audit-events';
 import { QueueJob, QueueName } from '../../integrations/queue/constants';
 import { executeTx } from '@docmost/db/utils';
+import { WsService } from '../../ws/ws.service';
+import { CollabAccessService } from '../../collaboration/services/collab-access.service';
 
 @Injectable()
 export class PagePermissionService {
@@ -43,6 +45,8 @@ export class PagePermissionService {
     @Inject(AUDIT_SERVICE) private readonly auditService: IAuditService,
     @InjectQueue(QueueName.NOTIFICATION_QUEUE)
     private readonly notificationQueue: Queue,
+    private readonly wsService: WsService,
+    private readonly collabAccess: CollabAccessService,
   ) {}
 
   private async getPageOrThrow(pageId: string): Promise<Page> {
@@ -53,24 +57,22 @@ export class PagePermissionService {
     return page;
   }
 
+  // Space admins (incl. workspace owners/admins) always manage. Otherwise a
+  // restricted page (direct or inherited) needs page-level writer access;
+  // space-level Manage(Page) alone is not enough since space writers hold it.
   private async canManagePermissions(
     user: User,
     page: Page,
   ): Promise<boolean> {
     const ability = await this.spaceAbility.createForUser(user, page.spaceId);
-    if (ability.can(SpaceCaslAction.Manage, SpaceCaslSubject.Page)) {
+    if (ability.can(SpaceCaslAction.Manage, SpaceCaslSubject.Settings)) {
       return true;
     }
 
-    const pageAccess = await this.pagePermissionRepo.findPageAccessByPageId(
-      page.id,
-    );
-    if (pageAccess) {
-      const perm = await this.pagePermissionRepo.getUserPagePermission(
-        user.id,
-        page.id,
-      );
-      return perm?.role === PagePermissionRole.WRITER;
+    const { hasAnyRestriction, canEdit } =
+      await this.pagePermissionRepo.canUserEditPage(user.id, page.id);
+    if (hasAnyRestriction) {
+      return canEdit;
     }
 
     if (page.creatorId === user.id) {
@@ -84,6 +86,118 @@ export class PagePermissionService {
     if (!(await this.canManagePermissions(user, page))) {
       throw new ForbiddenException();
     }
+  }
+
+  // Drop live sessions/subscriptions that may have just lost access.
+  private async onAccessReduced(page: Page): Promise<void> {
+    await this.wsService.invalidateSpaceRestrictionCache(page.spaceId);
+    await this.collabAccess.recheckAccess({ pageIds: [page.id] });
+    await this.wsService.removeBaseSubscribersWithoutAccess([page.id]);
+  }
+
+  private async getPageAccessOrThrow(pageId: string, message: string) {
+    const pageAccess =
+      await this.pagePermissionRepo.findPageAccessByPageId(pageId);
+    if (!pageAccess) {
+      throw new BadRequestException(message);
+    }
+    return pageAccess;
+  }
+
+  // Locks the page_access row so concurrent removals/demotions serialize
+  // and cannot together strip the last writer.
+  private async lockPageAccess(pageAccessId: string, trx: KyselyTransaction) {
+    await trx
+      .selectFrom('pageAccess')
+      .select('id')
+      .where('id', '=', pageAccessId)
+      .forUpdate()
+      .executeTakeFirst();
+  }
+
+  private async assertKeepsAWriter(
+    pageAccessId: string,
+    target: { userIds: string[]; groupIds: string[] },
+    message: string,
+    trx: KyselyTransaction,
+  ): Promise<void> {
+    const { userIds, groupIds } = target;
+    if (userIds.length === 0 && groupIds.length === 0) return;
+
+    const row = await trx
+      .selectFrom('pagePermissions')
+      .select((eb) => eb.fn.countAll<string>().as('count'))
+      .where('pageAccessId', '=', pageAccessId)
+      .where('role', '=', PagePermissionRole.WRITER)
+      .where((eb) =>
+        eb.or([
+          ...(userIds.length > 0 ? [eb('userId', 'in', userIds)] : []),
+          ...(groupIds.length > 0 ? [eb('groupId', 'in', groupIds)] : []),
+        ]),
+      )
+      .executeTakeFirst();
+    const removing = Number(row?.count ?? 0);
+    if (removing === 0) return;
+
+    const writerCount =
+      await this.pagePermissionRepo.countWritersByPageAccessId(pageAccessId, {
+        trx,
+      });
+    if (writerCount <= removing) {
+      throw new BadRequestException(message);
+    }
+  }
+
+  // Only members of this workspace that are not already on the page.
+  private async filterNewMembers(
+    pageAccessId: string,
+    workspaceId: string,
+    userIds: string[],
+    groupIds: string[],
+  ): Promise<{ userIds: string[]; groupIds: string[] }> {
+    const [users, groups] = await Promise.all([
+      userIds.length === 0
+        ? []
+        : this.db
+            .selectFrom('users')
+            .select('users.id')
+            .where('users.id', 'in', userIds)
+            .where('users.workspaceId', '=', workspaceId)
+            .where('users.deletedAt', 'is', null)
+            .where(({ not, exists, selectFrom }) =>
+              not(
+                exists(
+                  selectFrom('pagePermissions')
+                    .select('pagePermissions.id')
+                    .whereRef('pagePermissions.userId', '=', 'users.id')
+                    .where('pagePermissions.pageAccessId', '=', pageAccessId),
+                ),
+              ),
+            )
+            .execute(),
+      groupIds.length === 0
+        ? []
+        : this.db
+            .selectFrom('groups')
+            .select('groups.id')
+            .where('groups.id', 'in', groupIds)
+            .where('groups.workspaceId', '=', workspaceId)
+            .where(({ not, exists, selectFrom }) =>
+              not(
+                exists(
+                  selectFrom('pagePermissions')
+                    .select('pagePermissions.id')
+                    .whereRef('pagePermissions.groupId', '=', 'groups.id')
+                    .where('pagePermissions.pageAccessId', '=', pageAccessId),
+                ),
+              ),
+            )
+            .execute(),
+    ]);
+    return {
+      userIds: users.map((u) => u.id),
+      groupIds: groups.map((g) => g.id),
+    };
   }
 
   private async getInheritedFrom(pageId: string) {
@@ -126,7 +240,7 @@ export class PagePermissionService {
     await this.assertCanManage(user, page);
 
     const existing = await this.pagePermissionRepo.findPageAccessByPageId(
-      pageId,
+      page.id,
     );
     if (existing) {
       throw new BadRequestException('Page is already restricted');
@@ -157,6 +271,8 @@ export class PagePermissionService {
       );
     });
 
+    await this.onAccessReduced(page);
+
     this.auditService.log({
       event: AuditEvent.PAGE_RESTRICTED,
       resourceType: AuditResource.PAGE,
@@ -170,13 +286,14 @@ export class PagePermissionService {
     await this.assertCanManage(user, page);
 
     const pageAccess = await this.pagePermissionRepo.findPageAccessByPageId(
-      pageId,
+      page.id,
     );
     if (!pageAccess) {
       return;
     }
 
-    await this.pagePermissionRepo.deletePageAccess(pageId);
+    await this.pagePermissionRepo.deletePageAccess(page.id);
+    await this.wsService.invalidateSpaceRestrictionCache(page.spaceId);
 
     this.auditService.log({
       event: AuditEvent.PAGE_RESTRICTION_REMOVED,
@@ -199,17 +316,22 @@ export class PagePermissionService {
     const page = await this.getPageOrThrow(data.pageId);
     await this.assertCanManage(user, page);
 
-    const pageAccess = await this.pagePermissionRepo.findPageAccessByPageId(
-      data.pageId,
+    const pageAccess = await this.getPageAccessOrThrow(
+      page.id,
+      'Page must be restricted first',
     );
-    if (!pageAccess) {
-      throw new BadRequestException('Page must be restricted first');
-    }
 
-    const userIds = data.userIds ?? [];
-    const groupIds = data.groupIds ?? [];
-    if (userIds.length === 0 && groupIds.length === 0) {
+    if (!data.userIds?.length && !data.groupIds?.length) {
       throw new BadRequestException('No members specified');
+    }
+    const { userIds, groupIds } = await this.filterNewMembers(
+      pageAccess.id,
+      workspaceId,
+      data.userIds ?? [],
+      data.groupIds ?? [],
+    );
+    if (userIds.length === 0 && groupIds.length === 0) {
+      return;
     }
 
     const permissions = [
@@ -256,47 +378,35 @@ export class PagePermissionService {
     const page = await this.getPageOrThrow(data.pageId);
     await this.assertCanManage(user, page);
 
-    const pageAccess = await this.pagePermissionRepo.findPageAccessByPageId(
-      data.pageId,
+    const pageAccess = await this.getPageAccessOrThrow(
+      page.id,
+      'Page is not restricted',
     );
-    if (!pageAccess) {
-      throw new BadRequestException('Page is not restricted');
-    }
 
     const userIds = data.userIds ?? [];
     const groupIds = data.groupIds ?? [];
 
-    if (userIds.length > 0) {
-      const removingWriter = await this.db
-        .selectFrom('pagePermissions')
-        .select('id')
-        .where('pageAccessId', '=', pageAccess.id)
-        .where('userId', 'in', userIds)
-        .where('role', '=', PagePermissionRole.WRITER)
-        .execute();
-
-      if (removingWriter.length > 0) {
-        const writerCount =
-          await this.pagePermissionRepo.countWritersByPageAccessId(
-            pageAccess.id,
-          );
-        if (writerCount <= removingWriter.length) {
-          throw new BadRequestException('Cannot remove the last writer');
-        }
-      }
-
+    await executeTx(this.db, async (trx) => {
+      await this.lockPageAccess(pageAccess.id, trx);
+      await this.assertKeepsAWriter(
+        pageAccess.id,
+        { userIds, groupIds },
+        'Cannot remove the last writer',
+        trx,
+      );
       await this.pagePermissionRepo.deletePagePermissionsByUserIds(
         pageAccess.id,
         userIds,
+        trx,
       );
-    }
-
-    if (groupIds.length > 0) {
       await this.pagePermissionRepo.deletePagePermissionsByGroupIds(
         pageAccess.id,
         groupIds,
+        trx,
       );
-    }
+    });
+
+    await this.onAccessReduced(page);
 
     this.auditService.log({
       event: AuditEvent.PAGE_PERMISSION_REMOVED,
@@ -316,42 +426,44 @@ export class PagePermissionService {
     },
     user: User,
   ) {
+    // Without a target the repo update would rewrite every permission row.
+    if (!data.userId === !data.groupId) {
+      throw new BadRequestException('Specify exactly one of userId or groupId');
+    }
+
     const page = await this.getPageOrThrow(data.pageId);
     await this.assertCanManage(user, page);
 
-    const pageAccess = await this.pagePermissionRepo.findPageAccessByPageId(
-      data.pageId,
+    const pageAccess = await this.getPageAccessOrThrow(
+      page.id,
+      'Page is not restricted',
     );
-    if (!pageAccess) {
-      throw new BadRequestException('Page is not restricted');
-    }
 
-    if (data.role !== PagePermissionRole.WRITER) {
-      const isWriterTarget = data.userId
-        ? (
-            await this.pagePermissionRepo.findPagePermissionByUserId(
-              pageAccess.id,
-              data.userId,
-            )
-          )?.role === PagePermissionRole.WRITER
-        : false;
-
-      if (isWriterTarget) {
-        const writerCount =
-          await this.pagePermissionRepo.countWritersByPageAccessId(
-            pageAccess.id,
-          );
-        if (writerCount <= 1) {
-          throw new BadRequestException('Cannot demote the last writer');
-        }
+    const demoting = data.role !== PagePermissionRole.WRITER;
+    await executeTx(this.db, async (trx) => {
+      if (demoting) {
+        await this.lockPageAccess(pageAccess.id, trx);
+        await this.assertKeepsAWriter(
+          pageAccess.id,
+          {
+            userIds: data.userId ? [data.userId] : [],
+            groupIds: data.groupId ? [data.groupId] : [],
+          },
+          'Cannot demote the last writer',
+          trx,
+        );
       }
-    }
+      await this.pagePermissionRepo.updatePagePermissionRole(
+        pageAccess.id,
+        data.role,
+        { userId: data.userId, groupId: data.groupId },
+        trx,
+      );
+    });
 
-    await this.pagePermissionRepo.updatePagePermissionRole(
-      pageAccess.id,
-      data.role,
-      { userId: data.userId, groupId: data.groupId },
-    );
+    if (demoting) {
+      await this.onAccessReduced(page);
+    }
   }
 
   async getPermissions(pageId: string, user: User, pagination: PaginationOptions) {
@@ -359,7 +471,7 @@ export class PagePermissionService {
     await this.pageAccessService.validateCanView(page, user);
 
     const pageAccess = await this.pagePermissionRepo.findPageAccessByPageId(
-      pageId,
+      page.id,
     );
     if (!pageAccess) {
       return { items: [], meta: { hasNextPage: false, hasPreviousPage: false } };
@@ -375,18 +487,15 @@ export class PagePermissionService {
     const page = await this.getPageOrThrow(pageId);
     await this.pageAccessService.validateCanView(page, user);
 
-    const pageAccess = await this.pagePermissionRepo.findPageAccessByPageId(
-      pageId,
-    );
-    const accessLevel = await this.pagePermissionRepo.getUserPageAccessLevel(
-      user.id,
-      pageId,
-    );
-    const canManage = await this.canManagePermissions(user, page);
+    const [pageAccess, accessLevel, canManage] = await Promise.all([
+      this.pagePermissionRepo.findPageAccessByPageId(page.id),
+      this.pagePermissionRepo.getUserPageAccessLevel(user.id, page.id),
+      this.canManagePermissions(user, page),
+    ]);
 
     const inheritedFrom =
       accessLevel.hasInheritedRestriction && !accessLevel.hasDirectRestriction
-        ? await this.getInheritedFrom(pageId)
+        ? await this.getInheritedFrom(page.id)
         : undefined;
 
     return {

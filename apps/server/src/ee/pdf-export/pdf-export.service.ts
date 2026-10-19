@@ -44,7 +44,7 @@ export class PdfExportService {
     }
 
     const page = await this.pageRepo.findById(pageId, { includeContent: true });
-    if (!page || page.deletedAt) {
+    if (!page || page.deletedAt || page.workspaceId !== payload.workspaceId) {
       throw new NotFoundException('Page not found');
     }
 
@@ -67,10 +67,12 @@ export class PdfExportService {
       return;
     }
 
+    // Only the title and text are written (ponytail: plain-text stub, not a
+    // real PDF renderer).
     const page = await this.pageRepo.findById(fileTask.pageId, {
-      includeContent: true,
+      includeTextContent: true,
     });
-    if (!page) {
+    if (!page || page.deletedAt) {
       await this.markFailed(fileTaskId, 'Page not found');
       return;
     }
@@ -97,6 +99,8 @@ export class PdfExportService {
       .select(['id', 'filePath'])
       .where('type', '=', FileTaskType.Export)
       .where('createdAt', '<', cutoff)
+      // Already-swept tasks would otherwise be re-processed on every run.
+      .where('deletedAt', 'is', null)
       .execute();
 
     for (const task of tasks) {

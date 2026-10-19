@@ -28,6 +28,7 @@ describe('PageContentUpdatedListener', () => {
     const verifiers = [{ id: 'v1' }, { id: 'v2' }];
     const pageVerificationRepo = {
       findLatestByPageId: jest.fn().mockResolvedValue(previous),
+      lockForUpdate: jest.fn(),
       getVerifiers: jest.fn().mockResolvedValue(verifiers),
       insert: jest.fn().mockResolvedValue({ id: 'pv2' }),
       replaceVerifiers: jest.fn(),
@@ -94,6 +95,7 @@ describe('PageContentUpdatedListener', () => {
     const verifiers = [{ id: 'v1' }, { id: 'v2' }];
     const pageVerificationRepo = {
       findLatestByPageId: jest.fn().mockResolvedValue(previous),
+      lockForUpdate: jest.fn(),
       getVerifiers: jest.fn().mockResolvedValue(verifiers),
       insert: jest.fn().mockResolvedValue({ id: 'pv2' }),
       replaceVerifiers: jest.fn(),
@@ -147,6 +149,7 @@ describe('PageContentUpdatedListener', () => {
 
     const pageVerificationRepo = {
       findLatestByPageId: jest.fn().mockResolvedValue(previous),
+      lockForUpdate: jest.fn(),
       getVerifiers: jest.fn().mockResolvedValue(verifiers),
       insert: jest.fn().mockImplementation(async () => {
         pendingRows.push('pv2');

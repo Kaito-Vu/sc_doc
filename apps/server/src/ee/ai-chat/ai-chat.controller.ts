@@ -16,6 +16,13 @@ import { RequireFeature } from '../common/decorators/require-feature.decorator';
 import { Feature } from '../../common/features';
 import { PaginationOptions } from '@docmost/db/pagination/pagination-options';
 import { FastifyReply } from 'fastify';
+import {
+  ChatIdDto,
+  SearchChatsDto,
+  SendChatMessageDto,
+  UpdateChatTitleDto,
+} from './ai-chat.dto';
+import { sseErrorMessage, startSse, writeSse } from '../ai/sse.util';
 
 @UseGuards(JwtAuthGuard)
 @Controller('ai/chats')
@@ -47,7 +54,7 @@ export class AiChatController {
   @Post('info')
   @RequireFeature(Feature.AI)
   async info(
-    @Body() body: { chatId: string },
+    @Body() body: ChatIdDto,
     @AuthUser() user: User,
     @AuthWorkspace() workspace: Workspace,
   ) {
@@ -58,7 +65,7 @@ export class AiChatController {
   @Post('delete')
   @RequireFeature(Feature.AI)
   async delete(
-    @Body() body: { chatId: string },
+    @Body() body: ChatIdDto,
     @AuthUser() user: User,
     @AuthWorkspace() workspace: Workspace,
   ) {
@@ -69,7 +76,7 @@ export class AiChatController {
   @Post('update')
   @RequireFeature(Feature.AI)
   async update(
-    @Body() body: { chatId: string; title: string },
+    @Body() body: UpdateChatTitleDto,
     @AuthUser() user: User,
     @AuthWorkspace() workspace: Workspace,
   ) {
@@ -85,7 +92,7 @@ export class AiChatController {
   @Post('search')
   @RequireFeature(Feature.AI)
   async search(
-    @Body() body: { query: string },
+    @Body() body: SearchChatsDto,
     @AuthUser() user: User,
     @AuthWorkspace() workspace: Workspace,
   ) {
@@ -95,22 +102,24 @@ export class AiChatController {
   @Post('send')
   @RequireFeature(Feature.AI)
   async send(
-    @Body()
-    body: {
-      chatId?: string;
-      content: string;
-      mentionedPageIds?: string[];
-      contextPageId?: string;
-      attachmentIds?: string[];
-    },
+    @Body() body: SendChatMessageDto,
     @AuthUser() user: User,
     @AuthWorkspace() workspace: Workspace,
     @Res() res: FastifyReply,
   ) {
-    res.raw.setHeader('Content-Type', 'text/event-stream');
-    res.raw.setHeader('Cache-Control', 'no-cache');
-    res.raw.setHeader('Connection', 'keep-alive');
-    await this.aiChatService.sendMessage(body, user, workspace.id, res);
+    startSse(res);
+    try {
+      await this.aiChatService.sendMessage(body, user, workspace.id, res);
+    } catch (err) {
+      // Nothing streamed yet: let the exception filter send a normal error
+      // response. Otherwise report it in-stream; either way never leave the
+      // connection open.
+      if (!res.raw.headersSent) throw err;
+      writeSse(res, {
+        type: 'error',
+        message: sseErrorMessage(err, 'Failed to send message'),
+      });
+    }
     res.raw.end();
   }
 }

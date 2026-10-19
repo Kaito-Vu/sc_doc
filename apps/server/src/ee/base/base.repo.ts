@@ -4,8 +4,8 @@ import { KyselyDB, KyselyTransaction } from '@docmost/db/types/kysely.types';
 import { dbOrTx } from '@docmost/db/utils';
 import { PaginationOptions } from '@docmost/db/pagination/pagination-options';
 import { executeWithCursorPagination } from '@docmost/db/pagination/cursor-pagination';
-import { sql } from 'kysely';
-import { JsonValue } from '@docmost/db/types/db';
+import { SelectQueryBuilder, sql } from 'kysely';
+import { DB, JsonValue } from '@docmost/db/types/db';
 
 @Injectable()
 export class BaseRepo {
@@ -331,7 +331,15 @@ export class BaseRepo {
       .execute();
   }
 
-  async expandPages(pageIds: string[], workspaceId: string) {
+  /**
+   * @param spaceIdsQuery subquery of space ids the caller may read
+   *   (SpaceMemberRepo.getUserSpaceIdsQuery) so foreign-space titles never leak.
+   */
+  async expandPages(
+    pageIds: string[],
+    workspaceId: string,
+    spaceIdsQuery: SelectQueryBuilder<DB, any, { id: string }>,
+  ) {
     if (pageIds.length === 0) return [];
     return this.db
       .selectFrom('pages')
@@ -348,6 +356,7 @@ export class BaseRepo {
       ])
       .where('pages.id', 'in', pageIds)
       .where('pages.workspaceId', '=', workspaceId)
+      .where('pages.spaceId', 'in', spaceIdsQuery)
       .where('pages.deletedAt', 'is', null)
       .execute();
   }

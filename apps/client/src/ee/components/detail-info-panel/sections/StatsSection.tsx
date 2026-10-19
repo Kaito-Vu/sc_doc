@@ -1,68 +1,43 @@
 import React from 'react';
-import { Stack, Group, Text, Skeleton } from '@mantine/core';
-import { IconEye, IconEdit, IconClock, IconCalendar } from '@tabler/icons-react';
+import { IconCalendar, IconClock, IconEdit, IconEye } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
+import { usePageStats } from '@/ee/hooks/usePageStats';
+import { useTimeAgo } from '@/hooks/use-time-ago';
+import { formattedDate } from '@/lib/time';
 import type { SectionProps } from '../detail-info-panel.types';
-import { formatDate, formatRelativeTime, formatNumber } from '@/ee/utils/formatting';
-import commonClasses from './common.module.css';
-import classes from './StatsSection.module.css';
+import classes from '../DetailInfoPanel.module.css';
 
-const StatsSectionComponent: React.FC<SectionProps> = ({ page, isLoading }) => {
+const StatsSectionComponent: React.FC<SectionProps> = ({ page, pageId }) => {
   const { t } = useTranslation();
-
-  if (isLoading) {
-    return (
-      <Stack gap="sm">
-        <Skeleton height={8} width="30%" />
-        {[1, 2, 3, 4].map((i) => (
-          <Skeleton key={i} height={24} />
-        ))}
-      </Stack>
-    );
-  }
-
-  const stats = [
-    {
-      icon: IconEye,
-      label: t('Views'),
-      value: formatNumber(page?.viewCount || 0),
-    },
-    {
-      icon: IconEdit,
-      label: t('Edits'),
-      value: formatNumber(page?.editCount || 0),
-    },
-    {
-      icon: IconCalendar,
-      label: t('Created'),
-      value: page?.createdAt ? formatDate(page.createdAt) : '-',
-    },
-    {
-      icon: IconClock,
-      label: t('Last updated'),
-      value: page?.updatedAt ? formatRelativeTime(page.updatedAt) : '-',
-    },
-  ];
+  const { data: pageStats } = usePageStats(pageId);
+  const updatedAgo = useTimeAgo(page.updatedAt);
 
   return (
-    <Stack gap="sm">
-      <div className={commonClasses.title}>{t('STATS')}</div>
+    <>
+      <p className={classes.sectionLabel}>{t('Stats')}</p>
 
-      {stats.map((stat, index) => {
-        const Icon = stat.icon;
-        return (
-          <Group key={index} justify="space-between" className={commonClasses.stat}>
-            <Group gap="xs">
-              <Icon size={16} opacity={0.6} />
-              <Text size="sm">{stat.label}</Text>
-            </Group>
-            <Text size="sm" fw={500} c="dimmed">
-              {stat.value}
-            </Text>
-          </Group>
-        );
-      })}
-    </Stack>
+      <div className={classes.row}>
+        <span className={classes.rowLabel}><IconEye size={13} />{t('Views')}</span>
+        <span className={classes.rowValue}>{pageStats?.viewCount ?? 0}</span>
+      </div>
+
+      <div className={classes.row}>
+        <span className={classes.rowLabel}><IconEdit size={13} />{t('Edits')}</span>
+        <span className={classes.rowValue}>{pageStats?.editCount ?? 0}</span>
+      </div>
+
+      <div className={classes.row}>
+        <span className={classes.rowLabel}><IconCalendar size={13} />{t('Created')}</span>
+        <span className={classes.rowText}>
+          {page.createdAt ? formattedDate(page.createdAt) : '—'}
+        </span>
+      </div>
+
+      <div className={classes.row}>
+        <span className={classes.rowLabel}><IconClock size={13} />{t('Last updated')}</span>
+        <span className={classes.rowText}>{updatedAgo ?? '—'}</span>
+      </div>
+    </>
   );
 };
 

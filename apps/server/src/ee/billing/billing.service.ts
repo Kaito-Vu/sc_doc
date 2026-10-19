@@ -11,14 +11,12 @@ import {
   WorkspaceCaslAction,
   WorkspaceCaslSubject,
 } from '../../core/casl/interfaces/workspace-ability.type';
-import { EnvironmentService } from '../../integrations/environment/environment.service';
 
 @Injectable()
 export class BillingService {
   constructor(
     private readonly billingRepo: BillingRepo,
     private readonly workspaceAbility: WorkspaceAbilityFactory,
-    private readonly environment: EnvironmentService,
   ) {}
 
   private assertAdmin(user: User, workspaceId: string) {
@@ -62,9 +60,7 @@ export class BillingService {
 
   async getPlans(user: User, workspaceId: string) {
     this.assertAdmin(user, workspaceId);
-    if (this.environment.isUnlockEe()) {
-      return [];
-    }
+    // Self-hosted: no purchasable plans.
     return [];
   }
 

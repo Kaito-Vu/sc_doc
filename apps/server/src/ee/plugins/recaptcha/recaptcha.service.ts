@@ -1,4 +1,6 @@
 import { Injectable, Logger, BadRequestException, InternalServerErrorException } from '@nestjs/common'
+import { PluginConfigService } from '../services/plugin-config.service'
+import { RecaptchaVerificationRepo } from './repositories/recaptcha-verification.repo'
 
 export interface VerifyTokenResponse {
   success: boolean
@@ -15,11 +17,101 @@ export interface EvaluationResult {
   reason: string
 }
 
+export interface VerifyActionInput {
+  workspaceId: string
+  // Must match the action name the client passed to grecaptcha.execute()
+  // and the key under config.actions.
+  action: string
+  token?: string
+  remoteAddress?: string
+  userAgent?: string
+}
+
+export interface VerifyActionOptions {
+  defaultThreshold: number
+  // When true a missing token is let through (logged) instead of rejected.
+  tokenOptional?: boolean
+}
+
 @Injectable()
 export class RecaptchaService {
   private readonly logger = new Logger(RecaptchaService.name)
   private readonly VERIFY_URL = 'https://www.google.com/recaptcha/api/siteverify'
   private readonly TIMEOUT = 5000
+
+  constructor(
+    private readonly configService: PluginConfigService,
+    private readonly verificationRepo: RecaptchaVerificationRepo,
+  ) {}
+
+  /**
+   * Shared flow for every reCAPTCHA-guarded hook: load workspace config,
+   * verify the token with Google, check the token was minted for this
+   * action, score it and record the verification. Returns null when the
+   * plugin or this action is disabled (caller should let the request through).
+   */
+  async verifyAction(
+    input: VerifyActionInput,
+    opts: VerifyActionOptions,
+  ): Promise<EvaluationResult | null> {
+    const { workspaceId, action, token } = input
+    const pluginConfig = await this.configService.getConfig(
+      workspaceId,
+      'recaptcha',
+    )
+    if (!pluginConfig.enabled) return null
+
+    const actionConfig = pluginConfig.config?.actions?.[action]
+    if (!actionConfig?.enabled) return null
+
+    if (!token) {
+      if (opts.tokenOptional) {
+        this.logger.debug(`${action} request without reCAPTCHA token`)
+        return null
+      }
+      throw new BadRequestException('reCAPTCHA token required')
+    }
+
+    const verification = await this.verifyToken(
+      token,
+      pluginConfig.config.secretKey,
+    )
+
+    // A token minted for a different (possibly lower-friction) action must
+    // not be replayable here.
+    if (!verification.success || verification.action !== action) {
+      this.logger.warn(
+        `Token verification failed for ${action}: ${verification.errorCodes.join(', ') || `action mismatch (${verification.action})`}`,
+      )
+      throw new BadRequestException('reCAPTCHA verification failed')
+    }
+
+    const evaluation = await this.evaluateScore(
+      verification.score,
+      action,
+      actionConfig.threshold ?? opts.defaultThreshold,
+    )
+
+    await this.verificationRepo.create({
+      workspaceId,
+      token,
+      score: verification.score,
+      action,
+      decision: evaluation.decision,
+      decisionReason: evaluation.reason,
+      ipAddress: input.remoteAddress,
+      userAgent: input.userAgent,
+      challengeTs: verification.challengeTs,
+    })
+
+    if (evaluation.decision !== 'allow') {
+      this.logger.warn(
+        `reCAPTCHA ${action} ${evaluation.decision} (score: ${verification.score})`,
+      )
+    }
+
+    return evaluation
+  }
 
   async verifyToken(token: string, secretKey: string): Promise<VerifyTokenResponse> {
     if (!token) {

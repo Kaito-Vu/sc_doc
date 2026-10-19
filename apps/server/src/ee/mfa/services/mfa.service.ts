@@ -48,6 +48,13 @@ export class MfaService {
   }
 
   async setup(user: User, workspace: Workspace) {
+    // Re-running setup would overwrite the secret and silently turn MFA off;
+    // disabling must go through disable(), which re-checks the password.
+    const existing = await this.userMfaRepo.findByUserId(user.id);
+    if (existing?.isEnabled) {
+      throw new BadRequestException('MFA is already enabled');
+    }
+
     const secret = new OTPAuth.Secret({ size: 20 });
     const totp = new OTPAuth.TOTP({
       issuer: workspace.name || 'Docmost',
@@ -76,19 +83,22 @@ export class MfaService {
   }
 
   async enable(userId: string, verificationCode: string) {
+    if (typeof verificationCode !== 'string') {
+      throw new BadRequestException('Invalid verification code');
+    }
     const mfa = await this.userMfaRepo.findByUserId(userId);
     if (!mfa?.secret) {
       throw new BadRequestException('MFA setup required');
+    }
+    if (mfa.isEnabled) {
+      throw new BadRequestException('MFA is already enabled');
     }
 
     if (!this.verifyTotp(mfa.secret, verificationCode)) {
       throw new BadRequestException('Invalid verification code');
     }
 
-    const backupCodes = await this.generateBackupCodesPlain();
-    const hashedCodes = await Promise.all(
-      backupCodes.map((code) => bcrypt.hash(code, 10)),
-    );
+    const { backupCodes, hashedCodes } = await this.generateBackupCodes();
 
     await this.userMfaRepo.update(userId, {
       isEnabled: true,
@@ -105,16 +115,7 @@ export class MfaService {
   }
 
   async disable(userId: string, workspaceId: string, password?: string) {
-    const user = await this.userRepo.findById(userId, workspaceId, {
-      includePassword: true,
-    });
-
-    if (password && user?.password) {
-      const match = await comparePasswordHash(password, user.password);
-      if (!match) {
-        throw new ForbiddenException('Invalid password');
-      }
-    }
+    await this.assertPasswordConfirmed(userId, workspaceId, password);
 
     await this.userMfaRepo.update(userId, {
       isEnabled: false,
@@ -136,26 +137,14 @@ export class MfaService {
     workspaceId: string,
     password?: string,
   ) {
-    const user = await this.userRepo.findById(userId, workspaceId, {
-      includePassword: true,
-    });
-
-    if (password && user?.password) {
-      const match = await comparePasswordHash(password, user.password);
-      if (!match) {
-        throw new ForbiddenException('Invalid password');
-      }
-    }
+    await this.assertPasswordConfirmed(userId, workspaceId, password);
 
     const mfa = await this.userMfaRepo.findByUserId(userId);
     if (!mfa?.isEnabled) {
       throw new BadRequestException('MFA is not enabled');
     }
 
-    const backupCodes = await this.generateBackupCodesPlain();
-    const hashedCodes = await Promise.all(
-      backupCodes.map((code) => bcrypt.hash(code, 10)),
-    );
+    const { backupCodes, hashedCodes } = await this.generateBackupCodes();
 
     await this.userMfaRepo.update(userId, { backupCodes: hashedCodes });
 
@@ -324,7 +313,8 @@ export class MfaService {
     await this.userRepo.updateLastLogin(user.id, payload.workspaceId);
 
     const authToken = await this.sessionService.createSessionAndToken(user);
-    res.clearCookie('mfaToken');
+    // Must match the path it was set with, or the browser keeps the cookie.
+    res.clearCookie('mfaToken', { path: '/' });
     this.setAuthCookie(res, authToken);
 
     this.auditService.setActorId(user.id);
@@ -344,25 +334,56 @@ export class MfaService {
     return { success: true };
   }
 
-  private async verifyCode(mfa: any, code: string): Promise<boolean> {
-    if (code.length === 6 && /^\d+$/.test(code)) {
+  /**
+   * Requires the current password before weakening MFA, so a hijacked
+   * session alone cannot turn it off. Skipped only for SSO/SCIM-provisioned
+   * users whose password was generated and never shown to them.
+   */
+  private async assertPasswordConfirmed(
+    userId: string,
+    workspaceId: string,
+    password?: string,
+  ) {
+    const user = await this.userRepo.findById(userId, workspaceId, {
+      includePassword: true,
+    });
+    if (!user) {
+      throw new UnauthorizedException();
+    }
+    if (user.hasGeneratedPassword) {
+      return;
+    }
+    if (
+      typeof password !== 'string' ||
+      !password ||
+      !(await comparePasswordHash(password, user.password))
+    ) {
+      throw new ForbiddenException('Invalid password');
+    }
+  }
+
+  private async verifyCode(mfa: any, rawCode: unknown): Promise<boolean> {
+    if (typeof rawCode !== 'string') {
+      return false;
+    }
+    const code = rawCode.trim();
+    if (/^\d{6}$/.test(code)) {
       return this.verifyTotp(mfa.secret, code);
     }
 
-    if (mfa.backupCodes?.length) {
-      for (let i = 0; i < mfa.backupCodes.length; i++) {
-        const match = await bcrypt.compare(code, mfa.backupCodes[i]);
-        if (match) {
-          const remaining = [...mfa.backupCodes];
-          remaining.splice(i, 1);
-          await this.userMfaRepo.update(mfa.userId, {
-            backupCodes: remaining,
-          });
-          return true;
-        }
+    // Backup codes are 8 uppercase hex chars; anything else can't match, so
+    // skip the (expensive) bcrypt loop for it.
+    const backupCode = code.toUpperCase();
+    if (!/^[0-9A-F]{8}$/.test(backupCode) || !mfa.backupCodes?.length) {
+      return false;
+    }
+    for (const hash of mfa.backupCodes as string[]) {
+      if (await bcrypt.compare(backupCode, hash)) {
+        // Atomic removal: of two concurrent requests with the same code,
+        // only the one that actually removes it succeeds.
+        return this.userMfaRepo.consumeBackupCode(mfa.userId, hash);
       }
     }
-
     return false;
   }
 
@@ -377,10 +398,14 @@ export class MfaService {
     return delta !== null;
   }
 
-  private async generateBackupCodesPlain(): Promise<string[]> {
-    return Array.from({ length: 10 }, () =>
+  private async generateBackupCodes() {
+    const backupCodes = Array.from({ length: 10 }, () =>
       randomBytes(4).toString('hex').toUpperCase(),
     );
+    const hashedCodes = await Promise.all(
+      backupCodes.map((code) => bcrypt.hash(code, 10)),
+    );
+    return { backupCodes, hashedCodes };
   }
 
   private setMfaCookie(res: FastifyReply, token: string) {

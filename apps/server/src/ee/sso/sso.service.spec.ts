@@ -70,6 +70,44 @@ describe('SsoService', () => {
     });
   });
 
+  describe('secrets', () => {
+    it('encrypts the LDAP bind password and never returns it', async () => {
+      authProviderRepo.insert.mockImplementation(async (row) => ({
+        id: 'p1',
+        ...row,
+      }));
+
+      const result = await service.create(workspace.id, user, workspace, {
+        name: 'LDAP',
+        type: 'ldap',
+        ldapBindPassword: 'hunter2',
+      });
+
+      const stored = authProviderRepo.insert.mock.calls[0][0].ldapBindPassword;
+      expect(stored).toMatch(/^enc:/);
+      expect(service.decryptSecret(stored)).toBe('hunter2');
+      expect(result.ldapBindPassword).toBe('********');
+    });
+
+    it('keeps the stored secret when the client echoes the mask back', async () => {
+      authProviderRepo.findById.mockResolvedValue({ id: 'p1', type: 'ldap' });
+      authProviderRepo.update.mockResolvedValue({ id: 'p1', type: 'ldap' });
+
+      await service.update(workspace.id, user, workspace, {
+        providerId: 'p1',
+        ldapBindPassword: '********',
+      });
+
+      expect(authProviderRepo.update.mock.calls[0][2].ldapBindPassword).toBeUndefined();
+    });
+
+    it('rejects an unknown provider type', async () => {
+      await expect(
+        service.create(workspace.id, user, workspace, { name: 'x', type: 'evil' }),
+      ).rejects.toThrow('Invalid SSO provider type');
+    });
+  });
+
   describe('update', () => {
     it('logs an SSO_PROVIDER_UPDATED audit event', async () => {
       authProviderRepo.findById.mockResolvedValue({ id: 'p1', type: 'oidc' });

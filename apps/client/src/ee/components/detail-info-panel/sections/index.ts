@@ -1,5 +1,4 @@
-// Re-export all section components
-// Components will be created in Phase 2
+// Detail Info Panel sections, composed by DetailInfoPanel
 
 export { PeopleSection } from './PeopleSection';
 export { StatsSection } from './StatsSection';

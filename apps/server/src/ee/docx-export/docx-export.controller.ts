@@ -18,7 +18,8 @@ import { Feature } from '../../common/features';
 import { FastifyReply } from 'fastify';
 import { DocxExportJobService } from './docx-export-job.service';
 import { DocxExportService } from './docx-export.service';
-import { DocxExportOptions } from './docx-export.constants';
+import { DocxExportDto } from './docx-export.dto';
+import { PageIdDto } from '../../core/page/dto/page.dto';
 
 @UseGuards(JwtAuthGuard)
 @Controller('docx-export')
@@ -33,8 +34,7 @@ export class DocxExportController {
   @Post()
   @RequireFeature(Feature.DOCX_EXPORT)
   start(
-    @Body()
-    body: { pageId: string } & DocxExportOptions,
+    @Body() body: DocxExportDto,
     @AuthUser() user: User,
     @AuthWorkspace() workspace: Workspace,
   ) {
@@ -45,7 +45,7 @@ export class DocxExportController {
   @HttpCode(HttpStatus.OK)
   @Post('tree')
   @RequireFeature(Feature.DOCX_EXPORT)
-  tree(@Body() body: { pageId: string }, @AuthUser() user: User) {
+  tree(@Body() body: PageIdDto, @AuthUser() user: User) {
     return this.exporter.listTree(body.pageId, user);
   }
 
@@ -68,7 +68,7 @@ export class DocxExportController {
     );
     res.header(
       'Content-Disposition',
-      `attachment; filename="${encodeURIComponent(fileName)}"`,
+      `attachment; filename*=UTF-8''${encodeURIComponent(fileName)}`,
     );
     res.header('Content-Type', contentType);
     res.send(stream);

@@ -3,6 +3,7 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { randomBytes, createHash } from 'crypto';
 import { ScimTokenRepo } from './scim-token.repo';
@@ -113,10 +114,15 @@ export class ScimTokenService {
   }
 
   async validateToken(rawToken: string) {
+    if (!rawToken) {
+      throw new UnauthorizedException('Invalid SCIM token');
+    }
+    // Tokens are 256-bit random, so an unsalted SHA-256 lookup is safe and
+    // avoids timing leaks from comparing secrets in application code.
     const tokenHash = createHash('sha256').update(rawToken).digest('hex');
     const token = await this.scimTokenRepo.findByTokenHash(tokenHash);
     if (!token) {
-      throw new ForbiddenException('Invalid SCIM token');
+      throw new UnauthorizedException('Invalid SCIM token');
     }
     await this.scimTokenRepo.touchLastUsed(token.id);
     return token;

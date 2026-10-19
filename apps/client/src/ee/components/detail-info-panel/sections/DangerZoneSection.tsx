@@ -1,222 +1,67 @@
-import React, { useState } from 'react';
-import { Stack, Button, Group, Text, Modal, Checkbox, Alert } from '@mantine/core';
-import { IconAlertTriangle } from '@tabler/icons-react';
+import React from 'react';
+import { Button } from '@mantine/core';
+import { IconArchive, IconArchiveOff, IconTrash } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation } from '@tanstack/react-query';
+import { notifications } from '@mantine/notifications';
+import { useRestorePageMutation } from '@/features/page/queries/page-query';
+import { useDeletePageModal } from '@/features/page/hooks/use-delete-page-modal';
+import { useTreeMutation } from '@/features/page/tree/hooks/use-tree-mutation';
+import { archivePage } from '@/ee/api/detail-info-panel-api';
 import type { SectionProps } from '../detail-info-panel.types';
-import { archivePage, deletePage, restorePage } from '@/ee/api/detail-info-panel-api';
-import commonClasses from './common.module.css';
-import classes from './DangerZoneSection.module.css';
+import classes from '../DetailInfoPanel.module.css';
 
 const DangerZoneSectionComponent: React.FC<SectionProps> = ({ page, pageId }) => {
   const { t } = useTranslation();
-  const queryClient = useQueryClient();
-  const [openModal, setOpenModal] = useState<'archive' | 'delete' | null>(null);
-  const [confirmed, setConfirmed] = useState(false);
-
-  // Archive mutation
+  // Same trash/restore flow as the page header menu (tree update, undo toast,
+  // navigation) instead of ad-hoc fetch calls.
+  const { openDeleteModal } = useDeletePageModal();
+  const { handleDelete } = useTreeMutation(page.spaceId);
+  const restoreMutation = useRestorePageMutation();
+  // TODO: archive needs its own server endpoint (docs/detail_info_panel/API_REQUIREMENTS.md).
   const archiveMutation = useMutation({
-    mutationFn: () => archivePage(pageId),
-    onSuccess: () => {
-      setOpenModal(null);
-      setConfirmed(false);
-      // Invalidate cache
-      queryClient.invalidateQueries({ queryKey: ['page-stats', pageId] });
-      console.log('Page archived successfully');
-    },
-    onError: (error) => {
-      console.error('Error archiving page:', error);
+    mutationFn: () => archivePage(page.id),
+    onError: () => {
+      notifications.show({ message: t('Failed to archive page'), color: 'red' });
     },
   });
 
-  // Delete mutation
-  const deleteMutation = useMutation({
-    mutationFn: () => deletePage(pageId),
-    onSuccess: () => {
-      setOpenModal(null);
-      setConfirmed(false);
-      queryClient.invalidateQueries({ queryKey: ['page-stats', pageId] });
-      // Navigate away after deletion
-      globalThis.location.href = '/home';
-    },
-    onError: (error) => {
-      console.error('Error deleting page:', error);
-    },
-  });
+  const isArchived = page.deletedAt !== null && page.deletedAt !== undefined;
 
-  // Restore mutation
-  const restoreMutation = useMutation({
-    mutationFn: () => restorePage(pageId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['page-stats', pageId] });
-      console.log('Page restored successfully');
-    },
-    onError: (error) => {
-      console.error('Error restoring page:', error);
-    },
-  });
-
-  const handleArchiveAction = () => {
-    if (page.isArchived) {
-      restoreMutation.mutate();
-      return;
-    }
-    setOpenModal('archive');
-  };
-
-  const handleArchive = () => {
-    if (confirmed) {
-      archiveMutation.mutate();
-    }
-  };
-
-  const handleDelete = () => {
-    if (confirmed) {
-      deleteMutation.mutate();
-    }
+  const handleArchiveToggle = () => {
+    if (isArchived) restoreMutation.mutate(page.id);
+    else archiveMutation.mutate();
   };
 
   return (
     <>
-      <Stack gap="sm" className={commonClasses.dangerZone}>
-        <div className={commonClasses.title}>{t('DANGER ZONE')}</div>
-
-        {/* Archive Action */}
-        <div className={classes.dangerAction}>
-          <div>
-            <Text className={classes.dangerActionTitle}>
-              {page?.isArchived ? t('Restore') : t('Archive')}
-            </Text>
-            <Text className={classes.dangerActionDescription}>
-              {page?.isArchived ? t('Restore page from archive') : t('Move page to archive')}
-            </Text>
-          </div>
-          <Button
-            size="xs"
-            variant="light"
-            color={page?.isArchived ? 'blue' : 'yellow'}
-            onClick={handleArchiveAction}
-            className={classes.dangerButton}
-            loading={archiveMutation.isPending || restoreMutation.isPending}
-          >
-            {page?.isArchived ? t('Restore') : t('Archive')}
-          </Button>
-        </div>
-
-        {/* Trash Action */}
-        <div className={classes.dangerAction}>
-          <div>
-            <Text className={classes.dangerActionTitle}>
-              {t('Trash')}
-            </Text>
-            <Text className={classes.dangerActionDescription}>
-              {t('Move page to trash')}
-            </Text>
-          </div>
-          <Button
-            size="xs"
-            variant="light"
-            color="red"
-            onClick={() => setOpenModal('delete')}
-            className={classes.dangerButton}
-            loading={deleteMutation.isPending}
-          >
-            {t('Trash')}
-          </Button>
-        </div>
-      </Stack>
-
-      {/* Archive Confirmation Modal */}
-      <Modal
-        opened={openModal === 'archive'}
-        onClose={() => {
-          setOpenModal(null);
-          setConfirmed(false);
-        }}
-        title={t('Archive page')}
-      >
-        <Stack gap="md">
-          <Alert icon={<IconAlertTriangle size={16} />} color="yellow" title={t('Archive page')}>
-            {t('This page will be moved to archive. You can restore it later.')}
-          </Alert>
-
-          <Text size="sm">
-            {t('Page title')}: <strong>{page?.title}</strong>
-          </Text>
-
-          <Checkbox
-            label={t('I understand this action cannot be undone immediately')}
-            checked={confirmed}
-            onChange={(e) => setConfirmed(e.currentTarget.checked)}
-          />
-
-          <Group justify="flex-end">
-            <Button
-              variant="default"
-              onClick={() => {
-                setOpenModal(null);
-                setConfirmed(false);
-              }}
-            >
-              {t('Cancel')}
-            </Button>
-            <Button
-              color="yellow"
-              onClick={handleArchive}
-              loading={archiveMutation.isPending}
-              disabled={!confirmed}
-            >
-              {t('Archive')}
-            </Button>
-          </Group>
-        </Stack>
-      </Modal>
-
-      {/* Delete Confirmation Modal */}
-      <Modal
-        opened={openModal === 'delete'}
-        onClose={() => {
-          setOpenModal(null);
-          setConfirmed(false);
-        }}
-        title={t('Delete page')}
-      >
-        <Stack gap="md">
-          <Alert icon={<IconAlertTriangle size={16} />} color="red" title={t('Danger Zone')}>
-            {t('This action is permanent and cannot be undone. The page will be permanently deleted after 30 days in trash.')}
-          </Alert>
-
-          <Text size="sm">
-            {t('Page title')}: <strong>{page?.title}</strong>
-          </Text>
-
-          <Checkbox
-            label={t('I understand this will delete the page permanently')}
-            checked={confirmed}
-            onChange={(e) => setConfirmed(e.currentTarget.checked)}
-          />
-
-          <Group justify="flex-end">
-            <Button
-              variant="default"
-              onClick={() => {
-                setOpenModal(null);
-                setConfirmed(false);
-              }}
-            >
-              {t('Cancel')}
-            </Button>
-            <Button
-              color="red"
-              onClick={handleDelete}
-              loading={deleteMutation.isPending}
-              disabled={!confirmed}
-            >
-              {t('Delete')}
-            </Button>
-          </Group>
-        </Stack>
-      </Modal>
+      <div className={classes.dangerDivider} />
+      <p className={classes.dangerLabel}>{t('Danger Zone')}</p>
+      <div className={classes.dangerGrid}>
+        <Button
+          variant="light"
+          color={isArchived ? 'blue' : 'yellow'}
+          size="xs"
+          leftSection={isArchived ? <IconArchiveOff size={13} /> : <IconArchive size={13} />}
+          className={classes.actionBtn}
+          fullWidth
+          onClick={handleArchiveToggle}
+          loading={archiveMutation.isPending || restoreMutation.isPending}
+        >
+          {isArchived ? t('Restore') : t('Archive')}
+        </Button>
+        <Button
+          variant="light"
+          color="red"
+          size="xs"
+          leftSection={<IconTrash size={13} />}
+          className={classes.actionBtn}
+          fullWidth
+          onClick={() => openDeleteModal({ onConfirm: () => handleDelete(page.id) })}
+        >
+          {t('Trash')}
+        </Button>
+      </div>
     </>
   );
 };

@@ -1,7 +1,7 @@
-import { IsIn, IsString } from 'class-validator';
+import { IsIn, IsUUID } from 'class-validator';
 
 export class SpaceTopContributorsDto {
-  @IsString()
+  @IsUUID()
   spaceId: string;
 
   @IsIn(['week', 'month', 'year'])

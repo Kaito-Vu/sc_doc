@@ -1,6 +1,5 @@
 import * as JSZip from 'jszip';
 import {
-  extractEaZip,
   inspectEaArchive,
   isZipBuffer,
   mimeTypeForImageExt,
@@ -66,7 +65,7 @@ describe('mimeTypeForImageExt', () => {
   });
 });
 
-describe('extractEaZip', () => {
+describe('inspectEaArchive (xmi archive)', () => {
   it('returns the first xmi entry plus the image entries', async () => {
     const zip = await buildZip({
       'docs/model.xml': '<?xml version="1.0"?><XMI/>',
@@ -74,9 +73,9 @@ describe('extractEaZip', () => {
       'notes.txt': 'ignore me',
     });
 
-    const result = await extractEaZip(zip);
+    const result = await inspectEaArchive(zip);
 
-    expect(result.xmi.toString('utf-8')).toContain('<XMI/>');
+    expect(result.xmi!.toString('utf-8')).toContain('<XMI/>');
     expect(result.images).toHaveLength(1);
     expect(result.images[0].fileName).toBe('Images/EAID_ABC_1.png');
     expect(result.images[0].mimeType).toBe('image/png');
@@ -84,9 +83,9 @@ describe('extractEaZip', () => {
     expect(result.images[0].buffer.equals(PNG_1X1)).toBe(true);
   });
 
-  it('rejects an archive without an xmi entry', async () => {
+  it('reports no xmi for an archive without an xmi entry', async () => {
     const zip = await buildZip({ 'Images/a.png': PNG_1X1 });
-    await expect(extractEaZip(zip)).rejects.toThrow();
+    expect((await inspectEaArchive(zip)).xmi).toBeNull();
   });
 });
 

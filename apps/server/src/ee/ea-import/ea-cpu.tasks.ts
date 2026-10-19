@@ -11,15 +11,20 @@ import {
 } from '../../collaboration/collaboration.util';
 import { normalizeImportHtml } from '../../integrations/import/utils/import-formatter';
 import { isBpmnDocument, parseEaBpmn } from './ea-bpmn.parser';
-import { stripDuplicateLeadingHeading } from './ea-content.builder';
+import {
+  decodeModelDocument,
+  stripDuplicateLeadingHeading,
+} from './ea-content.builder';
 import { isEaNativeDocument, parseEaNative } from './ea-native.parser';
 import { parseEaXmi } from './ea-xmi.parser';
 import { isXmi21Document, parseEaXmi21 } from './ea-xmi21.parser';
-import { EaParseResult } from './types/ea-import.types';
+import { EaParseResult, EaRtfImage } from './types/ea-import.types';
 
 export type EaCpuJob =
   | { kind: 'parse'; id: string; buffer: Uint8Array }
-  | { kind: 'page'; id: string; html: string; title: string };
+  | { kind: 'page'; id: string; html: string; title: string }
+  /** EA Model Document: base64 ZIP -> `str.dat` RTF -> HTML (+ images). */
+  | { kind: 'doc'; id: string; base64: string; maxDocBytes: number };
 
 export interface EaCpuResult {
   id: string;
@@ -27,6 +32,8 @@ export interface EaCpuResult {
   parsed?: EaParseResult;
   content?: any;
   ydoc?: Uint8Array | null;
+  html?: string;
+  images?: EaRtfImage[];
 }
 
 const EMPTY_DOC = {
@@ -34,7 +41,7 @@ const EMPTY_DOC = {
   content: [{ type: 'paragraph', content: [] }],
 };
 
-function toYdoc(content: any): Uint8Array {
+export function toYdoc(content: any): Uint8Array {
   const ydoc = TiptapTransformer.toYdoc(content, 'default', tiptapExtensions);
   return Y.encodeStateAsUpdate(ydoc);
 }
@@ -52,10 +59,23 @@ export function parseEaBuffer(input: Uint8Array): EaParseResult {
   return isBpmnDocument(buffer) ? parseEaBpmn(buffer) : parseEaXmi(buffer);
 }
 
-export function runEaCpuJob(job: EaCpuJob): EaCpuResult {
+export async function runEaCpuJob(job: EaCpuJob): Promise<EaCpuResult> {
   try {
     if (job.kind === 'parse') {
       return { id: job.id, parsed: parseEaBuffer(job.buffer) };
+    }
+    if (job.kind === 'doc') {
+      const images: EaRtfImage[] = [];
+      const html = await decodeModelDocument(
+        job.base64,
+        {
+          maxDocBytes: job.maxDocBytes,
+          maxTotalBytes: Number.MAX_SAFE_INTEGER,
+          usedTotal: { bytes: 0 },
+        },
+        images,
+      );
+      return { id: job.id, html, images };
     }
     try {
       const $ = load(job.html);

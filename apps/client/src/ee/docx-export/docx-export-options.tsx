@@ -17,6 +17,16 @@ import { useTranslation } from "react-i18next";
 import api from "@/lib/api-client.ts";
 import { TriStateCheckbox, triState } from "@/ee/components/tri-state-checkbox";
 import classes from "./docx-export-options.module.css";
+import {
+  ancestors,
+  blockEnd,
+  canMoveDown,
+  moveBlock,
+  moveUp,
+  parentOf,
+  prevSibling,
+  TreeItem,
+} from "./docx-tree";
 
 export interface DocxOptions {
   singleFile: boolean;
@@ -32,77 +42,6 @@ export const defaultDocxOptions: DocxOptions = {
   toc: false,
   order: [],
   exclude: [],
-};
-
-interface TreeItem {
-  id: string;
-  title: string;
-  level: number;
-}
-
-const blockEnd = (a: TreeItem[], i: number) => {
-  let j = i + 1;
-  while (j < a.length && a[j].level > a[i].level) j++;
-  return j;
-};
-
-/** Start of the previous sibling's block, or -1 if `i` is the first child. */
-const prevSibling = (a: TreeItem[], i: number) => {
-  let k = i - 1;
-  while (k >= 0 && a[k].level > a[i].level) k--;
-  return k >= 0 && a[k].level === a[i].level ? k : -1;
-};
-
-/** Swaps item `i` (with its subtree) with the previous sibling (with its subtree). */
-function moveUp(a: TreeItem[], i: number): TreeItem[] {
-  const k = prevSibling(a, i);
-  if (k < 0) return a;
-  const end = blockEnd(a, i);
-  return [
-    ...a.slice(0, k),
-    ...a.slice(i, end),
-    ...a.slice(k, i),
-    ...a.slice(end),
-  ];
-}
-
-const parentOf = (a: TreeItem[], i: number) => {
-  let k = i - 1;
-  while (k >= 0 && a[k].level >= a[i].level) k--;
-  return k;
-};
-
-/** Moves item `from` (with subtree) before/after sibling `to`; no-op unless they share a parent. */
-function moveBlock(
-  a: TreeItem[],
-  from: number,
-  to: number,
-  after: boolean,
-): TreeItem[] {
-  if (from === to || parentOf(a, from) !== parentOf(a, to)) return a;
-  const block = a.slice(from, blockEnd(a, from));
-  const rest = [...a.slice(0, from), ...a.slice(blockEnd(a, from))];
-  const t = rest.findIndex((x) => x.id === a[to].id);
-  const at = after ? blockEnd(rest, t) : t;
-  return [...rest.slice(0, at), ...block, ...rest.slice(at)];
-}
-
-const canMoveDown = (a: TreeItem[], i: number) => {
-  const end = blockEnd(a, i);
-  return end < a.length && a[end].level === a[i].level;
-};
-
-/** Ancestor indexes of item `i` (excluding the root at 0), nearest first. */
-const ancestors = (a: TreeItem[], i: number) => {
-  const out: number[] = [];
-  let level = a[i].level;
-  for (let k = i - 1; k > 0; k--) {
-    if (a[k].level < level) {
-      out.push(k);
-      level = a[k].level;
-    }
-  }
-  return out;
 };
 
 interface Props {
@@ -153,6 +92,9 @@ export function DocxExportOptions({
   };
   const subpages = items.slice(1);
   const selectedCount = subpages.filter((x) => !excluded.has(x.id)).length;
+
+  // Index of the dragged page; computed once, not per row.
+  const from = dragId ? items.findIndex((x) => x.id === dragId) : -1;
 
   const apply = (next: TreeItem[]) => {
     setReordered(next);
@@ -214,7 +156,7 @@ export function DocxExportOptions({
                 type="auto"
                 scrollbars="y"
               >
-                {items.slice(1).map((item, idx) => {
+                {subpages.map((item, idx) => {
                   const i = idx + 1;
                   // [ ] none, [-] partly, [x] all of this page and its subpages.
                   const block = items.slice(i, blockEnd(items, i));
@@ -222,7 +164,6 @@ export function DocxExportOptions({
                     excluded.has(x.id),
                   ).length;
                   const state = triState(block.length - skipped, block.length);
-                  const from = items.findIndex((x) => x.id === dragId);
                   // Only siblings of the dragged page are valid drop targets.
                   const droppable =
                     from > 0 &&

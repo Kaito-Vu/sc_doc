@@ -9,17 +9,9 @@ import { sanitizeFileName } from '../../common/helpers';
 import { getAttachmentFolderPath } from '../../core/attachment/attachment.utils';
 import { AttachmentType } from '../../core/attachment/attachment.constants';
 import { StorageService } from '../../integrations/storage/storage.service';
+import { escapeHtml } from './ea-import.util';
 
 const DEFAULT_IMAGE_WIDTH = '800';
-
-function escapeHtmlAttribute(value: string): string {
-  return String(value ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
 
 @Injectable()
 export class EaAttachmentService {
@@ -90,11 +82,11 @@ export class EaAttachmentService {
 
     const imgHtml =
       '<img src="' +
-      escapeHtmlAttribute(apiFilePath) +
+      escapeHtml(apiFilePath) +
       '" data-attachment-id="' +
-      escapeHtmlAttribute(attachmentId) +
+      escapeHtml(attachmentId) +
       '" width="' +
-      escapeHtmlAttribute(width) +
+      escapeHtml(width) +
       '" data-align="center">';
 
     this.logger.debug(`Uploaded EA diagram image ${fileName} (${attachmentId})`);

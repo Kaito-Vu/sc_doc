@@ -14,9 +14,28 @@ import { User, Workspace } from '@docmost/db/types/entity.types';
 import { BaseService } from './base.service';
 import { RequireFeature } from '../common/decorators/require-feature.decorator';
 import { Feature } from '../../common/features';
-import { PaginationOptions } from '@docmost/db/pagination/pagination-options';
-import { JsonValue } from '@docmost/db/types/db';
 import { FastifyReply } from 'fastify';
+import { PageIdDto } from '../../core/page/dto/page.dto';
+import {
+  ConvertBaseDto,
+  CreateBaseDto,
+  CreatePropertyDto,
+  CreateRowDto,
+  CreateViewDto,
+  DeleteRowsDto,
+  ExpandPagesDto,
+  ListBasesDto,
+  ListRowsDto,
+  PropertyIdDto,
+  ReorderPropertyDto,
+  ReorderRowDto,
+  RowIdDto,
+  UpdateBaseDto,
+  UpdatePropertyDto,
+  UpdateRowDto,
+  UpdateViewDto,
+  ViewIdDto,
+} from './dto/base.dto';
 
 @UseGuards(JwtAuthGuard)
 @Controller('bases')
@@ -27,14 +46,7 @@ export class BaseController {
   @Post('create')
   @RequireFeature(Feature.BASES)
   async create(
-    @Body()
-    body: {
-      name: string;
-      description?: string;
-      icon?: string;
-      spaceId: string;
-      pageId?: string;
-    },
+    @Body() body: CreateBaseDto,
     @AuthUser() user: User,
     @AuthWorkspace() workspace: Workspace,
   ) {
@@ -45,7 +57,7 @@ export class BaseController {
   @Post('info')
   @RequireFeature(Feature.BASES)
   async info(
-    @Body() body: { pageId: string },
+    @Body() body: PageIdDto,
     @AuthUser() user: User,
     @AuthWorkspace() workspace: Workspace,
   ) {
@@ -56,13 +68,7 @@ export class BaseController {
   @Post('update')
   @RequireFeature(Feature.BASES)
   async update(
-    @Body()
-    body: {
-      pageId: string;
-      name?: string;
-      icon?: string;
-      description?: string;
-    },
+    @Body() body: UpdateBaseDto,
     @AuthUser() user: User,
     @AuthWorkspace() workspace: Workspace,
   ) {
@@ -73,7 +79,7 @@ export class BaseController {
   @Post('delete')
   @RequireFeature(Feature.BASES)
   async delete(
-    @Body() body: { pageId: string },
+    @Body() body: PageIdDto,
     @AuthUser() user: User,
     @AuthWorkspace() workspace: Workspace,
   ) {
@@ -84,7 +90,7 @@ export class BaseController {
   @Post('convert')
   @RequireFeature(Feature.BASES)
   async convert(
-    @Body() body: { pageId: string; template?: string },
+    @Body() body: ConvertBaseDto,
     @AuthUser() user: User,
     @AuthWorkspace() workspace: Workspace,
   ) {
@@ -100,7 +106,7 @@ export class BaseController {
   @Post('revert')
   @RequireFeature(Feature.BASES)
   async revert(
-    @Body() body: { pageId: string },
+    @Body() body: PageIdDto,
     @AuthUser() user: User,
     @AuthWorkspace() workspace: Workspace,
   ) {
@@ -111,7 +117,7 @@ export class BaseController {
   @Post()
   @RequireFeature(Feature.BASES)
   async list(
-    @Body() body: PaginationOptions & { spaceId: string },
+    @Body() body: ListBasesDto,
     @AuthUser() user: User,
     @AuthWorkspace() workspace: Workspace,
   ) {
@@ -123,7 +129,7 @@ export class BaseController {
   @Post('pages/expand')
   @RequireFeature(Feature.BASES)
   async expandPages(
-    @Body() body: { pageIds: string[] },
+    @Body() body: ExpandPagesDto,
     @AuthUser() user: User,
     @AuthWorkspace() workspace: Workspace,
   ) {
@@ -133,7 +139,7 @@ export class BaseController {
   @Post('export-csv')
   @RequireFeature(Feature.BASES)
   async exportCsv(
-    @Body() body: { pageId: string },
+    @Body() body: PageIdDto,
     @AuthUser() user: User,
     @AuthWorkspace() workspace: Workspace,
     @Res() res: FastifyReply,
@@ -155,13 +161,7 @@ export class BaseController {
   @Post('properties/create')
   @RequireFeature(Feature.BASES)
   async createProperty(
-    @Body()
-    body: {
-      pageId: string;
-      name: string;
-      type: string;
-      typeOptions?: JsonValue;
-    },
+    @Body() body: CreatePropertyDto,
     @AuthUser() user: User,
     @AuthWorkspace() workspace: Workspace,
   ) {
@@ -172,14 +172,7 @@ export class BaseController {
   @Post('properties/update')
   @RequireFeature(Feature.BASES)
   async updateProperty(
-    @Body()
-    body: {
-      pageId: string;
-      propertyId: string;
-      name?: string;
-      type?: string;
-      typeOptions?: JsonValue;
-    },
+    @Body() body: UpdatePropertyDto,
     @AuthUser() user: User,
     @AuthWorkspace() workspace: Workspace,
   ) {
@@ -190,7 +183,7 @@ export class BaseController {
   @Post('properties/delete')
   @RequireFeature(Feature.BASES)
   async deleteProperty(
-    @Body() body: { pageId: string; propertyId: string },
+    @Body() body: PropertyIdDto,
     @AuthUser() user: User,
     @AuthWorkspace() workspace: Workspace,
   ) {
@@ -201,7 +194,7 @@ export class BaseController {
   @Post('properties/reorder')
   @RequireFeature(Feature.BASES)
   async reorderProperty(
-    @Body() body: { pageId: string; propertyId: string; position: string },
+    @Body() body: ReorderPropertyDto,
     @AuthUser() user: User,
     @AuthWorkspace() workspace: Workspace,
   ) {
@@ -212,13 +205,7 @@ export class BaseController {
   @Post('rows/create')
   @RequireFeature(Feature.BASES)
   async createRow(
-    @Body()
-    body: {
-      pageId: string;
-      cells?: Record<string, unknown>;
-      position?: string;
-      afterRowId?: string;
-    },
+    @Body() body: CreateRowDto,
     @AuthUser() user: User,
     @AuthWorkspace() workspace: Workspace,
   ) {
@@ -229,7 +216,7 @@ export class BaseController {
   @Post('rows/info')
   @RequireFeature(Feature.BASES)
   async rowInfo(
-    @Body() body: { pageId: string; rowId: string },
+    @Body() body: RowIdDto,
     @AuthUser() user: User,
     @AuthWorkspace() workspace: Workspace,
   ) {
@@ -240,13 +227,7 @@ export class BaseController {
   @Post('rows/update')
   @RequireFeature(Feature.BASES)
   async updateRow(
-    @Body()
-    body: {
-      pageId: string;
-      rowId: string;
-      cells?: Record<string, unknown>;
-      position?: string;
-    },
+    @Body() body: UpdateRowDto,
     @AuthUser() user: User,
     @AuthWorkspace() workspace: Workspace,
   ) {
@@ -257,7 +238,7 @@ export class BaseController {
   @Post('rows/delete')
   @RequireFeature(Feature.BASES)
   async deleteRow(
-    @Body() body: { pageId: string; rowId: string },
+    @Body() body: RowIdDto,
     @AuthUser() user: User,
     @AuthWorkspace() workspace: Workspace,
   ) {
@@ -268,7 +249,7 @@ export class BaseController {
   @Post('rows/delete-many')
   @RequireFeature(Feature.BASES)
   async deleteRows(
-    @Body() body: { pageId: string; rowIds: string[] },
+    @Body() body: DeleteRowsDto,
     @AuthUser() user: User,
     @AuthWorkspace() workspace: Workspace,
   ) {
@@ -279,8 +260,7 @@ export class BaseController {
   @Post('rows')
   @RequireFeature(Feature.BASES)
   async listRows(
-    @Body()
-    body: PaginationOptions & { pageId: string },
+    @Body() body: ListRowsDto,
     @AuthUser() user: User,
     @AuthWorkspace() workspace: Workspace,
   ) {
@@ -292,7 +272,7 @@ export class BaseController {
   @Post('rows/reorder')
   @RequireFeature(Feature.BASES)
   async reorderRow(
-    @Body() body: { pageId: string; rowId: string; position: string },
+    @Body() body: ReorderRowDto,
     @AuthUser() user: User,
     @AuthWorkspace() workspace: Workspace,
   ) {
@@ -303,13 +283,7 @@ export class BaseController {
   @Post('views/create')
   @RequireFeature(Feature.BASES)
   async createView(
-    @Body()
-    body: {
-      pageId: string;
-      name: string;
-      type: string;
-      config?: JsonValue;
-    },
+    @Body() body: CreateViewDto,
     @AuthUser() user: User,
     @AuthWorkspace() workspace: Workspace,
   ) {
@@ -320,15 +294,7 @@ export class BaseController {
   @Post('views/update')
   @RequireFeature(Feature.BASES)
   async updateView(
-    @Body()
-    body: {
-      pageId: string;
-      viewId: string;
-      name?: string;
-      type?: string;
-      config?: JsonValue;
-      position?: string;
-    },
+    @Body() body: UpdateViewDto,
     @AuthUser() user: User,
     @AuthWorkspace() workspace: Workspace,
   ) {
@@ -339,7 +305,7 @@ export class BaseController {
   @Post('views/delete')
   @RequireFeature(Feature.BASES)
   async deleteView(
-    @Body() body: { pageId: string; viewId: string },
+    @Body() body: ViewIdDto,
     @AuthUser() user: User,
     @AuthWorkspace() workspace: Workspace,
   ) {
@@ -350,7 +316,7 @@ export class BaseController {
   @Post('views')
   @RequireFeature(Feature.BASES)
   async listViews(
-    @Body() body: { pageId: string },
+    @Body() body: PageIdDto,
     @AuthUser() user: User,
     @AuthWorkspace() workspace: Workspace,
   ) {

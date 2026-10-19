@@ -13,7 +13,14 @@ import { User, Workspace } from '@docmost/db/types/entity.types';
 import { PageVerificationService } from './page-verification.service';
 import { RequireFeature } from '../common/decorators/require-feature.decorator';
 import { Feature } from '../../common/features';
-import { PaginationOptions } from '@docmost/db/pagination/pagination-options';
+import { PageIdDto } from '../../core/page/dto/page.dto';
+import {
+  ListVerificationsDto,
+  RejectApprovalDto,
+  RejectReviewDto,
+  SetupVerificationDto,
+  UpdateVerificationDto,
+} from './dto/page-verification.dto';
 
 @UseGuards(JwtAuthGuard)
 @Controller('pages')
@@ -25,7 +32,7 @@ export class PageVerificationController {
   @HttpCode(HttpStatus.OK)
   @Post('verification-info')
   @RequireFeature(Feature.PAGE_VERIFICATION)
-  async info(@Body() body: { pageId: string }, @AuthUser() user: User) {
+  async info(@Body() body: PageIdDto, @AuthUser() user: User) {
     return this.pageVerificationService.getInfo(body.pageId, user);
   }
 
@@ -33,16 +40,7 @@ export class PageVerificationController {
   @Post('create-verification')
   @RequireFeature(Feature.PAGE_VERIFICATION)
   async setup(
-    @Body()
-    body: {
-      pageId: string;
-      type?: string;
-      mode?: string;
-      periodAmount?: number;
-      periodUnit?: string;
-      fixedExpiresAt?: string;
-      verifierIds: string[];
-    },
+    @Body() body: SetupVerificationDto,
     @AuthUser() user: User,
     @AuthWorkspace() workspace: Workspace,
   ) {
@@ -53,15 +51,7 @@ export class PageVerificationController {
   @Post('update-verification')
   @RequireFeature(Feature.PAGE_VERIFICATION)
   async update(
-    @Body()
-    body: {
-      pageId: string;
-      mode?: string;
-      periodAmount?: number;
-      periodUnit?: string;
-      fixedExpiresAt?: string;
-      verifierIds?: string[];
-    },
+    @Body() body: UpdateVerificationDto,
     @AuthUser() user: User,
   ) {
     await this.pageVerificationService.update(body, user);
@@ -70,14 +60,14 @@ export class PageVerificationController {
   @HttpCode(HttpStatus.OK)
   @Post('delete-verification')
   @RequireFeature(Feature.PAGE_VERIFICATION)
-  async remove(@Body() body: { pageId: string }, @AuthUser() user: User) {
+  async remove(@Body() body: PageIdDto, @AuthUser() user: User) {
     await this.pageVerificationService.remove(body.pageId, user);
   }
 
   @HttpCode(HttpStatus.OK)
   @Post('verify')
   @RequireFeature(Feature.PAGE_VERIFICATION)
-  async verify(@Body() body: { pageId: string }, @AuthUser() user: User) {
+  async verify(@Body() body: PageIdDto, @AuthUser() user: User) {
     await this.pageVerificationService.verify(body.pageId, user);
   }
 
@@ -85,7 +75,7 @@ export class PageVerificationController {
   @Post('submit-for-approval')
   @RequireFeature(Feature.PAGE_VERIFICATION)
   async submitForApproval(
-    @Body() body: { pageId: string },
+    @Body() body: PageIdDto,
     @AuthUser() user: User,
   ) {
     await this.pageVerificationService.submitForApproval(body.pageId, user);
@@ -95,7 +85,7 @@ export class PageVerificationController {
   @Post('reject-approval')
   @RequireFeature(Feature.PAGE_VERIFICATION)
   async rejectApproval(
-    @Body() body: { pageId: string; comment?: string },
+    @Body() body: RejectApprovalDto,
     @AuthUser() user: User,
   ) {
     await this.pageVerificationService.rejectApproval(body, user);
@@ -105,7 +95,7 @@ export class PageVerificationController {
   @Post('mark-obsolete')
   @RequireFeature(Feature.PAGE_VERIFICATION)
   async markObsolete(
-    @Body() body: { pageId: string },
+    @Body() body: PageIdDto,
     @AuthUser() user: User,
   ) {
     await this.pageVerificationService.markObsolete(body.pageId, user);
@@ -115,12 +105,7 @@ export class PageVerificationController {
   @Post('verifications')
   @RequireFeature(Feature.PAGE_VERIFICATION)
   async list(
-    @Body()
-    body: PaginationOptions & {
-      spaceIds?: string[];
-      verifierId?: string;
-      type?: string;
-    },
+    @Body() body: ListVerificationsDto,
     @AuthUser() user: User,
     @AuthWorkspace() workspace: Workspace,
   ) {
@@ -137,7 +122,7 @@ export class PageVerificationController {
   @Post('submit-for-review')
   @RequireFeature(Feature.PAGE_VERIFICATION)
   async submitForReview(
-    @Body() body: { pageId: string },
+    @Body() body: PageIdDto,
     @AuthUser() user: User,
   ) {
     await this.pageVerificationService.submit(body.pageId, user);
@@ -147,7 +132,7 @@ export class PageVerificationController {
   @Post('approve-review')
   @RequireFeature(Feature.PAGE_VERIFICATION)
   async approveReview(
-    @Body() body: { pageId: string },
+    @Body() body: PageIdDto,
     @AuthUser() user: User,
   ) {
     await this.pageVerificationService.approve(body.pageId, user);
@@ -157,7 +142,7 @@ export class PageVerificationController {
   @Post('reject-review')
   @RequireFeature(Feature.PAGE_VERIFICATION)
   async rejectReview(
-    @Body() body: { pageId: string; comment: string },
+    @Body() body: RejectReviewDto,
     @AuthUser() user: User,
   ) {
     await this.pageVerificationService.reject(body, user);
@@ -167,7 +152,7 @@ export class PageVerificationController {
   @Post('request-clarification')
   @RequireFeature(Feature.PAGE_VERIFICATION)
   async requestClarification(
-    @Body() body: { pageId: string },
+    @Body() body: PageIdDto,
     @AuthUser() user: User,
   ) {
     await this.pageVerificationService.requestClarification(body.pageId, user);
@@ -177,7 +162,7 @@ export class PageVerificationController {
   @Post('review-payload')
   @RequireFeature(Feature.PAGE_VERIFICATION)
   async reviewPayload(
-    @Body() body: { pageId: string },
+    @Body() body: PageIdDto,
     @AuthUser() user: User,
   ) {
     return this.pageVerificationService.getReviewPayload(body.pageId, user);

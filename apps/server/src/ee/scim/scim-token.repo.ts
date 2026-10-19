@@ -120,6 +120,13 @@ export class ScimTokenRepo {
       .updateTable('scimTokens')
       .set({ lastUsedAt: new Date() })
       .where('id', '=', id)
+      // Called on every authenticated request; write at most once a minute.
+      .where((eb) =>
+        eb.or([
+          eb('lastUsedAt', 'is', null),
+          eb('lastUsedAt', '<', new Date(Date.now() - 60_000)),
+        ]),
+      )
       .execute();
   }
 

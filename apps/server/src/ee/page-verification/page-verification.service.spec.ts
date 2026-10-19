@@ -11,6 +11,7 @@ import { CommentRepo } from '@docmost/db/repos/comment/comment.repo';
 import { PageHistoryRepo } from '@docmost/db/repos/page/page-history.repo';
 import { PageAccessService } from '../../core/page/page-access/page-access.service';
 import { SpaceMemberRepo } from '@docmost/db/repos/space/space-member.repo';
+import { PagePermissionRepo } from '@docmost/db/repos/page/page-permission.repo';
 import SpaceAbilityFactory from '../../core/casl/abilities/space-ability.factory';
 import { getQueueToken } from '@nestjs/bullmq';
 import { QueueName } from '../../integrations/queue/constants';
@@ -33,6 +34,7 @@ describe('PageVerificationService.submit', () => {
         { provide: PageHistoryRepo, useValue: { findPageLastHistory: jest.fn() } },
         { provide: PageAccessService, useValue: { validateCanView: jest.fn(), validateCanEdit: jest.fn() } },
         { provide: SpaceMemberRepo, useValue: {} },
+        { provide: PagePermissionRepo, useValue: {} },
         { provide: SpaceAbilityFactory, useValue: { createForUser: jest.fn().mockResolvedValue({ can: () => true }) } },
         { provide: KYSELY_MODULE_CONNECTION_TOKEN(), useValue: {} },
         { provide: getQueueToken(QueueName.NOTIFICATION_QUEUE), useValue: { add: jest.fn() } },
@@ -108,11 +110,12 @@ describe('PageVerificationService.approve', () => {
       providers: [
         PageVerificationService,
         { provide: PageVerificationRepo, useValue: pageVerificationRepo },
-        { provide: PageRepo, useValue: { findById: jest.fn() } },
+        { provide: PageRepo, useValue: { findById: jest.fn().mockResolvedValue({ id: 'p1', spaceId: 's1', creatorId: 'u2', deletedAt: null }) } },
         { provide: CommentRepo, useValue: commentRepo },
         { provide: PageHistoryRepo, useValue: { findPageLastHistory: jest.fn() } },
         { provide: PageAccessService, useValue: { validateCanView: jest.fn(), validateCanEdit: jest.fn() } },
         { provide: SpaceMemberRepo, useValue: {} },
+        { provide: PagePermissionRepo, useValue: {} },
         { provide: SpaceAbilityFactory, useValue: { createForUser: jest.fn().mockResolvedValue({ can: () => true }) } },
         { provide: KYSELY_MODULE_CONNECTION_TOKEN(), useValue: db },
         { provide: getQueueToken(QueueName.NOTIFICATION_QUEUE), useValue: { add: jest.fn() } },
@@ -231,6 +234,7 @@ describe('PageVerificationService aggregate decisions', () => {
           useValue: { validateCanView: jest.fn(), validateCanEdit: jest.fn() },
         },
         { provide: SpaceMemberRepo, useValue: {} },
+        { provide: PagePermissionRepo, useValue: {} },
         {
           provide: SpaceAbilityFactory,
           useValue: {
@@ -518,6 +522,7 @@ function buildBaseProviders(overrides: {
     { provide: PageHistoryRepo, useValue: overrides.pageHistoryRepo ?? { findPageLastHistory: jest.fn().mockResolvedValue({ id: 'h1' }) } },
     { provide: PageAccessService, useValue: { validateCanView: jest.fn(), validateCanEdit: jest.fn() } },
     { provide: SpaceMemberRepo, useValue: {} },
+    { provide: PagePermissionRepo, useValue: {} },
     { provide: SpaceAbilityFactory, useValue: { createForUser: jest.fn().mockResolvedValue({ can: () => true }) } },
     { provide: KYSELY_MODULE_CONNECTION_TOKEN(), useValue: overrides.db ?? {} },
     { provide: getQueueToken(QueueName.NOTIFICATION_QUEUE), useValue: { add: jest.fn() } },

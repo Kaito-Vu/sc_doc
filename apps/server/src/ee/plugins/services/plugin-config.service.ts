@@ -19,6 +19,43 @@ export interface PluginConfigData {
   updatedAt?: Date
 }
 
+// Placeholder returned to clients in place of secret values; never persist it.
+export const REDACTED_PLACEHOLDER = '***REDACTED***'
+
+function toConfigData(row: any): PluginConfigData {
+  return {
+    id: row.id,
+    workspaceId: row.workspaceId,
+    pluginId: row.pluginId,
+    enabled: row.enabled,
+    config: row.config || {},
+    version: row.version,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  }
+}
+
+/**
+ * Overlays submitted values onto the stored config. Empty strings and the
+ * redaction placeholder mean "unchanged": a client that sends back
+ * "***REDACTED***" for an untouched secret field (e.g. an older cached
+ * bundle) must not clobber the real stored secret with that literal.
+ */
+function mergeConfig(
+  existing: Record<string, any>,
+  updates: Record<string, any>,
+): Record<string, any> {
+  return {
+    ...existing,
+    ...Object.fromEntries(
+      Object.entries(updates).filter(
+        ([, value]) =>
+          value !== undefined && value !== '' && value !== REDACTED_PLACEHOLDER,
+      ),
+    ),
+  }
+}
+
 @Injectable()
 export class PluginConfigService {
   private readonly logger = new Logger(PluginConfigService.name)
@@ -55,16 +92,7 @@ export class PluginConfigService {
       }
     }
 
-    return {
-      id: config.id,
-      workspaceId: config.workspaceId,
-      pluginId: config.pluginId,
-      enabled: config.enabled,
-      config: config.config || {},
-      version: config.version,
-      createdAt: config.createdAt,
-      updatedAt: config.updatedAt,
-    }
+    return toConfigData(config)
   }
 
   async updateConfig(
@@ -76,26 +104,10 @@ export class PluginConfigService {
     },
     userId?: string,
   ): Promise<PluginConfigData> {
-    this.logger.log(`[UpdateConfig] Starting update - workspaceId: ${workspaceId}, pluginId: ${pluginId}, updates:`, updates)
+    // Never log `updates`: it carries plaintext secrets (e.g. secretKey).
     const plugin = this.registry.getPlugin(pluginId)
     if (!plugin) {
-      this.logger.error(`[UpdateConfig] Plugin not found: ${pluginId}`)
       throw new NotFoundException(`Plugin ${pluginId} not found`)
-    }
-
-    // Validate config if provided
-    if (updates.config && plugin.configSchema) {
-      const validation = this.validateConfig(
-        updates.config,
-        plugin.configSchema,
-      )
-      if (!validation.valid) {
-        this.logger.error(`[UpdateConfig] Validation failed:`, validation.errors)
-        throw new BadRequestException({
-          message: 'Invalid configuration',
-          errors: validation.errors,
-        })
-      }
     }
 
     const result = await this.upsertConfigWithRetry(
@@ -103,20 +115,32 @@ export class PluginConfigService {
       pluginId,
       updates,
       userId,
+      plugin.configSchema,
     )
 
     this.logger.log(
       `Plugin ${pluginId} config updated in workspace ${workspaceId}`,
     )
 
-    return {
-      id: result.id,
-      workspaceId: result.workspaceId,
-      pluginId: result.pluginId,
-      enabled: result.enabled,
-      config: result.config || {},
-      version: result.version,
-      updatedAt: result.updatedAt,
+    return toConfigData(result)
+  }
+
+  /**
+   * Validates the config as it will be stored (stored values overlaid with
+   * the submitted ones), so a partial update that omits an already-stored
+   * required secret is not rejected as "missing".
+   */
+  private assertValidConfig(
+    config: Record<string, any>,
+    schema: Record<string, any> | undefined,
+  ): void {
+    if (!schema) return
+    const errors = this.validateObject(config, schema, '')
+    if (errors.length > 0) {
+      throw new BadRequestException({
+        message: 'Invalid configuration',
+        errors,
+      })
     }
   }
 
@@ -133,6 +157,7 @@ export class PluginConfigService {
     pluginId: string,
     updates: { enabled?: boolean; config?: Record<string, any> },
     userId?: string,
+    configSchema?: Record<string, any>,
     attempt = 0,
   ): Promise<any> {
     const existing = await this.db
@@ -144,23 +169,10 @@ export class PluginConfigService {
 
     if (existing) {
       const existingConfig = existing.config || {}
-      // Defense in depth: a client that still sends back the
-      // "***REDACTED***" placeholder for an untouched secret field
-      // (e.g. an older cached bundle) must not be allowed to clobber the
-      // real stored secret with that literal string.
       const nextConfig = updates.config
-        ? {
-            ...existingConfig,
-            ...Object.fromEntries(
-              Object.entries(updates.config).filter(
-                ([, value]) =>
-                  value !== undefined &&
-                  value !== '' &&
-                  value !== '***REDACTED***',
-              ),
-            ),
-          }
+        ? mergeConfig(existingConfig, updates.config)
         : existingConfig
+      if (updates.config) this.assertValidConfig(nextConfig, configSchema)
 
       const result = await this.db
         .updateTable('plugin_configurations')
@@ -190,12 +202,16 @@ export class PluginConfigService {
           pluginId,
           updates,
           userId,
+          configSchema,
           attempt + 1,
         )
       }
 
       return result
     }
+
+    const initialConfig = mergeConfig({}, updates.config || {})
+    if (updates.config) this.assertValidConfig(initialConfig, configSchema)
 
     try {
       return await this.db
@@ -204,7 +220,7 @@ export class PluginConfigService {
           workspace_id: workspaceId,
           plugin_id: pluginId,
           enabled: updates.enabled ?? false,
-          config: updates.config || {},
+          config: initialConfig,
           created_by: userId,
           updated_by: userId,
           version: 1,
@@ -220,6 +236,7 @@ export class PluginConfigService {
         pluginId,
         updates,
         userId,
+        configSchema,
         attempt + 1,
       )
     }
@@ -231,17 +248,7 @@ export class PluginConfigService {
     enabled: boolean,
     userId?: string,
   ): Promise<PluginConfigData> {
-    this.logger.log(`[TogglePlugin] workspaceId: ${workspaceId}, pluginId: ${pluginId}, enabled: ${enabled}`)
-    const plugin = this.registry.getPlugin(pluginId)
-    if (!plugin) {
-      this.logger.error(`[TogglePlugin] Plugin not found: ${pluginId}`)
-      throw new NotFoundException(`Plugin ${pluginId} not found`)
-    }
-
-    this.logger.log(`[TogglePlugin] Calling updateConfig...`)
-    const result = await this.updateConfig(workspaceId, pluginId, { enabled }, userId)
-    this.logger.log(`[TogglePlugin] updateConfig result:`, result)
-    return result
+    return this.updateConfig(workspaceId, pluginId, { enabled }, userId)
   }
 
   isConfigured(
@@ -273,77 +280,79 @@ export class PluginConfigService {
       .orderBy('created_at', 'desc')
       .execute()
 
-    return configs.map((cfg) => ({
-      id: cfg.id,
-      workspaceId: cfg.workspaceId,
-      pluginId: cfg.pluginId,
-      enabled: cfg.enabled,
-      config: cfg.config || {},
-      version: cfg.version,
-      createdAt: cfg.createdAt,
-      updatedAt: cfg.updatedAt,
-    }))
+    return configs.map(toConfigData)
   }
 
-  private validateConfig(
-    config: Record<string, any>,
+  /**
+   * Minimal JSON-schema subset used by plugin-config.schema.json files:
+   * per-property `required`, `type` (string/number/boolean/object, objects
+   * validated recursively), `minimum`/`maximum` and `enum`.
+   */
+  private validateObject(
+    value: Record<string, any>,
     schema: Record<string, any>,
-  ): { valid: boolean; errors?: string[] } {
-    if (!schema.properties) {
-      return { valid: true }
-    }
-
-    const errors = Object.entries(schema.properties).flatMap(
-      ([key, propDef]) => {
-        const error = this.validateConfigField(key, propDef, config[key])
-        return error ? [error] : []
-      },
+    prefix: string,
+  ): string[] {
+    if (!schema.properties) return []
+    return Object.entries(schema.properties).flatMap(([key, propDef]) =>
+      this.validateConfigField(`${prefix}${key}`, propDef, value?.[key]),
     )
-
-    return {
-      valid: errors.length === 0,
-      errors: errors.length > 0 ? errors : undefined,
-    }
   }
 
   private validateConfigField(
     key: string,
     prop: unknown,
     value: unknown,
-  ): string | null {
+  ): string[] {
     const schemaProp =
       typeof prop === 'object' && prop !== null
-        ? (prop as { required?: boolean; type?: string })
+        ? (prop as {
+            required?: boolean
+            type?: string
+            minimum?: number
+            maximum?: number
+            enum?: unknown[]
+            properties?: Record<string, unknown>
+          })
         : {}
 
-    if (schemaProp.required && value === undefined) {
-      return `Missing required field: ${key}`
-    }
-
     if (value === undefined) {
-      return null
+      return schemaProp.required ? [`Missing required field: ${key}`] : []
     }
 
-    const expectedType = schemaProp.type
-    if (
-      expectedType === 'string' &&
-      typeof value !== 'string'
-    ) {
-      return `Field ${key} must be string`
-    }
-    if (
-      expectedType === 'number' &&
-      typeof value !== 'number'
-    ) {
-      return `Field ${key} must be number`
-    }
-    if (
-      expectedType === 'boolean' &&
-      typeof value !== 'boolean'
-    ) {
-      return `Field ${key} must be boolean`
+    switch (schemaProp.type) {
+      case 'string':
+        if (typeof value !== 'string') return [`Field ${key} must be string`]
+        break
+      case 'number':
+        if (typeof value !== 'number' || !Number.isFinite(value)) {
+          return [`Field ${key} must be number`]
+        }
+        if (schemaProp.minimum !== undefined && value < schemaProp.minimum) {
+          return [`Field ${key} must be >= ${schemaProp.minimum}`]
+        }
+        if (schemaProp.maximum !== undefined && value > schemaProp.maximum) {
+          return [`Field ${key} must be <= ${schemaProp.maximum}`]
+        }
+        break
+      case 'boolean':
+        if (typeof value !== 'boolean') return [`Field ${key} must be boolean`]
+        break
+      case 'object':
+        if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+          return [`Field ${key} must be object`]
+        }
+        return this.validateObject(
+          value as Record<string, any>,
+          schemaProp,
+          `${key}.`,
+        )
     }
 
-    return null
+    if (schemaProp.enum && !schemaProp.enum.includes(value)) {
+      return [`Field ${key} must be one of: ${schemaProp.enum.join(', ')}`]
+    }
+
+    return []
   }
 }

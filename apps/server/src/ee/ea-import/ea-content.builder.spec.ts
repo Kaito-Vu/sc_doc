@@ -1,7 +1,6 @@
 import * as JSZip from 'jszip';
 import {
   buildDiagramHtml,
-  buildDocumentsHtml,
   buildFlowHtml,
   decodeModelDocument,
   stripDuplicateLeadingHeading,
@@ -195,24 +194,6 @@ describe('RTF \\pict sink forwarding', () => {
     expect(html).not.toContain(hex);
     expect(sink).toHaveLength(1);
     expect(sink[0].mimeType).toBe('image/png');
-    expect(sink[0].buffer.equals(PNG_1X1)).toBe(true);
-  });
-
-  it('buildDocumentsHtml forwards the sink through each document', async () => {
-    const hex = PNG_1X1.toString('hex');
-    const base64 = await buildModelDocument(
-      `{\\rtf1\\ansi {\\pict\\pngblip ${hex}}\\par}`,
-    );
-    const node = makeNode({
-      documents: [{ ownerId: 'pkg-1', ownerName: 'Doc', order: 0, base64 }],
-    });
-    const sink: EaRtfImage[] = [];
-
-    const result = await buildDocumentsHtml(node, limits({}), sink);
-
-    expect(result.warnings).toHaveLength(0);
-    expect(result.html).toContain(eaRtfImagePlaceholder(0));
-    expect(sink).toHaveLength(1);
     expect(sink[0].buffer.equals(PNG_1X1)).toBe(true);
   });
 });

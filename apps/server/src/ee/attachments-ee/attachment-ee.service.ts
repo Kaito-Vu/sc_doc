@@ -20,13 +20,16 @@ export class AttachmentEeService {
     if (!attachment) return;
 
     try {
+      const ext = attachment.fileExt?.toLowerCase();
+      if (ext !== '.docx' && ext !== '.pdf') return;
+
       const buffer = await this.storageService.read(attachment.filePath);
       let textContent = '';
 
-      if (attachment.fileExt.toLowerCase() === '.docx') {
+      if (ext === '.docx') {
         const result = await mammoth.extractRawText({ buffer });
         textContent = result.value;
-      } else if (attachment.fileExt.toLowerCase() === '.pdf') {
+      } else {
         textContent = buffer.toString('utf8', 0, Math.min(buffer.length, 8192));
       }
 

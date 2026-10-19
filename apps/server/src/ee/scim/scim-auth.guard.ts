@@ -4,12 +4,11 @@ import {
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
-import { createHash } from 'crypto';
-import { ScimTokenRepo } from '../scim/scim-token.repo';
+import { ScimTokenService } from './scim-token.service';
 
 @Injectable()
 export class ScimAuthGuard implements CanActivate {
-  constructor(private readonly scimTokenRepo: ScimTokenRepo) {}
+  constructor(private readonly scimTokenService: ScimTokenService) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const req = context.switchToHttp().getRequest();
@@ -18,12 +17,7 @@ export class ScimAuthGuard implements CanActivate {
       throw new UnauthorizedException('SCIM bearer token required');
     }
     const raw = auth.slice('Bearer '.length).trim();
-    const tokenHash = createHash('sha256').update(raw).digest('hex');
-    const token = await this.scimTokenRepo.findByTokenHash(tokenHash);
-    if (!token) {
-      throw new UnauthorizedException('Invalid SCIM token');
-    }
-    await this.scimTokenRepo.touchLastUsed(token.id);
+    const token = await this.scimTokenService.validateToken(raw);
     req.scimWorkspaceId = token.workspaceId;
     return true;
   }

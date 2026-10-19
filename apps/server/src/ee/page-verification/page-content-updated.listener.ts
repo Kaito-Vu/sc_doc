@@ -45,6 +45,15 @@ export class PageContentUpdatedListener {
     );
 
     const created = await executeTx(this.db, async (trx) => {
+      // Concurrent content updates must not each open a new draft cycle:
+      // lock the approved row, then re-check it is still the latest.
+      await this.pageVerificationRepo.lockForUpdate(previous.id, trx);
+      const latest = await this.pageVerificationRepo.findLatestByPageId(
+        event.pageId,
+        trx,
+      );
+      if (latest?.id !== previous.id) return null;
+
       const inserted = await this.pageVerificationRepo.insert(
         {
           pageId: event.pageId,
@@ -69,6 +78,7 @@ export class PageContentUpdatedListener {
 
       return inserted;
     });
+    if (!created) return;
 
     this.logger.debug(
       `Page ${event.pageId} content changed after approval; reset to draft (${created.id})`,

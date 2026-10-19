@@ -14,7 +14,10 @@ import { User, Workspace } from '@docmost/db/types/entity.types';
 import { AuditQueryService } from './audit-query.service';
 import { RequireFeature } from '../common/decorators/require-feature.decorator';
 import { Feature } from '../../common/features';
-import { PaginationOptions } from '@docmost/db/pagination/pagination-options';
+import {
+  AuditQueryDto,
+  UpdateAuditRetentionDto,
+} from './dto/audit-query.dto';
 import WorkspaceAbilityFactory from '../../core/casl/abilities/workspace-ability.factory';
 import {
   WorkspaceCaslAction,
@@ -40,18 +43,13 @@ export class AuditQueryController {
   @Post()
   @RequireFeature(Feature.AUDIT_LOGS)
   async query(
-    @Body() body: PaginationOptions & Record<string, any>,
+    @Body() body: AuditQueryDto,
     @AuthUser() user: User,
     @AuthWorkspace() workspace: Workspace,
   ) {
     this.assertOwner(user, workspace);
-    const { limit, cursor, beforeCursor, ...filters } = body;
-    const pagination = new PaginationOptions();
-    pagination.limit = limit ?? pagination.limit;
-    pagination.cursor = cursor;
-    pagination.beforeCursor = beforeCursor;
-
-    return this.auditQueryService.queryLogs(workspace.id, pagination, filters);
+    // body is a validated AuditQueryDto (limit capped at 100 by PaginationOptions).
+    return this.auditQueryService.queryLogs(workspace.id, body, body);
   }
 
   @HttpCode(HttpStatus.OK)
@@ -69,7 +67,7 @@ export class AuditQueryController {
   @Post('retention/update')
   @RequireFeature(Feature.AUDIT_LOGS)
   async updateRetention(
-    @Body() body: { auditRetentionDays: number },
+    @Body() body: UpdateAuditRetentionDto,
     @AuthUser() user: User,
     @AuthWorkspace() workspace: Workspace,
   ) {

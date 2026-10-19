@@ -22,13 +22,8 @@ import {
   getPluginConfig,
   updatePluginConfig,
   IPluginDetail,
+  REDACTED_SECRET,
 } from "../services/plugin-service";
-
-// Matches PluginsController.redactSecrets() on the backend. A secret field
-// still holding this placeholder means the admin never touched it, so it
-// must be stripped from the submitted payload instead of overwriting the
-// real stored secret with the literal placeholder string.
-const REDACTED_PLACEHOLDER = "***REDACTED***";
 
 interface Props {
   pluginId: string;
@@ -105,7 +100,7 @@ function stripUntouchedSecrets(
       if (cleaned[key]) {
         cleaned[key] = stripUntouchedSecrets(propDef, cleaned[key]);
       }
-    } else if (propDef.isSecret && cleaned[key] === REDACTED_PLACEHOLDER) {
+    } else if (propDef.isSecret && cleaned[key] === REDACTED_SECRET) {
       delete cleaned[key];
     }
   }

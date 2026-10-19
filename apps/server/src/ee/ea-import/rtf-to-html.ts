@@ -8,6 +8,7 @@
  */
 
 import { EaRtfImage } from './types/ea-import.types';
+import { escapeHtml } from './ea-import.util';
 
 interface TextRun {
   text: string;
@@ -100,15 +101,6 @@ const CP1252_HIGH: Record<number, number> = {
   0x9e: 0x017e,
   0x9f: 0x0178,
 };
-
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
 
 /**
  * Char-code constants + predicates for the hot scanning loops. Comparing
@@ -227,6 +219,28 @@ const RTF_IMAGE_WRAPPER_DESTINATIONS = new Set<string>([
  */
 export function eaRtfImagePlaceholder(index: number): string {
   return `EARTFIMGPLACEHOLDER${index}Z`;
+}
+
+const RTF_IMAGE_PLACEHOLDER_RE = /EARTFIMGPLACEHOLDER(\d+)Z/g;
+
+/**
+ * Renumber a document's placeholders by `offset`, so several documents
+ * concatenated onto one page index into one combined image list.
+ */
+export function shiftEaRtfImagePlaceholders(
+  html: string,
+  offset: number,
+): string {
+  return offset === 0
+    ? html
+    : html.replace(RTF_IMAGE_PLACEHOLDER_RE, (_, index: string) =>
+        eaRtfImagePlaceholder(offset + Number(index)),
+      );
+}
+
+/** Drop every placeholder that was not replaced by an uploaded image. */
+export function stripEaRtfImagePlaceholders(html: string): string {
+  return html.replace(RTF_IMAGE_PLACEHOLDER_RE, '');
 }
 
 /** Destination control word of the group opening at `openIndex`, if any. */
@@ -869,83 +883,8 @@ function convert(rtf: string): string {
       case 'row':
         endRow();
         break;
-      case 'trgaph':
-      case 'trleft':
-      case 'trrh':
-      case 'tblind':
-      case 'tblindtype':
-      case 'trpaddl':
-      case 'trpaddr':
-      case 'trpaddt':
-      case 'trpaddb':
-      case 'trpaddfl':
-      case 'trpaddfr':
-      case 'trpaddft':
-      case 'trpaddfb':
-      case 'clvertalt':
-      case 'clvertalc':
-      case 'clvertalb':
-      case 'clbrdrt':
-      case 'clbrdrb':
-      case 'clbrdrl':
-      case 'clbrdrr':
-      case 'clcbpat':
-      case 'clpadt':
-      case 'clpadft':
-      case 'clpadr':
-      case 'clpadfr':
-      case 'clpadl':
-      case 'clpadfl':
-      case 'clpadb':
-      case 'clpadfb':
-      case 'lastrow':
-      case 'trhdr':
-      case 'ltrrow':
-      case 'ltrpar':
-      case 'ql':
-      case 'qc':
-      case 'qj':
-      case 'qr':
-      case 'widctlpar':
-      case 'li':
-      case 'ri':
-      case 'fi':
-      case 'sa':
-      case 'sb':
-      case 'sl':
-      case 'slmult':
-      case 'f':
-      case 'fs':
-      case 'lang':
-      case 'langfe':
-      case 'langnp':
-      case 'deflang':
-      case 'deflangfe':
-      case 'hich':
-      case 'dbch':
-      case 'loch':
-      case 'ltrch':
-      case 'rtlch':
-      case 's':
-      case 'sect':
-      case 'sectd':
-      case 'sbknone':
-      case 'sp':
-      case 'rtlpar':
-      case 'keep':
-      case 'nowidctlpar':
-      case 'noproof':
-      case 'brdrnone':
-      case 'brdrs':
-      case 'brdrw':
-      case 'brdrcf':
-      case 'green':
-      case 'dy':
-      case 'ssparaaux0':
-        // Formatting / layout controls: intentionally ignored.
-        break;
       default:
-        // Unknown control word: skipped.
+        // Formatting / layout / unknown control words: ignored.
         break;
     }
   };

@@ -47,6 +47,7 @@ export function EaImportTracker() {
   const canceling = useRef(new Set<string>());
   const fails = useRef(new Map<string, number>());
   const lastTask = useRef(new Map<string, IFileTask>());
+  const inFlight = useRef(new Set<string>());
 
   const notifId = (task: IFileTask) => `ea-import-${task.id}`;
 
@@ -283,6 +284,9 @@ export function EaImportTracker() {
 
   const poll = async (id: string) => {
     if (!navigator.onLine) return markFailure(id);
+    // A slow request must not overlap the next tick's request for the same task.
+    if (inFlight.current.has(id)) return;
+    inFlight.current.add(id);
     try {
       const task = await getFileTaskById(id);
       if (finished.current.has(id)) return;
@@ -296,6 +300,8 @@ export function EaImportTracker() {
       await finish(task);
     } catch {
       markFailure(id);
+    } finally {
+      inFlight.current.delete(id);
     }
   };
 

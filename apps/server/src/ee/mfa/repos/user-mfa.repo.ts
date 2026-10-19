@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectKysely } from 'nestjs-kysely';
+import { sql } from 'kysely';
 import { KyselyDB, KyselyTransaction } from '@docmost/db/types/kysely.types';
 import { dbOrTx } from '@docmost/db/utils';
 import {
@@ -25,7 +26,11 @@ export class UserMfaRepo {
     trx?: KyselyTransaction,
   ): Promise<UserMFA> {
     const db = dbOrTx(this.db, trx);
-    const existing = await this.findByUserId(data.userId);
+    const existing = await db
+      .selectFrom('userMfa')
+      .select('id')
+      .where('userId', '=', data.userId)
+      .executeTakeFirst();
 
     if (existing) {
       return db
@@ -41,6 +46,24 @@ export class UserMfaRepo {
       .values(data)
       .returningAll()
       .executeTakeFirst();
+  }
+
+  /**
+   * Removes one backup-code hash in a single statement; returns false when
+   * it was already consumed (e.g. by a concurrent request).
+   */
+  async consumeBackupCode(userId: string, hash: string): Promise<boolean> {
+    const row = await this.db
+      .updateTable('userMfa')
+      .set({
+        backupCodes: sql`array_remove(backup_codes, ${hash})`,
+        updatedAt: new Date(),
+      })
+      .where('userId', '=', userId)
+      .where(sql<boolean>`${hash} = ANY(backup_codes)`)
+      .returning('id')
+      .executeTakeFirst();
+    return !!row;
   }
 
   async update(

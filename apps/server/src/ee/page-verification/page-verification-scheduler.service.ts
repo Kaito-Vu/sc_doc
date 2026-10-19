@@ -6,8 +6,7 @@ import {
   QueueJob,
   QueueName,
 } from '../../integrations/queue/constants';
-
-const EXPIRING_WARNING_MS = 7 * 24 * 60 * 60 * 1000;
+import { EXPIRING_WARNING_MS } from './page-verification.status';
 
 @Injectable()
 export class PageVerificationSchedulerService {
@@ -23,25 +22,24 @@ export class PageVerificationSchedulerService {
     const now = new Date();
     const warningBefore = new Date(now.getTime() + EXPIRING_WARNING_MS);
 
-    const expiring =
-      await this.pageVerificationRepo.findExpiringVerifications(
-        now,
-        warningBefore,
-      );
-    for (const verification of expiring) {
-      await this.notificationQueue.add(
-        QueueJob.PAGE_VERIFICATION_EXPIRING,
-        { verificationId: verification.id },
-      );
-    }
+    const [expiring, expired] = await Promise.all([
+      this.pageVerificationRepo.findExpiringVerifications(now, warningBefore),
+      this.pageVerificationRepo.findExpiredVerifications(now),
+    ]);
 
-    const expired =
-      await this.pageVerificationRepo.findExpiredVerifications(now);
-    for (const verification of expired) {
-      await this.notificationQueue.add(
-        QueueJob.PAGE_VERIFICATION_EXPIRED,
-        { verificationId: verification.id },
-      );
+    // one round trip instead of one per verification
+    const jobs = [
+      ...expiring.map((verification) => ({
+        name: QueueJob.PAGE_VERIFICATION_EXPIRING,
+        data: { verificationId: verification.id },
+      })),
+      ...expired.map((verification) => ({
+        name: QueueJob.PAGE_VERIFICATION_EXPIRED,
+        data: { verificationId: verification.id },
+      })),
+    ];
+    if (jobs.length > 0) {
+      await this.notificationQueue.addBulk(jobs);
     }
 
     this.logger.debug(

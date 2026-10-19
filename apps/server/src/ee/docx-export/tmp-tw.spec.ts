@@ -17,7 +17,11 @@ it('pads ragged rows and collects widths', async () => {
   const doc = jsonToNode({ type: 'doc', content: [out] } as any);
   const buf = await pageNodeToDocxBuffer(doc, async () => new Uint8Array());
   const xml = await (await JSZip.loadAsync(buf)).file('word/document.xml').async('string');
-  console.log((xml.match(/<w:tr>[\s\S]*?<\/w:tr>/g) || []).map((r) => (r.match(/<w:tc>/g) || []).length), xml.match(/<w:tblGrid>.*?<\/w:tblGrid>/)![0]);
+  const cellsPerRow = (xml.match(/<w:tr>[\s\S]*?<\/w:tr>/g) || []).map(
+    (r) => (r.match(/<w:tc>/g) || []).length,
+  );
+  expect(cellsPerRow).toEqual([5, 5]);
+  expect(xml.match(/<w:gridCol/g)).toHaveLength(5);
 });
 it('rowspan: no padding where a span occupies', () => {
   const t = { type: 'table', content: [

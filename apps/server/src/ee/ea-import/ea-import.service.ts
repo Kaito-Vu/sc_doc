@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   Inject,
   Injectable,
   Logger,
@@ -10,10 +9,11 @@ import { InjectKysely } from 'nestjs-kysely';
 import { KyselyDB } from '@docmost/db/types/kysely.types';
 import { executeTx } from '@docmost/db/utils';
 import { FileTask, InsertablePage } from '@docmost/db/types/entity.types';
+import { PagePermissionRepo } from '@docmost/db/repos/page/page-permission.repo';
 import { v7 } from 'uuid';
 import { sql } from 'kysely';
 import * as path from 'path';
-import { Readable } from 'stream';
+import { buffer as streamToBuffer } from 'stream/consumers';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
@@ -29,7 +29,6 @@ import {
   AUDIT_SERVICE,
   IAuditService,
 } from '../../integrations/audit/audit.service';
-import { ImportService } from '../../integrations/import/services/import.service';
 import { PageService } from '../../core/page/services/page.service';
 import {
   FileTaskStatus,
@@ -40,7 +39,6 @@ import { StorageService } from '../../integrations/storage/storage.service';
 import { generateJitteredKeyBetween } from 'fractional-indexing-jittered';
 import { runEaCpuJobs } from './ea-cpu.pool';
 import {
-  EaDiagram,
   EaImageAsset,
   EaPackageNode,
   EaParseWarning,
@@ -51,22 +49,18 @@ import {
   buildContainerHtml,
   buildDiagramHtml,
   buildFlowHtml,
-  readModelDocumentUncompressedSize,
-  stripDuplicateLeadingHeading,
   stripEaCodePrefix,
 } from './ea-content.builder';
-import { convertModelDocuments } from './ea-convert.pool';
+import { convertNodeDocuments } from './ea-convert.pool';
 import {
   EaArchiveInspection,
   inspectEaArchive,
   isZipBuffer,
   normalizeAssetKey,
-  resolveImageForDiagram,
 } from './ea-asset.util';
 import { EaAttachmentService } from './ea-attachment.service';
 import { EaHtmlReportService } from './ea-html-report.service';
-import { eaRtfImagePlaceholder } from './rtf-to-html';
-import { buildWireframeDrawioSvg, drawioNodeHtml } from './ea-wireframe';
+import { EaImageContext, EaImageEmbedder } from './ea-image-embedder';
 import {
   EA_IMPORT_JOB,
   EA_IMPORT_QUEUE,
@@ -75,6 +69,7 @@ import {
 import {
   eaNodeHasContent,
   eaRootSignature,
+  errorMessage,
   flattenEaNodes,
   isLegacyStubText,
   textHash,
@@ -89,6 +84,7 @@ const IMAGE_UPLOAD_CONCURRENCY = 4;
 const INSERT_BATCH = 20;
 /** Parse on a worker thread above this size; smaller files parse faster inline. */
 const PARSE_WORKER_MIN_BYTES = 512 * 1024;
+const MAX_PAGES = 300;
 
 /** Run `fn` over `items` with at most `limit` in flight. */
 async function mapLimit<T>(
@@ -105,15 +101,6 @@ async function mapLimit<T>(
     }),
   );
 }
-
-const MAX_PAGES = 300;
-const MAX_TOTAL_RTF_BYTES = 96 * 1024 * 1024;
-const MAX_SINGLE_DOC_BYTES = 32 * 1024 * 1024;
-const MAX_IMAGES = 200;
-const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
-const MAX_TOTAL_IMAGE_BYTES = 64 * 1024 * 1024;
-/** Same file name the editor's draw.io macro saves. */
-const DRAWIO_FILE_NAME = 'diagram.drawio.svg';
 
 export interface EaImportResult {
   pageIds: string[];
@@ -153,22 +140,32 @@ interface PreparedPage {
   ydoc: Buffer | null;
 }
 
+interface ExistingImport {
+  id: string;
+  metadata: any;
+}
+
+interface MergeTargets {
+  /** EA GUID -> existing page; `editable` = the importer may write it. */
+  targets: Map<
+    string,
+    { id: string; slugId: string; textContent: string | null; editable: boolean }
+  >;
+  stubHashes: Record<string, string>;
+  pageMap: Record<string, string>;
+  pageIds: string[];
+  rootPageIds: string[];
+}
+
+interface ImportScope extends EaImageContext {
+  /** Page the imported roots are created under (null = space root). */
+  rootParentId: string | null;
+}
+
 class EaImportCanceledError extends Error {
   constructor() {
     super('EA import canceled');
   }
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
-async function streamToBuffer(stream: Readable): Promise<Buffer> {
-  const chunks: Buffer[] = [];
-  for await (const chunk of stream) {
-    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
-  }
-  return Buffer.concat(chunks);
 }
 
 @Injectable()
@@ -176,8 +173,8 @@ export class EaImportService {
   private readonly logger = new Logger(EaImportService.name);
 
   constructor(
-    private readonly importService: ImportService,
     private readonly pageService: PageService,
+    private readonly pagePermissionRepo: PagePermissionRepo,
     private readonly htmlReportService: EaHtmlReportService,
     private readonly attachmentService: EaAttachmentService,
     private readonly storageService: StorageService,
@@ -190,6 +187,7 @@ export class EaImportService {
   /**
    * Persist the uploaded file and enqueue an asynchronous import. Returns the
    * inserted `file_tasks` row, which the client polls via `POST /file-tasks/info`.
+   * The caller has already authorized the space and the parent page.
    */
   async enqueueEaImport(
     file: MultipartFile,
@@ -199,19 +197,6 @@ export class EaImportService {
     mode?: EaImportMode,
     parentPageId?: string,
   ): Promise<FileTask> {
-    if (parentPageId) {
-      const parent = await this.db
-        .selectFrom('pages')
-        .select('id')
-        .where('id', '=', parentPageId)
-        .where('spaceId', '=', spaceId)
-        .where('deletedAt', 'is', null)
-        .executeTakeFirst();
-      if (!parent) {
-        throw new BadRequestException('Invalid parent page');
-      }
-    }
-
     const fileExtension = path.extname(file.filename).toLowerCase();
     const baseName = sanitizeFileName(
       path.basename(file.filename, fileExtension),
@@ -249,11 +234,18 @@ export class EaImportService {
       .returningAll()
       .executeTakeFirstOrThrow();
 
-    await this.eaImportQueue.add(
-      EA_IMPORT_JOB,
-      { fileTaskId, mode, parentPageId },
-      { jobId: fileTaskId },
-    );
+    try {
+      await this.eaImportQueue.add(
+        EA_IMPORT_JOB,
+        { fileTaskId, mode, parentPageId },
+        { jobId: fileTaskId },
+      );
+    } catch (error) {
+      // Never leave a task stuck in "processing" with no job behind it.
+      await this.markTaskFailed(fileTaskId, 'Failed to queue the import');
+      await this.deleteStoredFile(filePath);
+      throw error;
+    }
 
     return fileTask;
   }
@@ -318,19 +310,16 @@ export class EaImportService {
         })
         .where('id', '=', fileTaskId)
         .execute();
-
-      await this.deleteStoredFile(fileTask.filePath);
     } catch (error) {
       if (error instanceof EaImportCanceledError) {
         this.logger.log(`EA import task ${fileTaskId} canceled`);
-      } else {
-        await this.markTaskFailed(fileTaskId, errorMessage(error));
+        return;
       }
+      await this.markTaskFailed(fileTaskId, errorMessage(error));
+      throw error;
+    } finally {
       if (fileTask.filePath) {
         await this.deleteStoredFile(fileTask.filePath);
-      }
-      if (!(error instanceof EaImportCanceledError)) {
-        throw error;
       }
     }
   }
@@ -462,8 +451,9 @@ export class EaImportService {
   /**
    * Parse the EA export (optionally from a companion ZIP). When the same EA
    * root package was already imported into this space the import is skipped
-   * unless the user chose `replace` (delete the previous tree after the fresh
-   * import commits) or `keep` (import an additional copy alongside it).
+   * unless the user chose `replace` (trash the previous tree after the fresh
+   * import commits), `keep` (import an additional copy alongside it) or
+   * `merge` (fill the previous tree's untouched stubs, add new packages).
    */
   private async runImport(opts: {
     buffer: Buffer;
@@ -476,7 +466,12 @@ export class EaImportService {
     parentPageId?: string;
   }): Promise<{ result: EaImportResult; metadata: EaImportMetadata }> {
     const { buffer, fileName, workspaceId, spaceId, creatorId, mode } = opts;
-    const rootParentId = opts.parentPageId ?? null;
+    const scope: ImportScope = {
+      workspaceId,
+      spaceId,
+      creatorId,
+      rootParentId: opts.parentPageId ?? null,
+    };
     const taskId = opts.fileTask.id;
     const startedAt = Date.now();
     const lap = (label: string): void =>
@@ -490,36 +485,9 @@ export class EaImportService {
 
     if (isZipBuffer(buffer)) {
       const inspection = await this.inspectArchive(buffer);
-
       if (!inspection.xmi) {
-        if (inspection.htmlPages.length === 0) {
-          throw new Error(
-            'EA archive contains neither an XMI document nor HTML pages',
-          );
-        }
-
-        const result = await this.htmlReportService.importHtmlReport({
-          buffer,
-          fileTask: opts.fileTask,
-          onProgress: (pct) => this.checkpoint(taskId, pct),
-          spaceId,
-          workspaceId,
-          creatorId,
-          parentPageId: rootParentId,
-        });
-
-        return {
-          result,
-          metadata: {
-            eaRootId: result.rootPageIds[0] ?? `ea-html:${fileName}`,
-            pageIds: result.pageIds,
-            rootPageIds: result.rootPageIds,
-            pageCount: result.pageCount,
-            warnings: result.warnings,
-          },
-        };
+        return this.importHtmlReport(opts, scope, inspection);
       }
-
       parsed = await this.parseDocument(inspection.xmi);
       byKey = new Map(
         inspection.images.map((image) => [
@@ -543,7 +511,6 @@ export class EaImportService {
     }
 
     const eaRootId = eaRootSignature(parsed.roots);
-
     const existingImport = eaRootId
       ? await this.findExistingImport(spaceId, workspaceId, eaRootId)
       : undefined;
@@ -552,54 +519,8 @@ export class EaImportService {
       this.logger.log(
         `Skipping EA import: root signature ${eaRootId} already imported in space ${spaceId}`,
       );
-      const allNodes = flattenEaNodes(parsed.roots);
-      const contentPages = allNodes.filter(eaNodeHasContent).length;
-      return {
-        result: {
-          pageIds: [],
-          rootPageIds: [],
-          pageCount: 0,
-          warnings: [
-            {
-              page: '',
-              reason: 'EA package already imported in this space',
-            },
-          ],
-        },
-        metadata: {
-          eaRootId,
-          pageCount: 0,
-          skipped: true,
-          duplicate: true,
-          contentPages,
-          stubPages: allNodes.length - contentPages,
-          replacedPageIds: this.metadataStringArray(
-            existingImport.metadata,
-            'rootPageIds',
-            'pageIds',
-          ),
-        },
-      };
+      return this.duplicateResult(parsed.roots, eaRootId, existingImport);
     }
-
-    const replacedRootPageIds =
-      existingImport && mode === 'replace'
-        ? this.metadataStringArray(
-            existingImport.metadata,
-            'rootPageIds',
-            'pageIds',
-          )
-        : [];
-    const replacedTaskId =
-      existingImport && mode === 'replace' ? existingImport.id : null;
-
-    // Flatten the package tree breadth-first so parents are always prepared
-    // (and inserted) before their children.
-    const prepared: PreparedPage[] = [];
-    const pageIdByNode = new Map<EaPackageNode, string>();
-    const slugIdByNode = new Map<EaPackageNode, string>();
-    const queue: Array<{ node: EaPackageNode; parent: EaPackageNode | null }> =
-      parsed.roots.map((node) => ({ node, parent: null }));
 
     // Merge: pages from earlier imports of this package are reused by GUID.
     const merge =
@@ -608,43 +529,10 @@ export class EaImportService {
             existingImport.metadata,
             flattenEaNodes(parsed.roots),
             spaceId,
+            creatorId,
           )
         : null;
-
-    while (queue.length > 0) {
-      const { node, parent } = queue.shift()!;
-      const hit = merge?.targets.get(node.id);
-      const id = hit?.id ?? v7();
-      const slugId = hit?.slugId ?? generateSlugId();
-      let action: PreparedPage['action'] = 'insert';
-      if (hit) {
-        const stubHash = merge!.stubHashes[node.id];
-        action = !eaNodeHasContent(node)
-          ? 'keep'
-          : stubHash !== undefined && textHash(hit.textContent) === stubHash
-            ? 'fill'
-            : 'skip';
-      }
-      pageIdByNode.set(node, id);
-      slugIdByNode.set(node, slugId);
-      prepared.push({
-        action,
-        node,
-        id,
-        slugId,
-        parentPageId: parent ? pageIdByNode.get(parent) ?? null : null,
-        title: '',
-        content: null,
-        ydoc: null,
-      });
-      for (const child of node.children) {
-        queue.push({ node: child, parent: node });
-      }
-    }
-
-    if (prepared.length === 0) {
-      throw new Error('No importable Enterprise Architect content found');
-    }
+    const prepared = this.planPages(parsed.roots, merge);
 
     // Only pages that are created or filled need converting; the rest of a
     // merge export (title-only stubs, already-populated pages) is left alone.
@@ -666,58 +554,246 @@ export class EaImportService {
       );
     }
 
-    const documentContent = await this.convertDocuments(work, warnings);
+    const documentContent = await convertNodeDocuments(
+      work.map((page) => page.node),
+      warnings,
+    );
     await this.checkpoint(taskId, 25);
     lap('documents converted');
 
-    const imageBudget = { count: 0, bytes: 0 };
+    const images = new EaImageEmbedder(
+      this.attachmentService,
+      scope,
+      byKey,
+      warnings,
+    );
+    const htmlByPage = await this.buildPagesHtml(
+      work,
+      documentContent,
+      images,
+      taskId,
+    );
+    lap('html built');
 
-    // Phase A (I/O bound): build each page's HTML, uploading its images.
-    const htmlByPage = new Map<string, { html: string; title: string }>();
+    await this.convertPages(work, htmlByPage, warnings, taskId);
+    lap('pages converted');
+
+    // Last cancellable point: the transaction below commits all pages at once.
+    await this.checkpoint(taskId, 92);
+
+    const { pageIds, rootPageIds, filledIds } = await this.commitPages(
+      work,
+      merge,
+      scope,
+    );
+    lap('pages inserted');
+
+    if (pageIds.length > 0) {
+      this.eventEmitter.emit(EventName.PAGE_CREATED, {
+        pageIds,
+        workspaceId,
+      });
+    }
+    if (filledIds.length > 0) {
+      this.eventEmitter.emit(EventName.PAGE_UPDATED, {
+        pageIds: filledIds,
+        workspaceId,
+      });
+    }
+
+    await this.auditService.log({
+      event: AuditEvent.PAGE_IMPORTED,
+      resourceType: AuditResource.PAGE,
+      resourceId: spaceId,
+      spaceId,
+      metadata: {
+        source: EA_SOURCE,
+        fileName,
+        pageCount: pageIds.length,
+      },
+    });
+
+    if (existingImport && mode === 'replace') {
+      await this.replaceExistingImport(existingImport, scope, warnings);
+    }
+
+    this.logger.log(
+      `Imported ${pageIds.length} EA pages, filled ${filledIds.length} (${warnings.length} warnings)`,
+    );
+
+    return {
+      result: {
+        pageIds,
+        rootPageIds,
+        pageCount: pageIds.length + filledIds.length,
+        warnings,
+      },
+      metadata: {
+        eaRootId,
+        pageIds: [...(merge?.pageIds ?? []), ...pageIds],
+        rootPageIds: [...(merge?.rootPageIds ?? []), ...rootPageIds],
+        pageCount: pageIds.length + filledIds.length,
+        warnings,
+        ...this.mergeBookkeeping(prepared, work, merge, filledIds),
+      },
+    };
+  }
+
+  /** ZIP without an XMI document: an EA HTML report. */
+  private async importHtmlReport(
+    opts: { buffer: Buffer; fileName: string; fileTask: FileTask },
+    scope: ImportScope,
+    archive: EaArchiveInspection,
+  ): Promise<{ result: EaImportResult; metadata: EaImportMetadata }> {
+    if (archive.htmlPages.length === 0) {
+      throw new Error(
+        'EA archive contains neither an XMI document nor HTML pages',
+      );
+    }
+    const result = await this.htmlReportService.importHtmlReport({
+      buffer: opts.buffer,
+      archive,
+      fileTask: opts.fileTask,
+      onProgress: (pct) => this.checkpoint(opts.fileTask.id, pct),
+      spaceId: scope.spaceId,
+      workspaceId: scope.workspaceId,
+      creatorId: scope.creatorId,
+      parentPageId: scope.rootParentId,
+    });
+    return {
+      result,
+      metadata: {
+        eaRootId: result.rootPageIds[0] ?? `ea-html:${opts.fileName}`,
+        pageIds: result.pageIds,
+        rootPageIds: result.rootPageIds,
+        pageCount: result.pageCount,
+        warnings: result.warnings,
+      },
+    };
+  }
+
+  /** Same root package already imported and no mode chosen: create nothing. */
+  private duplicateResult(
+    roots: EaPackageNode[],
+    eaRootId: string,
+    existingImport: ExistingImport,
+  ): { result: EaImportResult; metadata: EaImportMetadata } {
+    const allNodes = flattenEaNodes(roots);
+    const contentPages = allNodes.filter(eaNodeHasContent).length;
+    return {
+      result: {
+        pageIds: [],
+        rootPageIds: [],
+        pageCount: 0,
+        warnings: [
+          { page: '', reason: 'EA package already imported in this space' },
+        ],
+      },
+      metadata: {
+        eaRootId,
+        pageCount: 0,
+        skipped: true,
+        duplicate: true,
+        contentPages,
+        stubPages: allNodes.length - contentPages,
+        replacedPageIds: this.metadataStringArray(
+          existingImport.metadata,
+          'rootPageIds',
+          'pageIds',
+        ),
+      },
+    };
+  }
+
+  /**
+   * Flatten the package tree breadth-first so parents are always prepared
+   * (and inserted) before their children, deciding per node whether it is a
+   * new page or (merge) an existing page to fill, keep or skip.
+   */
+  private planPages(
+    roots: EaPackageNode[],
+    merge: MergeTargets | null,
+  ): PreparedPage[] {
+    const prepared: PreparedPage[] = [];
+    const pageIdByNode = new Map<EaPackageNode, string>();
+    const queue: Array<{ node: EaPackageNode; parent: EaPackageNode | null }> =
+      roots.map((node) => ({ node, parent: null }));
+
+    while (queue.length > 0) {
+      const { node, parent } = queue.shift()!;
+      const hit = merge?.targets.get(node.id);
+      let action: PreparedPage['action'] = 'insert';
+      if (hit) {
+        const stubHash = merge!.stubHashes[node.id];
+        action = !eaNodeHasContent(node)
+          ? 'keep'
+          : hit.editable &&
+              stubHash !== undefined &&
+              textHash(hit.textContent) === stubHash
+            ? 'fill'
+            : 'skip';
+      }
+      const id = hit?.id ?? v7();
+      pageIdByNode.set(node, id);
+      prepared.push({
+        action,
+        node,
+        id,
+        slugId: hit?.slugId ?? generateSlugId(),
+        parentPageId: parent ? (pageIdByNode.get(parent) ?? null) : null,
+        title: '',
+        content: null,
+        ydoc: null,
+      });
+      for (const child of node.children) {
+        queue.push({ node: child, parent: node });
+      }
+    }
+
+    if (prepared.length === 0) {
+      throw new Error('No importable Enterprise Architect content found');
+    }
+    return prepared;
+  }
+
+  /** Phase A (I/O bound): build each page's HTML, uploading its images. */
+  private async buildPagesHtml(
+    work: PreparedPage[],
+    documentContent: Map<EaPackageNode, { html: string; images: EaRtfImage[] }>,
+    images: EaImageEmbedder,
+    taskId: string,
+  ): Promise<Map<string, string>> {
+    const htmlByPage = new Map<string, string>();
     let built = 0;
     await mapLimit(work, IMAGE_UPLOAD_CONCURRENCY, async (page) => {
       await this.checkpoint(taskId, 25 + (35 * built) / work.length);
       built += 1;
       const { node } = page;
-      const isRoot = node.parentId === null;
-      const stripped = isRoot
-        ? stripEaCodePrefix(node.name)
-        : { title: node.name, code: null as string | null };
-      const title = (stripped.title || node.name || 'Untitled').normalize('NFC');
-
-      const imageHtmlById = await this.prepareDiagramImages(
-        node,
-        page.id,
-        title,
-        byKey,
-        { workspaceId, spaceId, creatorId },
-        imageBudget,
-        warnings,
+      const stripped =
+        node.parentId === null
+          ? stripEaCodePrefix(node.name)
+          : { title: node.name, code: null as string | null };
+      const title = (stripped.title || node.name || 'Untitled').normalize(
+        'NFC',
       );
+      page.title = title;
+
+      const imageHtmlById = await images.diagramImages(node, page.id, title);
 
       let html: string;
       if (node.documents.length > 0) {
-        const converted = documentContent.get(node) ?? {
-          html: '',
-          images: [] as EaRtfImage[],
-        };
-        html = await this.embedRtfImages(
-          converted.html,
-          converted.images,
+        const converted = documentContent.get(node);
+        html = await images.embedRtfImages(
+          converted?.html ?? '',
+          converted?.images ?? [],
           page.id,
           title,
-          { workspaceId, spaceId, creatorId },
-          imageBudget,
-          warnings,
         );
         // A page can carry both documents and diagrams (e.g. a wireframe
         // description attached to the diagram plus its exported image); keep
         // the diagram images instead of dropping them.
         for (const diagram of node.diagrams) {
-          const image = imageHtmlById.get(diagram.diagramId ?? diagram.name);
-          if (image) {
-            html += image;
-          }
+          html += imageHtmlById.get(diagram.diagramId ?? diagram.name) ?? '';
         }
       } else if (
         node.activities.length > 0 ||
@@ -730,20 +806,25 @@ export class EaImportService {
       } else {
         html = buildContainerHtml(node, stripped.code);
       }
-      htmlByPage.set(page.id, { html, title });
-      page.title = title;
+      htmlByPage.set(page.id, html);
     });
+    return htmlByPage;
+  }
 
-    lap('html built');
-
-    // Phase B (CPU bound): HTML -> ProseMirror -> Yjs on worker threads.
+  /** Phase B (CPU bound): HTML -> ProseMirror -> Yjs on worker threads. */
+  private async convertPages(
+    work: PreparedPage[],
+    htmlByPage: Map<string, string>,
+    warnings: EaParseWarning[],
+    taskId: string,
+  ): Promise<void> {
     let converted = 0;
     const pageResults = await runEaCpuJobs(
       work.map((page) => ({
         kind: 'page' as const,
         id: page.id,
-        html: htmlByPage.get(page.id)!.html,
-        title: htmlByPage.get(page.id)!.title,
+        html: htmlByPage.get(page.id)!,
+        title: page.title,
       })),
       async () => {
         converted += 1;
@@ -764,17 +845,20 @@ export class EaImportService {
       };
       page.ydoc = result?.ydoc ? Buffer.from(result.ydoc) : null;
     }
+  }
 
+  /** Insert new pages and fill merge stubs in one transaction. */
+  private async commitPages(
+    work: PreparedPage[],
+    merge: MergeTargets | null,
+    scope: ImportScope,
+  ): Promise<{ pageIds: string[]; rootPageIds: string[]; filledIds: string[] }> {
+    const { spaceId, workspaceId, creatorId, rootParentId } = scope;
     const pageIds: string[] = [];
     const rootPageIds: string[] = [];
     const filledIds: string[] = [];
     const inserts = work.filter((page) => page.action === 'insert');
     const insertedIds = new Set(inserts.map((page) => page.id));
-
-    lap('pages converted');
-
-    // Last cancellable point: the transaction below commits all pages at once.
-    await this.checkpoint(taskId, 92);
 
     await executeTx(this.db, async (trx) => {
       // New parents have no children yet, so only the first root needs a DB
@@ -832,17 +916,17 @@ export class EaImportService {
           continue;
         }
         const stubHash = merge!.stubHashes[page.node.id];
-        const text = jsonToText(page.content);
         const res = await trx
           .updateTable('pages')
           .set({
             content: page.content,
-            textContent: text,
+            textContent: jsonToText(page.content),
             ydoc: page.ydoc,
             lastUpdatedById: creatorId,
             updatedAt: new Date(),
           })
           .where('id', '=', page.id)
+          .where('spaceId', '=', spaceId)
           .where('deletedAt', 'is', null)
           .where(
             sql<boolean>`md5(coalesce(text_content, '')) = ${stubHash}`,
@@ -854,48 +938,19 @@ export class EaImportService {
       }
     });
 
-    lap('pages inserted');
+    return { pageIds, rootPageIds, filledIds };
+  }
 
-    if (pageIds.length > 0) {
-      this.eventEmitter.emit(EventName.PAGE_CREATED, {
-        pageIds,
-        workspaceId,
-      });
-    }
-    if (filledIds.length > 0) {
-      this.eventEmitter.emit(EventName.PAGE_UPDATED, {
-        pageIds: filledIds,
-        workspaceId,
-      });
-    }
-
-    await this.auditService.log({
-      event: AuditEvent.PAGE_IMPORTED,
-      resourceType: AuditResource.PAGE,
-      resourceId: spaceId,
-      spaceId,
-      metadata: {
-        source: EA_SOURCE,
-        fileName,
-        pageCount: pageIds.length,
-      },
-    });
-
-    if (replacedRootPageIds.length > 0 || replacedTaskId) {
-      await this.replaceExistingImport(
-        replacedRootPageIds,
-        replacedTaskId,
-        workspaceId,
-      );
-    }
-
-    this.logger.log(
-      `Imported ${pageIds.length} EA pages, filled ${filledIds.length} (${warnings.length} warnings)`,
-    );
-
-    // Cumulative page map + stub hashes let the next merge find these pages.
+  /** Cumulative page map + stub hashes let the next merge find these pages. */
+  private mergeBookkeeping(
+    prepared: PreparedPage[],
+    work: PreparedPage[],
+    merge: MergeTargets | null,
+    filledIds: string[],
+  ): Pick<EaImportMetadata, 'pageMap' | 'stubHashes' | 'merge'> {
     const pageMap = { ...merge?.pageMap };
     const stubHashes = { ...merge?.stubHashes };
+    const inserts = work.filter((page) => page.action === 'insert');
     for (const page of inserts) {
       pageMap[page.node.id] = page.id;
       if (eaNodeHasContent(page.node)) {
@@ -910,31 +965,17 @@ export class EaImportService {
         delete stubHashes[page.node.id];
       }
     }
-
     return {
-      result: {
-        pageIds,
-        rootPageIds,
-        pageCount: pageIds.length + filledIds.length,
-        warnings,
-      },
-      metadata: {
-        eaRootId,
-        pageIds: [...(merge?.pageIds ?? []), ...pageIds],
-        rootPageIds: [...(merge?.rootPageIds ?? []), ...rootPageIds],
-        pageCount: pageIds.length + filledIds.length,
-        warnings,
-        pageMap,
-        stubHashes,
-        ...(merge && {
-          merge: {
-            added: pageIds.length,
-            filled: filledIds.length,
-            kept: prepared.filter((page) => page.action === 'keep').length,
-            skipped: prepared.filter((page) => page.action === 'skip').length,
-          },
-        }),
-      },
+      pageMap,
+      stubHashes,
+      ...(merge && {
+        merge: {
+          added: inserts.length,
+          filled: filledIds.length,
+          kept: prepared.filter((page) => page.action === 'keep').length,
+          skipped: prepared.filter((page) => page.action === 'skip').length,
+        },
+      }),
     };
   }
 
@@ -948,7 +989,8 @@ export class EaImportService {
     metadata: any,
     nodes: EaPackageNode[],
     spaceId: string,
-  ) {
+    userId: string,
+  ): Promise<MergeTargets> {
     let legacy = false;
     let pageMap: Record<string, string> = metadata?.pageMap ?? {};
     const pageIds = this.metadataStringArray(metadata, 'pageIds');
@@ -973,18 +1015,20 @@ export class EaImportService {
           .execute()
       : [];
     const byId = new Map(rows.map((row) => [row.id, row]));
+    // Page-level permissions may have restricted part of the old tree since.
+    const editable = await this.editablePageIds(
+      rows.map((row) => row.id),
+      userId,
+    );
 
-    const targets = new Map<
-      string,
-      { id: string; slugId: string; textContent: string | null }
-    >();
+    const targets: MergeTargets['targets'] = new Map();
     const stubHashes: Record<string, string> = { ...metadata?.stubHashes };
     for (const [guid, id] of Object.entries(pageMap)) {
       const row = byId.get(id);
       if (!row) {
         continue;
       }
-      targets.set(guid, row);
+      targets.set(guid, { ...row, editable: editable.has(id) });
       // ponytail: legacy imports have no hashes; seed them from the stub-shaped body.
       if (legacy && isLegacyStubText(row.textContent)) {
         stubHashes[guid] = textHash(row.textContent);
@@ -1000,96 +1044,17 @@ export class EaImportService {
     };
   }
 
-  /**
-   * Convert every page's Model Documents (base64 ZIP -> RTF -> HTML) ahead of
-   * the page loop. Documents are independent and CPU-bound, so they run across
-   * a worker-thread pool; the per-document and total byte budgets are enforced
-   * up-front via a cheap size pre-scan (workers run without a shared budget).
-   */
-  private async convertDocuments(
-    prepared: PreparedPage[],
-    warnings: EaParseWarning[],
-  ): Promise<Map<EaPackageNode, { html: string; images: EaRtfImage[] }>> {
-    const result = new Map<
-      EaPackageNode,
-      { html: string; images: EaRtfImage[] }
-    >();
-    const nodesWithDocuments = prepared
-      .map((page) => page.node)
-      .filter((node) => node.documents.length > 0);
-    if (nodesWithDocuments.length === 0) {
-      return result;
-    }
-
-    interface DocEntry {
-      id?: string;
-      skipReason?: string;
-      warningPage: string;
-    }
-    const entriesByNode = new Map<EaPackageNode, DocEntry[]>();
-    const tasks: Array<{ id: string; base64: string }> = [];
-    let totalBytes = 0;
-    let counter = 0;
-
-    for (const node of nodesWithDocuments) {
-      const entries: DocEntry[] = [];
-      for (const document of node.documents) {
-        const warningPage = document.ownerName || node.name;
-        const size = await readModelDocumentUncompressedSize(document.base64);
-        let skipReason: string | undefined;
-        if (size !== null && size > MAX_SINGLE_DOC_BYTES) {
-          skipReason = `Model document exceeds the ${MAX_SINGLE_DOC_BYTES} byte per-document limit`;
-        } else if (size !== null && totalBytes + size > MAX_TOTAL_RTF_BYTES) {
-          skipReason = `Model documents exceed the ${MAX_TOTAL_RTF_BYTES} byte total limit`;
-        }
-        if (skipReason) {
-          entries.push({ skipReason, warningPage });
-          continue;
-        }
-        if (size !== null) {
-          totalBytes += size;
-        }
-        const id = `doc-${counter}`;
-        counter += 1;
-        entries.push({ id, warningPage });
-        tasks.push({ id, base64: document.base64 });
-      }
-      entriesByNode.set(node, entries);
-    }
-
-    const converted = await convertModelDocuments(tasks, MAX_SINGLE_DOC_BYTES);
-
-    for (const node of nodesWithDocuments) {
-      let html = '';
-      const images: EaRtfImage[] = [];
-      for (const entry of entriesByNode.get(node) ?? []) {
-        if (entry.skipReason) {
-          warnings.push({ page: entry.warningPage, reason: entry.skipReason });
-          html += '<p></p>';
-          continue;
-        }
-        const convertedDoc = entry.id ? converted.get(entry.id) : undefined;
-        if (
-          convertedDoc &&
-          !convertedDoc.error &&
-          typeof convertedDoc.html === 'string'
-        ) {
-          html += convertedDoc.html;
-          if (convertedDoc.images) {
-            images.push(...convertedDoc.images);
-          }
-        } else {
-          warnings.push({
-            page: entry.warningPage,
-            reason: convertedDoc?.error ?? 'Failed to convert model document',
-          });
-          html += '<p></p>';
-        }
-      }
-      result.set(node, { html, images });
-    }
-
-    return result;
+  /** Pages (of `pageIds`) the user may edit, honoring page-level permissions. */
+  private async editablePageIds(
+    pageIds: string[],
+    userId: string,
+  ): Promise<Set<string>> {
+    const access =
+      await this.pagePermissionRepo.filterAccessiblePageIdsWithPermissions(
+        pageIds,
+        userId,
+      );
+    return new Set(access.filter((page) => page.canEdit).map((p) => p.id));
   }
 
   /** Most recent successful EA import in this space with the same root signature. */
@@ -1097,7 +1062,7 @@ export class EaImportService {
     spaceId: string,
     workspaceId: string,
     eaRootId: string,
-  ): Promise<{ id: string; metadata: any } | undefined> {
+  ): Promise<ExistingImport | undefined> {
     if (!eaRootId) {
       return undefined;
     }
@@ -1132,257 +1097,75 @@ export class EaImportService {
   }
 
   /**
-   * Replace semantics: delete the previously imported page tree, then neutralize
-   * the old task's signature so future imports are not flagged as duplicates.
-   * Runs after the new tree is committed; failures are logged, never thrown.
+   * Replace semantics: move the previously imported page tree to the trash,
+   * then neutralize the old task's signature so future imports are not
+   * flagged as duplicates. Only roots still in this space that the importer
+   * may edit are trashed; trashing (not permanent deletion) mirrors what a
+   * space editor can do by hand. Runs after the new tree is committed;
+   * failures become warnings, never thrown.
    */
   private async replaceExistingImport(
-    rootPageIds: string[],
-    taskId: string | null,
-    workspaceId: string,
+    existingImport: ExistingImport,
+    scope: ImportScope,
+    warnings: EaParseWarning[],
   ): Promise<void> {
-    for (const rootPageId of rootPageIds) {
+    const { spaceId, workspaceId, creatorId } = scope;
+    const rootPageIds = this.metadataStringArray(
+      existingImport.metadata,
+      'rootPageIds',
+      'pageIds',
+    );
+    const live = rootPageIds.length
+      ? await this.db
+          .selectFrom('pages')
+          .select(['id', 'title'])
+          .where('id', 'in', rootPageIds)
+          .where('spaceId', '=', spaceId)
+          .where('deletedAt', 'is', null)
+          .execute()
+      : [];
+    const editable = await this.editablePageIds(
+      live.map((page) => page.id),
+      creatorId,
+    );
+
+    for (const page of live) {
+      if (!editable.has(page.id)) {
+        warnings.push({
+          page: page.title ?? '',
+          reason: 'Previous import page is restricted; it was not replaced',
+        });
+        continue;
+      }
       try {
-        await this.pageService.forceDelete(rootPageId, workspaceId);
+        await this.pageService.removePage(page.id, creatorId, workspaceId);
+        await this.auditService.log({
+          event: AuditEvent.PAGE_TRASHED,
+          resourceType: AuditResource.PAGE,
+          resourceId: page.id,
+          spaceId,
+          metadata: { source: EA_SOURCE, reason: 'replace' },
+        });
       } catch (error) {
         this.logger.error(
-          `Failed to delete replaced EA page ${rootPageId}`,
+          `Failed to trash replaced EA page ${page.id}`,
           error instanceof Error ? error.stack : undefined,
         );
       }
     }
-    if (taskId) {
-      try {
-        await this.db
-          .updateTable('fileTasks')
-          .set({ metadata: sql`metadata - 'eaRootId'` as any })
-          .where('id', '=', taskId)
-          .execute();
-      } catch (error) {
-        this.logger.error(
-          `Failed to clear replaced EA task signature ${taskId}`,
-          error instanceof Error ? error.stack : undefined,
-        );
-      }
-    }
-  }
 
-  /**
-   * Resolve and upload the companion (or embedded) image for every diagram
-   * owned by a page, returning a map from diagram key to `<img>` HTML. Uploads
-   * happen before the page transaction; any failure is a warning and never
-   * aborts the import.
-   */
-  private async prepareDiagramImages(
-    node: EaPackageNode,
-    pageId: string,
-    pageTitle: string,
-    byKey: Map<string, EaImageAsset>,
-    context: { workspaceId: string; spaceId: string; creatorId: string },
-    budget: { count: number; bytes: number },
-    warnings: EaParseWarning[],
-  ): Promise<Map<string, string>> {
-    const imageHtmlById = new Map<string, string>();
-    if (node.diagrams.length === 0) {
-      return imageHtmlById;
-    }
-
-    for (const diagram of node.diagrams) {
-      const key = diagram.diagramId ?? diagram.name;
-      const asset =
-        resolveImageForDiagram(diagram, byKey) ?? diagram.embeddedImage;
-      if (!asset) {
-        if (diagram.wireframe?.length && !imageHtmlById.has(key)) {
-          const html = await this.uploadWireframeDrawio(
-            diagram,
-            pageId,
-            pageTitle,
-            context,
-            warnings,
-          );
-          if (html) {
-            imageHtmlById.set(key, html);
-          }
-        }
-        continue;
-      }
-
-      if (imageHtmlById.has(key)) {
-        continue;
-      }
-
-      if (budget.count >= MAX_IMAGES) {
-        warnings.push({
-          page: pageTitle,
-          reason: `Diagram image limit reached (${MAX_IMAGES}); remaining images were skipped.`,
-        });
-        break;
-      }
-      if (asset.buffer.length > MAX_IMAGE_BYTES) {
-        warnings.push({
-          page: pageTitle,
-          reason: `Diagram image ${asset.fileName} exceeds the 8 MB limit and was skipped.`,
-        });
-        continue;
-      }
-      if (budget.bytes + asset.buffer.length > MAX_TOTAL_IMAGE_BYTES) {
-        warnings.push({
-          page: pageTitle,
-          reason:
-            'Diagram images exceed the 64 MB total limit; remaining images were skipped.',
-        });
-        break;
-      }
-
-      try {
-        const uploaded = await this.attachmentService.uploadImage({
-          buffer: asset.buffer,
-          fileName: asset.fileName,
-          mimeType: asset.mimeType,
-          pageId,
-          workspaceId: context.workspaceId,
-          spaceId: context.spaceId,
-          creatorId: context.creatorId,
-        });
-        imageHtmlById.set(key, uploaded.imgHtml);
-        budget.count += 1;
-        budget.bytes += asset.buffer.length;
-      } catch (error) {
-        warnings.push({
-          page: pageTitle,
-          reason: `Failed to import diagram image ${asset.fileName}: ${errorMessage(error)}`,
-        });
-      }
-    }
-
-    return imageHtmlById;
-  }
-
-  /**
-   * Turn a diagram's Wireframing controls into an editable draw.io node.
-   * Returns null (with a warning) when the upload fails.
-   */
-  private async uploadWireframeDrawio(
-    diagram: EaDiagram,
-    pageId: string,
-    pageTitle: string,
-    context: { workspaceId: string; spaceId: string; creatorId: string },
-    warnings: EaParseWarning[],
-  ): Promise<string | null> {
     try {
-      const buffer = Buffer.from(
-        buildWireframeDrawioSvg(diagram.wireframe ?? []),
-        'utf-8',
-      );
-      const uploaded = await this.attachmentService.uploadImage({
-        buffer,
-        fileName: DRAWIO_FILE_NAME,
-        mimeType: 'image/svg+xml',
-        pageId,
-        workspaceId: context.workspaceId,
-        spaceId: context.spaceId,
-        creatorId: context.creatorId,
-      });
-      return drawioNodeHtml({
-        src: uploaded.apiFilePath,
-        attachmentId: uploaded.attachmentId,
-        fileName: DRAWIO_FILE_NAME,
-        size: buffer.length,
-      });
+      await this.db
+        .updateTable('fileTasks')
+        .set({ metadata: sql`metadata - 'eaRootId'` as any })
+        .where('id', '=', existingImport.id)
+        .execute();
     } catch (error) {
-      warnings.push({
-        page: pageTitle,
-        reason: `Failed to convert wireframe ${diagram.name} to draw.io: ${errorMessage(error)}`,
-      });
-      return null;
+      this.logger.error(
+        `Failed to clear replaced EA task signature ${existingImport.id}`,
+        error instanceof Error ? error.stack : undefined,
+      );
     }
-  }
-
-  /**
-   * Upload every `\pict` image extracted from a page's RTF documents and swap
-   * its placeholder for the returned `<img>` HTML, sharing the diagram image
-   * budget. Any failure or over-budget image is dropped with a warning.
-   */
-  private async embedRtfImages(
-    html: string,
-    images: EaRtfImage[],
-    pageId: string,
-    pageTitle: string,
-    context: { workspaceId: string; spaceId: string; creatorId: string },
-    budget: { count: number; bytes: number },
-    warnings: EaParseWarning[],
-  ): Promise<string> {
-    if (images.length === 0) {
-      return html;
-    }
-
-    let result = html;
-    for (let index = 0; index < images.length; index += 1) {
-      const image = images[index];
-      const placeholder = eaRtfImagePlaceholder(index);
-      if (!result.includes(placeholder)) {
-        continue;
-      }
-
-      const drop = (): void => {
-        result = result.split(placeholder).join('');
-      };
-
-      if (budget.count >= MAX_IMAGES) {
-        warnings.push({
-          page: pageTitle,
-          reason: `RTF image limit reached (${MAX_IMAGES}); remaining images were skipped.`,
-        });
-        drop();
-        continue;
-      }
-      if (image.buffer.length > MAX_IMAGE_BYTES) {
-        warnings.push({
-          page: pageTitle,
-          reason: `RTF image ${index} exceeds the 8 MB limit and was skipped.`,
-        });
-        drop();
-        continue;
-      }
-      if (budget.bytes + image.buffer.length > MAX_TOTAL_IMAGE_BYTES) {
-        warnings.push({
-          page: pageTitle,
-          reason:
-            'RTF images exceed the 64 MB total limit; remaining images were skipped.',
-        });
-        drop();
-        break;
-      }
-
-      const ext =
-        image.mimeType === 'image/png'
-          ? '.png'
-          : image.mimeType === 'image/jpeg'
-            ? '.jpg'
-            : '';
-      try {
-        const uploaded = await this.attachmentService.uploadImage({
-          buffer: image.buffer,
-          fileName: `rtf-image-${index}${ext}`,
-          mimeType: image.mimeType,
-          pageId,
-          workspaceId: context.workspaceId,
-          spaceId: context.spaceId,
-          creatorId: context.creatorId,
-        });
-        result = result.split(placeholder).join(uploaded.imgHtml);
-        budget.count += 1;
-        budget.bytes += image.buffer.length;
-      } catch (error) {
-        warnings.push({
-          page: pageTitle,
-          reason: `Failed to import RTF image ${index}: ${errorMessage(error)}`,
-        });
-        drop();
-      }
-    }
-
-    return result;
   }
 
   private async deleteStoredFile(filePath: string): Promise<void> {

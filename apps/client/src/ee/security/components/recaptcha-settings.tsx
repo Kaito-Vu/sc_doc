@@ -16,11 +16,11 @@ import {
   getPluginConfig,
   getPlugins,
   updatePluginConfig,
+  REDACTED_SECRET,
 } from "@/ee/plugins/services/plugin-service";
 import { clearRecaptchaConfigCache } from "@/ee/plugins/recaptcha/services/recaptcha-config.service";
 
 const RECAPTCHA_PLUGIN_ID = "recaptcha";
-const REDACTED_SECRET = "***REDACTED***";
 
 interface ActionSettings {
   enabled: boolean;

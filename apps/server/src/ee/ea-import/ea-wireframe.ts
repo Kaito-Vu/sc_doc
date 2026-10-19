@@ -1,4 +1,5 @@
 import { EaWireframeShape } from './types/ea-import.types';
+import { escapeHtml as escapeXml } from './ea-import.util';
 
 /**
  * EA "Wireframing" controls (WireframeButton, WireframeTextField, ...) ->
@@ -78,15 +79,6 @@ const FALLBACK: ShapeLook = {
   align: 'middle',
 };
 
-function escapeXml(value: string): string {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
 export interface EaWireframeControl {
   kind: string;
   text: string;
@@ -121,13 +113,14 @@ export function toWireframeShape(
 
 /** EA double-escapes some text (`B&amp;#193;O`); fold leftover numeric entities. */
 function decodeNumericEntities(value: string): string {
-  return value.replace(/&#(x[0-9a-f]+|\d+);/gi, (_, code: string) =>
-    String.fromCodePoint(
+  return value.replace(/&#(x[0-9a-f]+|\d+);/gi, (entity, code: string) => {
+    const point =
       code[0].toLowerCase() === 'x'
         ? parseInt(code.slice(1), 16)
-        : parseInt(code, 10),
-    ),
-  );
+        : parseInt(code, 10);
+    // fromCodePoint throws past U+10FFFF; keep such entities verbatim.
+    return point <= 0x10ffff ? String.fromCodePoint(point) : entity;
+  });
 }
 
 /** `Left=1;Top=2;Right=3;Bottom=4;` -> box (EA flips Top's sign in some formats). */
@@ -191,8 +184,10 @@ export function buildWireframeDrawioSvg(shapes: EaWireframeShape[]): string {
     const text = shape.text.replace(/\s+/g, ' ').trim();
     const style =
       look.style + `fontSize=${fontSize};` + (shape.bold ? 'fontStyle=1;' : '');
+    // Every look sets `html=1`, so draw.io renders the label as HTML: escape
+    // it once for HTML (literal text, no markup) and once for the attribute.
     cells +=
-      `<mxCell id="w${index + 2}" value="${escapeXml(text)}" style="${escapeXml(style)}" vertex="1" parent="1">` +
+      `<mxCell id="w${index + 2}" value="${escapeXml(escapeXml(text))}" style="${escapeXml(style)}" vertex="1" parent="1">` +
       `<mxGeometry x="${shape.x}" y="${shape.y}" width="${shape.width}" height="${shape.height}" as="geometry"/></mxCell>`;
 
     const { x, y, width: w, height: h } = shape;

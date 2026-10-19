@@ -33,43 +33,58 @@ export function useRecaptcha({ siteKey, enabled = true }: UseRecaptchaOptions): 
       return
     }
 
-    // Script already loaded
-    if (window.grecaptcha) {
-      window.grecaptcha.ready(() => {
+    // Ignore callbacks that land after unmount / siteKey change.
+    let active = true
+    const markReady = () => {
+      window.grecaptcha!.ready(() => {
+        if (!active) return
         setReady(true)
         setLoading(false)
+        setError(null)
       })
-      return
     }
 
-    // Load reCAPTCHA script
-    const script = document.createElement('script')
-    script.src = `https://www.google.com/recaptcha/api.js?render=${siteKey}`
-    script.async = true
+    // Script already loaded
+    if (window.grecaptcha) {
+      markReady()
+      return () => {
+        active = false
+      }
+    }
 
-    script.onload = () => {
+    // Load reCAPTCHA script once; a second mount before it finished loading
+    // reuses the pending <script> instead of appending another one.
+    const src = `https://www.google.com/recaptcha/api.js?render=${encodeURIComponent(siteKey)}`
+    const existing = document.querySelector<HTMLScriptElement>(`script[src="${src}"]`)
+    const script = existing ?? document.createElement('script')
+    if (!existing) {
+      script.src = src
+      script.async = true
+      document.head.appendChild(script)
+    }
+
+    const onLoad = () => {
+      if (!active) return
       if (window.grecaptcha) {
-        window.grecaptcha.ready(() => {
-          setReady(true)
-          setLoading(false)
-          setError(null)
-        })
+        markReady()
       } else {
         setError('reCAPTCHA script loaded but grecaptcha not found')
         setLoading(false)
       }
     }
-
-    script.onerror = () => {
+    const onError = () => {
+      if (!active) return
       setError('Failed to load reCAPTCHA script')
       setLoading(false)
     }
-
-    document.head.appendChild(script)
+    script.addEventListener('load', onLoad)
+    script.addEventListener('error', onError)
 
     return () => {
-      // Cleanup: Remove script if component unmounts
-      // Note: Not removing as reCAPTCHA might be used elsewhere
+      // The script itself stays: reCAPTCHA may be used elsewhere.
+      active = false
+      script.removeEventListener('load', onLoad)
+      script.removeEventListener('error', onError)
     }
   }, [siteKey, enabled])
 

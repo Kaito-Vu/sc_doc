@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ForbiddenException,
   Inject,
   Injectable,
@@ -48,19 +49,23 @@ export class ApiKeyService {
     user: User,
     data: { name: string; expiresAt?: string },
   ) {
+    const expiresAt = this.parseExpiry(data.expiresAt);
+
     const apiKey = await this.apiKeyRepo.insert({
       name: data.name,
       creatorId: user.id,
       workspaceId,
-      expiresAt: data.expiresAt ? new Date(data.expiresAt) : null,
+      expiresAt,
     });
 
+    // The JWT carries the same expiry as the DB row (defense in depth: the
+    // token dies on its own even if the DB check were ever bypassed).
     const token = await this.tokenService.generateApiToken({
       apiKeyId: apiKey.id,
       user,
       workspaceId,
-      expiresIn: data.expiresAt
-        ? undefined
+      expiresIn: expiresAt
+        ? Math.ceil((expiresAt.getTime() - Date.now()) / 1000)
         : (this.environmentService.getJwtTokenExpiresIn() as StringValue),
     });
 
@@ -76,6 +81,15 @@ export class ApiKeyService {
     });
 
     return { ...withCreator, token };
+  }
+
+  private parseExpiry(value?: string): Date | null {
+    if (!value) return null;
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime()) || date.getTime() <= Date.now()) {
+      throw new BadRequestException('expiresAt must be a valid future date');
+    }
+    return date;
   }
 
   async update(
@@ -137,7 +151,7 @@ export class ApiKeyService {
       payload.workspaceId,
     );
 
-    if (!apiKey || apiKey.deletedAt) {
+    if (!apiKey) {
       throw new UnauthorizedException('Invalid API key');
     }
 

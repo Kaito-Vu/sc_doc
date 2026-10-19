@@ -12,6 +12,7 @@ import { AuthUser } from '../../common/decorators/auth-user.decorator';
 import { AuthWorkspace } from '../../common/decorators/auth-workspace.decorator';
 import { User, Workspace } from '@docmost/db/types/entity.types';
 import { ApiKeyService } from './api-key.service';
+import { ApiKeyIdDto, CreateApiKeyDto, UpdateApiKeyDto } from './dto/api-key.dto';
 import { PaginationOptions } from '@docmost/db/pagination/pagination-options';
 import { RequireFeature } from '../common/decorators/require-feature.decorator';
 import { Feature } from '../../common/features';
@@ -38,20 +39,16 @@ export class ApiKeyController {
     @AuthUser() user: User,
     @AuthWorkspace() workspace: Workspace,
   ) {
-    if (adminView) {
-      const ability = this.workspaceAbility.createForUser(user, workspace);
-      if (
-        ability.cannot(WorkspaceCaslAction.Manage, WorkspaceCaslSubject.Settings)
-      ) {
-        throw new ForbiddenException();
-      }
+    const isAdminView = adminView === true;
+    if (isAdminView && !this.isAdmin(user, workspace)) {
+      throw new ForbiddenException();
     }
 
     return this.apiKeyService.list(
       workspace.id,
       user.id,
       pagination,
-      adminView,
+      isAdminView,
     );
   }
 
@@ -59,7 +56,7 @@ export class ApiKeyController {
   @Post('create')
   @RequireFeature(Feature.API_KEYS)
   async create(
-    @Body() body: { name: string; expiresAt?: string },
+    @Body() body: CreateApiKeyDto,
     @AuthUser() user: User,
     @AuthWorkspace() workspace: Workspace,
   ) {
@@ -70,37 +67,38 @@ export class ApiKeyController {
   @Post('update')
   @RequireFeature(Feature.API_KEYS)
   async update(
-    @Body() body: { apiKeyId: string; name: string },
+    @Body() body: UpdateApiKeyDto,
     @AuthUser() user: User,
     @AuthWorkspace() workspace: Workspace,
   ) {
-    const ability = this.workspaceAbility.createForUser(user, workspace);
-    const isAdmin = ability.can(
-      WorkspaceCaslAction.Manage,
-      WorkspaceCaslSubject.Settings,
+    return this.apiKeyService.update(
+      workspace.id,
+      user.id,
+      body,
+      this.isAdmin(user, workspace),
     );
-    return this.apiKeyService.update(workspace.id, user.id, body, isAdmin);
   }
 
   @HttpCode(HttpStatus.OK)
   @Post('revoke')
   @RequireFeature(Feature.API_KEYS)
   async revoke(
-    @Body() body: { apiKeyId: string },
+    @Body() body: ApiKeyIdDto,
     @AuthUser() user: User,
     @AuthWorkspace() workspace: Workspace,
   ) {
-    const ability = this.workspaceAbility.createForUser(user, workspace);
-    const isAdmin = ability.can(
-      WorkspaceCaslAction.Manage,
-      WorkspaceCaslSubject.Settings,
-    );
     await this.apiKeyService.revoke(
       workspace.id,
       user.id,
       body.apiKeyId,
-      isAdmin,
+      this.isAdmin(user, workspace),
     );
     return { success: true };
+  }
+
+  private isAdmin(user: User, workspace: Workspace): boolean {
+    return this.workspaceAbility
+      .createForUser(user, workspace)
+      .can(WorkspaceCaslAction.Manage, WorkspaceCaslSubject.Settings);
   }
 }

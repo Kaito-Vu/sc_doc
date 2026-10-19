@@ -58,18 +58,18 @@ export async function startDocxExport(params: Params): Promise<void> {
       message,
     });
 
+  // Poll sequentially (next request only after the previous one settled) so a
+  // slow status call never overlaps the next tick or updates a finished toast.
   const started = Date.now();
-  const timer = setInterval(async () => {
+  const poll = async () => {
     try {
       if (Date.now() - started > GIVE_UP_MS) {
-        clearInterval(timer);
         return fail(t("Export timed out"));
       }
       const { data: s } = await api.get<Status>(
         `/docx-export/status/${jobId}`,
       );
       if (s.state === "done") {
-        clearInterval(timer);
         const minutes = Math.max(
           1,
           Math.round((s.expiresAt - Date.now()) / 60000),
@@ -100,19 +100,18 @@ export async function startDocxExport(params: Params): Promise<void> {
           ),
         });
       } else if (s.state === "failed") {
-        clearInterval(timer);
         fail(s.message || t("Export failed"));
       } else if (s.state === "expired") {
-        clearInterval(timer);
         fail(t("The download link has expired"));
       } else {
         notifications.update(
           progress(s.state === "active" ? t("Exporting…") : t("Export queued")),
         );
+        setTimeout(poll, POLL_MS);
       }
     } catch (err) {
-      clearInterval(timer);
       fail(err?.response?.data?.message ?? t("Export failed"));
     }
-  }, POLL_MS);
+  };
+  setTimeout(poll, POLL_MS);
 }

@@ -1,12 +1,5 @@
-import {
-  Injectable,
-  Logger,
-  HttpException,
-  HttpStatus,
-} from '@nestjs/common'
+import { Injectable, HttpException, HttpStatus } from '@nestjs/common'
 import { RecaptchaService } from '../recaptcha.service'
-import { PluginConfigService } from '../../services/plugin-config.service'
-import { RecaptchaVerificationRepo } from '../repositories/recaptcha-verification.repo'
 
 export interface ForgotPasswordHookContext {
   forgotPasswordInput: {
@@ -20,77 +13,21 @@ export interface ForgotPasswordHookContext {
 
 @Injectable()
 export class BeforeForgotPasswordHandler {
-  private readonly logger = new Logger(BeforeForgotPasswordHandler.name)
-
-  constructor(
-    private readonly recaptcha: RecaptchaService,
-    private readonly configService: PluginConfigService,
-    private readonly verificationRepo: RecaptchaVerificationRepo,
-  ) {}
+  constructor(private readonly recaptcha: RecaptchaService) {}
 
   async handle(context: ForgotPasswordHookContext): Promise<ForgotPasswordHookContext> {
-    const { forgotPasswordInput, workspaceId } = context
-
-    const pluginConfig = await this.configService.getConfig(
-      workspaceId,
-      'recaptcha',
+    const evaluation = await this.recaptcha.verifyAction(
+      {
+        workspaceId: context.workspaceId,
+        action: 'forgotPassword',
+        token: context.forgotPasswordInput.recaptchaToken,
+        remoteAddress: context.remoteAddress,
+        userAgent: context.userAgent,
+      },
+      { defaultThreshold: 0.3 },
     )
 
-    if (!pluginConfig.enabled) {
-      return context
-    }
-
-    const actionConfig = pluginConfig.config?.actions?.forgotPassword
-    if (!actionConfig?.enabled) {
-      return context
-    }
-
-    const token = forgotPasswordInput.recaptchaToken
-    if (!token) {
-      throw new HttpException(
-        'reCAPTCHA token required for password reset request',
-        HttpStatus.BAD_REQUEST,
-      )
-    }
-
-    const verification = await this.recaptcha.verifyToken(
-      token,
-      pluginConfig.config.secretKey,
-    )
-
-    if (!verification.success) {
-      this.logger.warn(
-        `Token verification failed for forgot-password: ${verification.errorCodes.join(', ')}`,
-      )
-      throw new HttpException(
-        'reCAPTCHA verification failed',
-        HttpStatus.BAD_REQUEST,
-      )
-    }
-
-    const threshold = actionConfig.threshold ?? 0.3
-    const evaluation = await this.recaptcha.evaluateScore(
-      verification.score,
-      'forgotPassword',
-      threshold,
-    )
-
-    await this.verificationRepo.create({
-      workspaceId,
-      token,
-      score: verification.score,
-      action: 'forgotPassword',
-      decision: evaluation.decision,
-      decisionReason: evaluation.reason,
-      ipAddress: context.remoteAddress,
-      userAgent: context.userAgent,
-      challengeTs: verification.challengeTs,
-    })
-
-    if (evaluation.decision === 'block') {
-      this.logger.warn(
-        `Forgot-password request blocked (score: ${verification.score})`,
-      )
+    if (evaluation?.decision === 'block') {
       throw new HttpException(
         'Your request was identified as suspicious. Please try again later.',
         HttpStatus.TOO_MANY_REQUESTS,

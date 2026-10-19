@@ -7,11 +7,8 @@ const LEGACY_BLOCKING_CODES = new Set([
 ]);
 
 export function isBlockingHookEvent(event: string): boolean {
-  return (
-    event.includes(':before') ||
-    event.startsWith('auth:before') ||
-    event.startsWith('page:before')
-  );
+  // Covers auth:before*, page:before* and any other *:before* hook.
+  return event.includes(':before');
 }
 
 export function shouldPropagateHookError(

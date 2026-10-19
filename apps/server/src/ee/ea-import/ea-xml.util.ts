@@ -27,6 +27,20 @@ export function decodeBuffer(buffer: Buffer): string {
   }
 }
 
+/**
+ * Decode and parse an EA XML export. DTD / entity declarations are refused
+ * outright (no entity-expansion surface); `label` names the format in errors.
+ */
+export function parseXmlDocument(buffer: Buffer, label: string): FxpNode[] {
+  const text = decodeBuffer(buffer);
+  if (/<!DOCTYPE/i.test(text) || /<!ENTITY/i.test(text)) {
+    throw new Error(
+      `${label} input contains a DTD or entity declaration; refusing to parse`,
+    );
+  }
+  return createXmlParser().parse(text) as FxpNode[];
+}
+
 /** Hardened parser options shared by both formats. */
 export function createXmlParser(): XMLParser {
   return new XMLParser({
@@ -119,4 +133,18 @@ export function firstChildByLocal(
 /** Preserve diacritics; only normalize Unicode composition. */
 export function normalizeName(name: string): string {
   return name.normalize('NFC');
+}
+
+export function parseNumeric(value: string | undefined): number | undefined {
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+  const parsed = parseInt(value, 10);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+/** Leading number of a name (`3. Giao diện` -> 3), used as sort order. */
+export function leadingInteger(name: string): number | undefined {
+  const match = /^\s*(\d+)/.exec(name);
+  return match ? parseNumeric(match[1]) : undefined;
 }

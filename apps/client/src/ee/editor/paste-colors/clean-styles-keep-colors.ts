@@ -57,13 +57,14 @@ function convertWordLists(doc: Document) {
   const items = Array.from(
     doc.body.querySelectorAll<HTMLElement>("p[style]"),
   ).filter((p) => LIST_STYLE.test(p.getAttribute("style") || ""));
+  const isItem = new Set<Element>(items);
   const done = new Set<HTMLElement>();
 
   for (const first of items) {
     if (done.has(first)) continue;
     // collect the run of adjacent list paragraphs
     const run: HTMLElement[] = [];
-    for (let n: Element | null = first; n && items.includes(n as HTMLElement); n = n.nextElementSibling) {
+    for (let n: Element | null = first; n && isItem.has(n); n = n.nextElementSibling) {
       run.push(n as HTMLElement);
       done.add(n as HTMLElement);
     }

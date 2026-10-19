@@ -25,6 +25,8 @@ import { AuditEvent, AuditResource } from '../../common/events/audit-events';
 import { EnvironmentService } from '../../integrations/environment/environment.service';
 
 const SECRET_ENC_PREFIX = 'enc:';
+const SECRET_MASK = '********';
+const PROVIDER_TYPES = ['oidc', 'saml', 'ldap', 'google'];
 
 @Injectable()
 export class SsoService {
@@ -118,25 +120,25 @@ export class SsoService {
     return `https://login.microsoftonline.com/${tenantId}/v2.0`;
   }
 
+  /** Never returns stored secrets, only whether one is set. */
   private mapProvider(provider: any) {
     return {
       ...provider,
       providerId: provider.id,
-      samlUrl: provider.samlUrl,
-      samlCertificate: provider.samlCertificate,
-      oidcIssuer: provider.oidcIssuer,
-      oidcClientId: provider.oidcClientId,
-      oidcClientSecret: provider.oidcClientSecret ? '********' : null,
-      oidcTenantId: provider.oidcTenantId,
-      ldapUrl: provider.ldapUrl,
-      ldapBindDn: provider.ldapBindDn,
-      ldapBindPassword: provider.ldapBindPassword,
-      ldapBaseDn: provider.ldapBaseDn,
-      ldapUserSearchFilter: provider.ldapUserSearchFilter,
-      ldapUserAttributes: provider.ldapUserAttributes,
-      ldapTlsEnabled: provider.ldapTlsEnabled,
-      ldapTlsCaCert: provider.ldapTlsCaCert,
+      oidcClientSecret: provider.oidcClientSecret ? SECRET_MASK : null,
+      ldapBindPassword: provider.ldapBindPassword ? SECRET_MASK : null,
     };
+  }
+
+  /**
+   * Encrypts a newly submitted secret; `undefined` (= keep the stored one)
+   * for an empty value or the mask echoed back by the client.
+   */
+  private encryptSubmittedSecret(value: unknown): string | undefined {
+    if (typeof value !== 'string' || !value || value === SECRET_MASK) {
+      return undefined;
+    }
+    return this.encryptSecret(value);
   }
 
   async list(
@@ -175,6 +177,9 @@ export class SsoService {
 
   async create(workspaceId: string, user: User, workspace: Workspace, data: any) {
     this.assertAdmin(user, workspace);
+    if (!PROVIDER_TYPES.includes(data.type)) {
+      throw new BadRequestException('Invalid SSO provider type');
+    }
 
     const settings = data.settings ?? null;
     let oidcIssuer = data.oidcIssuer ?? null;
@@ -194,14 +199,12 @@ export class SsoService {
       samlCertificate: data.samlCertificate ?? null,
       oidcIssuer,
       oidcClientId: data.oidcClientId ?? null,
-      oidcClientSecret: data.oidcClientSecret
-        ? this.encryptSecret(data.oidcClientSecret)
-        : null,
+      oidcClientSecret: this.encryptSubmittedSecret(data.oidcClientSecret) ?? null,
       oidcTenantId: data.oidcTenantId ?? null,
       settings,
       ldapUrl: data.ldapUrl ?? null,
       ldapBindDn: data.ldapBindDn ?? null,
-      ldapBindPassword: data.ldapBindPassword ?? null,
+      ldapBindPassword: this.encryptSubmittedSecret(data.ldapBindPassword) ?? null,
       ldapBaseDn: data.ldapBaseDn ?? null,
       ldapUserSearchFilter: data.ldapUserSearchFilter ?? null,
       ldapUserAttributes: data.ldapUserAttributes ?? null,
@@ -263,14 +266,12 @@ export class SsoService {
         samlCertificate: data.samlCertificate,
         oidcIssuer,
         oidcClientId: data.oidcClientId,
-        oidcClientSecret: data.oidcClientSecret
-          ? this.encryptSecret(data.oidcClientSecret)
-          : undefined,
+        oidcClientSecret: this.encryptSubmittedSecret(data.oidcClientSecret),
         oidcTenantId: data.oidcTenantId,
         settings,
         ldapUrl: data.ldapUrl,
         ldapBindDn: data.ldapBindDn,
-        ldapBindPassword: data.ldapBindPassword,
+        ldapBindPassword: this.encryptSubmittedSecret(data.ldapBindPassword),
         ldapBaseDn: data.ldapBaseDn,
         ldapUserSearchFilter: data.ldapUserSearchFilter,
         ldapUserAttributes: data.ldapUserAttributes,

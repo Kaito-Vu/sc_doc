@@ -1,4 +1,5 @@
 import { Test } from '@nestjs/testing';
+import { ThrottlerGuard } from '@nestjs/throttler';
 import { SsoAuthController } from './sso-auth.controller';
 import { SsoAuthService } from './sso-auth.service';
 import { OidcAuthService } from './oidc-auth.service';
@@ -27,7 +28,10 @@ describe('SsoAuthController.oidcLogin', () => {
           },
         },
       ],
-    }).compile();
+    })
+      .overrideGuard(ThrottlerGuard)
+      .useValue({ canActivate: () => true })
+      .compile();
 
     const controller = moduleRef.get(SsoAuthController);
     const oidcAuthService = moduleRef.get(OidcAuthService);
@@ -84,7 +88,10 @@ describe('SsoAuthController.oidcLogin', () => {
           useValue: { getAppUrl: () => 'http://localhost:3000' },
         },
       ],
-    }).compile();
+    })
+      .overrideGuard(ThrottlerGuard)
+      .useValue({ canActivate: () => true })
+      .compile();
 
     const controller = moduleRef.get(SsoAuthController);
     const res: any = { setCookie: jest.fn(), clearCookie: jest.fn() };
@@ -115,7 +122,10 @@ describe('SsoAuthController.oidcCallback', () => {
           useValue: { getAppUrl: () => 'http://localhost:3000' },
         },
       ],
-    }).compile();
+    })
+      .overrideGuard(ThrottlerGuard)
+      .useValue({ canActivate: () => true })
+      .compile();
 
     const controller = moduleRef.get(SsoAuthController);
     const res: any = { setCookie: jest.fn(), clearCookie: jest.fn() };
@@ -154,7 +164,10 @@ describe('SsoAuthController.oidcCallback', () => {
           },
         },
       ],
-    }).compile();
+    })
+      .overrideGuard(ThrottlerGuard)
+      .useValue({ canActivate: () => true })
+      .compile();
 
     const controller = moduleRef.get(SsoAuthController);
     const oidcAuthService = moduleRef.get(OidcAuthService);
@@ -202,7 +215,10 @@ describe('SsoAuthController.oidcCallback', () => {
           useValue: { getAppUrl: () => 'http://localhost:3000' },
         },
       ],
-    }).compile();
+    })
+      .overrideGuard(ThrottlerGuard)
+      .useValue({ canActivate: () => true })
+      .compile();
 
     const controller = moduleRef.get(SsoAuthController);
     const res: any = { setCookie: jest.fn(), clearCookie: jest.fn() };
@@ -248,7 +264,10 @@ describe('SsoAuthController.entraIdCallback', () => {
           },
         },
       ],
-    }).compile();
+    })
+      .overrideGuard(ThrottlerGuard)
+      .useValue({ canActivate: () => true })
+      .compile();
 
     const controller = moduleRef.get(SsoAuthController);
     const res: any = { setCookie: jest.fn(), clearCookie: jest.fn() };

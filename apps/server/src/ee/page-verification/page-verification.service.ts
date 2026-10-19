@@ -14,21 +14,23 @@ import { CommentRepo } from '@docmost/db/repos/comment/comment.repo';
 import { PageHistoryRepo } from '@docmost/db/repos/page/page-history.repo';
 import { PageAccessService } from '../../core/page/page-access/page-access.service';
 import { SpaceMemberRepo } from '@docmost/db/repos/space/space-member.repo';
-import SpaceAbilityFactory from '../../core/casl/abilities/space-ability.factory';
+import { PagePermissionRepo } from '@docmost/db/repos/page/page-permission.repo';
 import {
-  SpaceCaslAction,
-  SpaceCaslSubject,
-} from '../../core/casl/interfaces/space-ability.type';
-import { User } from '@docmost/db/types/entity.types';
+  Page,
+  UpdatablePageVerification,
+  User,
+} from '@docmost/db/types/entity.types';
 import { PaginationOptions } from '@docmost/db/pagination/pagination-options';
 import { executeTx } from '@docmost/db/utils';
 import { InjectKysely } from 'nestjs-kysely';
-import { KyselyDB } from '@docmost/db/types/kysely.types';
+import { KyselyDB, KyselyTransaction } from '@docmost/db/types/kysely.types';
 import { QueueJob, QueueName } from '../../integrations/queue/constants';
+import {
+  computeExpiresAt,
+  resolveVerificationStatus,
+} from './page-verification.status';
 
-const EXPIRING_WARNING_MS = 7 * 24 * 60 * 60 * 1000;
-
-type PeriodUnit = 'day' | 'week' | 'month' | 'year';
+type ReviewDecision = 'approved' | 'rejected' | 'needs_clarification';
 
 @Injectable()
 export class PageVerificationService {
@@ -37,7 +39,7 @@ export class PageVerificationService {
     private readonly pageRepo: PageRepo,
     private readonly pageAccessService: PageAccessService,
     private readonly spaceMemberRepo: SpaceMemberRepo,
-    private readonly spaceAbility: SpaceAbilityFactory,
+    private readonly pagePermissionRepo: PagePermissionRepo,
     private readonly commentRepo: CommentRepo,
     private readonly pageHistoryRepo: PageHistoryRepo,
     @InjectKysely() private readonly db: KyselyDB,
@@ -53,91 +55,71 @@ export class PageVerificationService {
     return page;
   }
 
-  private computeExpiresAt(opts: {
-    mode?: string | null;
-    periodAmount?: number | null;
-    periodUnit?: string | null;
-    fixedExpiresAt?: string;
-    from?: Date;
-  }): Date | null {
-    const from = opts.from ?? new Date();
-    if (opts.mode === 'indefinite') return null;
-    if (opts.mode === 'fixed' && opts.fixedExpiresAt) {
-      return new Date(opts.fixedExpiresAt);
-    }
-    if (opts.mode === 'period' && opts.periodAmount && opts.periodUnit) {
-      const date = new Date(from);
-      const amount = opts.periodAmount;
-      const unit = opts.periodUnit as PeriodUnit;
-      if (unit === 'day') date.setDate(date.getDate() + amount);
-      else if (unit === 'week') date.setDate(date.getDate() + amount * 7);
-      else if (unit === 'month') date.setMonth(date.getMonth() + amount);
-      else if (unit === 'year') date.setFullYear(date.getFullYear() + amount);
-      return date;
-    }
-    return null;
+  private async getViewablePage(pageId: string, user: User) {
+    const page = await this.getPageOrThrow(pageId);
+    await this.pageAccessService.validateCanView(page, user);
+    return page;
   }
 
-  private computeExpiringStatus(verification: {
-    verifiedAt: Date | null;
-    expiresAt: Date | null;
-    status: string | null;
-  }): string {
-    if (verification.status === 'obsolete') return 'obsolete';
-    if (!verification.verifiedAt) return 'draft';
-    if (!verification.expiresAt) return 'verified';
-    const now = Date.now();
-    const expiresMs = new Date(verification.expiresAt).getTime();
-    if (expiresMs <= now) return 'expired';
-    if (expiresMs - now <= EXPIRING_WARNING_MS) return 'expiring';
-    return 'verified';
-  }
-
-  private resolveStatus(
-    verification: {
-      type: string;
-      status: string | null;
-      verifiedAt: Date | null;
-      expiresAt: Date | null;
-    } | null,
-  ): string {
-    if (!verification) return 'none';
-    if (verification.type === 'qms') {
-      return verification.status ?? 'draft';
-    }
-    return this.computeExpiringStatus(verification);
-  }
-
-  private async canManage(page: { spaceId: string; creatorId: string | null }, user: User) {
-    const ability = await this.spaceAbility.createForUser(user, page.spaceId);
-    if (ability.can(SpaceCaslAction.Manage, SpaceCaslSubject.Page)) {
-      return true;
-    }
-    if (page.creatorId === user.id) return true;
+  // Page-level edit rights (honours page restrictions; space-level
+  // Manage(Page) alone would let space writers manage restricted pages they
+  // cannot even open). The page creator keeps management while they can
+  // still view the page.
+  private async canManage(page: Page, user: User): Promise<boolean> {
     try {
-      await this.pageAccessService.validateCanEdit(page as any, user);
+      await this.pageAccessService.validateCanEdit(page, user, {
+        ignoreLock: true,
+      });
+      return true;
+    } catch {
+      // fall through
+    }
+    if (page.creatorId !== user.id) return false;
+    try {
+      await this.pageAccessService.validateCanView(page, user);
       return true;
     } catch {
       return false;
     }
   }
 
-  private async buildInfo(pageId: string, user: User) {
-    const page = await this.getPageOrThrow(pageId);
-    await this.pageAccessService.validateCanView(page, user);
+  private async assertCanManage(page: Page, user: User): Promise<void> {
+    if (!(await this.canManage(page, user))) {
+      throw new ForbiddenException();
+    }
+  }
 
-    const detail = await this.pageVerificationRepo.findDetailByPageId(pageId);
+  // Verifiers must be active users of this workspace. Order is kept: the
+  // first verifier is the primary one.
+  private async assertWorkspaceVerifiers(
+    verifierIds: string[],
+    workspaceId: string,
+  ): Promise<string[]> {
+    const unique = [...new Set(verifierIds)];
+    const valid = await this.pageVerificationRepo.findWorkspaceUserIds(
+      unique,
+      workspaceId,
+    );
+    if (valid.length !== unique.length) {
+      throw new BadRequestException('Invalid verifier');
+    }
+    return unique;
+  }
+
+  private async buildInfo(pageId: string, user: User) {
+    const page = await this.getViewablePage(pageId, user);
+
+    const detail = await this.pageVerificationRepo.findDetailByPageId(page.id);
     if (!detail) {
       return { status: 'none' as const };
     }
 
-    const verifiers = await this.pageVerificationRepo.getVerifiers(detail.id);
-    const status = this.resolveStatus(detail);
-    const isVerifier = await this.pageVerificationRepo.isVerifier(
-      detail.id,
-      user.id,
-    );
-    const canManage = await this.canManage(page, user);
+    const [verifiers, isVerifier, canManage] = await Promise.all([
+      this.pageVerificationRepo.getVerifiers(detail.id),
+      this.pageVerificationRepo.isVerifier(detail.id, user.id),
+      this.canManage(page, user),
+    ]);
+    const status = resolveVerificationStatus(detail);
 
     return {
       id: detail.id,
@@ -165,9 +147,7 @@ export class PageVerificationService {
         canVerify: isVerifier,
         canManage,
         canSubmitForApproval:
-          detail.type === 'qms' &&
-          status === 'draft' &&
-          (await this.canManage(page, user)),
+          detail.type === 'qms' && status === 'draft' && canManage,
         canMarkObsolete:
           detail.type === 'qms' &&
           status === 'approved' &&
@@ -194,17 +174,19 @@ export class PageVerificationService {
     workspaceId: string,
   ) {
     const page = await this.getPageOrThrow(data.pageId);
-    if (!(await this.canManage(page, user))) {
-      throw new ForbiddenException();
-    }
+    await this.assertCanManage(page, user);
 
-    const existing = await this.pageVerificationRepo.findByPageId(data.pageId);
+    const existing = await this.pageVerificationRepo.findByPageId(page.id);
     if (existing) {
       throw new BadRequestException('Verification already exists');
     }
     if (!data.verifierIds?.length) {
       throw new BadRequestException('At least one verifier is required');
     }
+    const verifierIds = await this.assertWorkspaceVerifiers(
+      data.verifierIds,
+      workspaceId,
+    );
 
     const type = data.type ?? 'expiring';
     const mode = data.mode ?? (type === 'qms' ? null : 'period');
@@ -231,7 +213,7 @@ export class PageVerificationService {
 
       await this.pageVerificationRepo.replaceVerifiers(
         verification.id,
-        data.verifierIds,
+        verifierIds,
         user.id,
         trx,
       );
@@ -250,15 +232,20 @@ export class PageVerificationService {
     user: User,
   ) {
     const page = await this.getPageOrThrow(data.pageId);
-    const verification = await this.pageVerificationRepo.findByPageId(
-      data.pageId,
+    // latest row: older QMS cycles are retained as audit rows (design §3.1)
+    const verification = await this.pageVerificationRepo.findLatestByPageId(
+      page.id,
     );
     if (!verification) {
       throw new NotFoundException('Verification not found');
     }
-    if (!(await this.canManage(page, user))) {
-      throw new ForbiddenException();
-    }
+    await this.assertCanManage(page, user);
+    const verifierIds = data.verifierIds
+      ? await this.assertWorkspaceVerifiers(
+          data.verifierIds,
+          verification.workspaceId,
+        )
+      : undefined;
 
     const updates: Record<string, unknown> = {};
     if (data.mode !== undefined) updates.mode = data.mode;
@@ -272,10 +259,10 @@ export class PageVerificationService {
       if (Object.keys(updates).length > 0) {
         await this.pageVerificationRepo.update(verification.id, updates, trx);
       }
-      if (data.verifierIds) {
+      if (verifierIds) {
         await this.pageVerificationRepo.replaceVerifiers(
           verification.id,
-          data.verifierIds,
+          verifierIds,
           user.id,
           trx,
         );
@@ -285,15 +272,13 @@ export class PageVerificationService {
 
   async remove(pageId: string, user: User) {
     const page = await this.getPageOrThrow(pageId);
-    if (!(await this.canManage(page, user))) {
-      throw new ForbiddenException();
-    }
-    await this.pageVerificationRepo.delete(pageId);
+    await this.assertCanManage(page, user);
+    await this.pageVerificationRepo.delete(page.id);
   }
 
   async verify(pageId: string, user: User) {
-    const page = await this.getPageOrThrow(pageId);
-    const verification = await this.pageVerificationRepo.findByPageId(pageId);
+    const page = await this.getViewablePage(pageId, user);
+    const verification = await this.pageVerificationRepo.findByPageId(page.id);
     if (!verification) {
       throw new NotFoundException('Verification not found');
     }
@@ -320,7 +305,7 @@ export class PageVerificationService {
       );
     }
 
-    const expiresAt = this.computeExpiresAt({
+    const expiresAt = computeExpiresAt({
       mode: verification.mode,
       periodAmount: verification.periodAmount,
       periodUnit: verification.periodUnit,
@@ -378,14 +363,12 @@ export class PageVerificationService {
     // has changed post-approval (design §3.1/§4); "obsolete" must apply to
     // the current/latest cycle, not a nondeterministically-picked one.
     const verification = await this.pageVerificationRepo.findLatestByPageId(
-      pageId,
+      page.id,
     );
     if (!verification || verification.type !== 'qms') {
       throw new NotFoundException('Verification not found');
     }
-    if (!(await this.canManage(page, user))) {
-      throw new ForbiddenException();
-    }
+    await this.assertCanManage(page, user);
     if (verification.status !== 'approved') {
       throw new BadRequestException('Only approved documents can be obsolete');
     }
@@ -414,24 +397,34 @@ export class PageVerificationService {
       filters,
     );
 
+    // hide pages the user cannot open (page-level restrictions)
+    const accessible = new Set(
+      await this.pagePermissionRepo.filterAccessiblePageIds({
+        pageIds: result.items.map((item) => item.pageId),
+        userId,
+      }),
+    );
+
     return {
       ...result,
-      items: result.items.map((item) => ({
-        ...item,
-        status: this.resolveStatus({
-          type: item.type,
-          status: item.status,
-          verifiedAt: item.verifiedAt,
-          expiresAt: item.expiresAt,
-        }),
-        verifiedAt: item.verifiedAt
-          ? new Date(item.verifiedAt).toISOString()
-          : null,
-        expiresAt: item.expiresAt
-          ? new Date(item.expiresAt).toISOString()
-          : null,
-        createdAt: new Date(item.createdAt).toISOString(),
-      })),
+      items: result.items
+        .filter((item) => accessible.has(item.pageId))
+        .map((item) => ({
+          ...item,
+          status: resolveVerificationStatus({
+            type: item.type,
+            status: item.status,
+            verifiedAt: item.verifiedAt,
+            expiresAt: item.expiresAt,
+          }),
+          verifiedAt: item.verifiedAt
+            ? new Date(item.verifiedAt).toISOString()
+            : null,
+          expiresAt: item.expiresAt
+            ? new Date(item.expiresAt).toISOString()
+            : null,
+          createdAt: new Date(item.createdAt).toISOString(),
+        })),
     };
   }
 
@@ -442,14 +435,12 @@ export class PageVerificationService {
     // approve -> content-changed-reset (see design doc §3.1/§4). Using
     // the unordered findByPageId here would pick a nondeterministic row.
     const verification = await this.pageVerificationRepo.findLatestByPageId(
-      pageId,
+      page.id,
     );
     if (!verification || verification.type !== 'qms') {
       throw new BadRequestException('QMS verification required');
     }
-    if (!(await this.canManage(page, user))) {
-      throw new ForbiddenException();
-    }
+    await this.assertCanManage(page, user);
     if (
       verification.status !== 'draft' &&
       verification.status !== 'needs_clarification'
@@ -458,7 +449,7 @@ export class PageVerificationService {
     }
 
     const unresolvedCount = await this.commentRepo.countUnresolvedByPageId(
-      pageId,
+      page.id,
     );
     if (unresolvedCount > 0) {
       throw new BadRequestException(
@@ -466,12 +457,10 @@ export class PageVerificationService {
       );
     }
 
-    const lastHistory = await this.pageHistoryRepo.findPageLastHistory(
-      pageId,
-    );
-    const verifiers = await this.pageVerificationRepo.getVerifiers(
-      verification.id,
-    );
+    const [lastHistory, verifiers] = await Promise.all([
+      this.pageHistoryRepo.findPageLastHistory(page.id),
+      this.pageVerificationRepo.getVerifiers(verification.id),
+    ]);
 
     await executeTx(this.db, async (trx) => {
       // Scoped by verification.id, not pageId: a bare pageId-scoped update
@@ -517,37 +506,17 @@ export class PageVerificationService {
       pageId,
       user,
     );
-    const unresolvedCount = await this.commentRepo.countUnresolvedByPageId(
-      pageId,
-    );
-    if (unresolvedCount > 0) {
-      throw new BadRequestException(
-        'Resolve outstanding comments or request clarification instead',
-      );
-    }
+    await this.assertCommentGate(verification.pageId, false);
 
     await executeTx(this.db, async (trx) => {
-      // Lock the parent verification row first so concurrent approve() calls
-      // for the same verification serialize instead of racing on
-      // countPendingReviews (see write-skew note on lockForUpdate).
-      await this.pageVerificationRepo.lockForUpdate(verification.id, trx);
-
-      const decided = await this.pageVerificationRepo.recordReviewDecision(
-        verification.id,
-        user.id,
-        'approved',
-        trx,
-      );
-      if (!decided) {
-        throw new ForbiddenException('No pending decision for this verifier');
-      }
+      await this.recordDecision(verification.id, user.id, 'approved', trx);
 
       const pendingCount = await this.pageVerificationRepo.countPendingReviews(
         verification.id,
         trx,
       );
       if (pendingCount === 0) {
-        const flipped = await this.pageVerificationRepo.flipStatusIfInApproval(
+        await this.closeCycle(
           verification.id,
           {
             status: 'approved',
@@ -556,9 +525,6 @@ export class PageVerificationService {
           },
           trx,
         );
-        if (!flipped) {
-          throw new ConflictException('Review cycle already resolved');
-        }
       }
     });
   }
@@ -571,30 +537,11 @@ export class PageVerificationService {
       data.pageId,
       user,
     );
-
-    const unresolvedCount = await this.commentRepo.countUnresolvedByPageId(
-      data.pageId,
-    );
-    if (unresolvedCount > 0) {
-      throw new BadRequestException(
-        'Resolve outstanding comments or request clarification instead',
-      );
-    }
+    await this.assertCommentGate(verification.pageId, false);
 
     await executeTx(this.db, async (trx) => {
-      await this.pageVerificationRepo.lockForUpdate(verification.id, trx);
-
-      const decided = await this.pageVerificationRepo.recordReviewDecision(
-        verification.id,
-        user.id,
-        'rejected',
-        trx,
-      );
-      if (!decided) {
-        throw new ForbiddenException('No pending decision for this verifier');
-      }
-
-      const flipped = await this.pageVerificationRepo.flipStatusIfInApproval(
+      await this.recordDecision(verification.id, user.id, 'rejected', trx);
+      await this.closeCycle(
         verification.id,
         {
           status: 'draft',
@@ -604,9 +551,6 @@ export class PageVerificationService {
         },
         trx,
       );
-      if (!flipped) {
-        throw new ConflictException('Review cycle already resolved');
-      }
     });
 
     await this.notificationQueue.add(
@@ -627,29 +571,16 @@ export class PageVerificationService {
       pageId,
       user,
     );
-    const unresolvedCount = await this.commentRepo.countUnresolvedByPageId(
-      pageId,
-    );
-    if (unresolvedCount === 0) {
-      throw new BadRequestException(
-        'Add an unresolved comment to request clarification',
-      );
-    }
+    await this.assertCommentGate(verification.pageId, true);
 
     await executeTx(this.db, async (trx) => {
-      await this.pageVerificationRepo.lockForUpdate(verification.id, trx);
-
-      const decided = await this.pageVerificationRepo.recordReviewDecision(
+      await this.recordDecision(
         verification.id,
         user.id,
         'needs_clarification',
         trx,
       );
-      if (!decided) {
-        throw new ForbiddenException('No pending decision for this verifier');
-      }
-
-      const flipped = await this.pageVerificationRepo.flipStatusIfInApproval(
+      await this.closeCycle(
         verification.id,
         {
           status: 'needs_clarification',
@@ -658,9 +589,6 @@ export class PageVerificationService {
         },
         trx,
       );
-      if (!flipped) {
-        throw new ConflictException('Review cycle already resolved');
-      }
     });
 
     await this.notificationQueue.add(
@@ -675,12 +603,67 @@ export class PageVerificationService {
     );
   }
 
+  // Approve/reject need a clean comment slate; clarification needs an open
+  // comment explaining what is unclear.
+  private async assertCommentGate(pageId: string, needsUnresolved: boolean) {
+    const unresolvedCount =
+      await this.commentRepo.countUnresolvedByPageId(pageId);
+    if (needsUnresolved && unresolvedCount === 0) {
+      throw new BadRequestException(
+        'Add an unresolved comment to request clarification',
+      );
+    }
+    if (!needsUnresolved && unresolvedCount > 0) {
+      throw new BadRequestException(
+        'Resolve outstanding comments or request clarification instead',
+      );
+    }
+  }
+
+  // Locks the parent verification row first so concurrent decisions on the
+  // same cycle serialize instead of racing on countPendingReviews (see the
+  // write-skew note on lockForUpdate), then records this verifier's decision.
+  private async recordDecision(
+    verificationId: string,
+    userId: string,
+    decision: ReviewDecision,
+    trx: KyselyTransaction,
+  ) {
+    await this.pageVerificationRepo.lockForUpdate(verificationId, trx);
+    const decided = await this.pageVerificationRepo.recordReviewDecision(
+      verificationId,
+      userId,
+      decision,
+      trx,
+    );
+    if (!decided) {
+      throw new ForbiddenException('No pending decision for this verifier');
+    }
+  }
+
+  // Atomic race guard: 409 when another verifier already closed the cycle.
+  private async closeCycle(
+    verificationId: string,
+    data: UpdatablePageVerification,
+    trx: KyselyTransaction,
+  ) {
+    const flipped = await this.pageVerificationRepo.flipStatusIfInApproval(
+      verificationId,
+      data,
+      trx,
+    );
+    if (!flipped) {
+      throw new ConflictException('Review cycle already resolved');
+    }
+  }
+
   private async getInApprovalVerificationForVerifier(
     pageId: string,
     user: User,
   ) {
+    const page = await this.getViewablePage(pageId, user);
     const verification = await this.pageVerificationRepo.findLatestByPageId(
-      pageId,
+      page.id,
     );
     if (!verification || verification.type !== 'qms') {
       throw new NotFoundException('Verification not found');
@@ -699,10 +682,9 @@ export class PageVerificationService {
   }
 
   async getReviewPayload(pageId: string, user: User) {
-    const page = await this.getPageOrThrow(pageId);
-    await this.pageAccessService.validateCanView(page, user);
+    const page = await this.getViewablePage(pageId, user);
     const verification = await this.pageVerificationRepo.findLatestByPageId(
-      pageId,
+      page.id,
     );
     if (!verification) {
       throw new NotFoundException('Verification not found');

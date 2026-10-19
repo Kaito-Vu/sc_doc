@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactElement } from "react";
+import { useEffect, useRef, useState, type ReactElement, type RefObject } from "react";
 import { ReactRenderer, type Editor } from "@tiptap/react";
 import { autoUpdate, computePosition, flip, offset, shift } from "@floating-ui/dom";
 import { Button, Group, NumberInput, Paper } from "@mantine/core";
@@ -6,21 +6,17 @@ import { useTranslation } from "react-i18next";
 
 const MAX = 50;
 
-function TableSizePopover({ editor, close }: { editor: Editor; close: () => void }) {
-  const { t } = useTranslation();
-  const rootRef = useRef<HTMLDivElement>(null);
-  const [rows, setRows] = useState<number | string>(3);
-  const [cols, setCols] = useState<number | string>(3);
+// NumberInput only clamps on blur, so Enter right after typing "999" would
+// otherwise reach insertTable/addRow unclamped and freeze the editor.
+const toCount = (v: number | string) =>
+  Math.min(MAX, Math.max(1, Math.floor(Number(v)) || 1));
 
-  const insert = () => {
-    close();
-    editor
-      .chain()
-      .focus()
-      .insertTable({ rows: Number(rows) || 1, cols: Number(cols) || 1, withHeaderRow: true })
-      .run();
-  };
-
+/** Escape closes and refocuses the editor; a pointerdown outside closes. */
+function useDismiss(
+  rootRef: RefObject<HTMLDivElement | null>,
+  editor: Editor,
+  close: () => void,
+) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -39,6 +35,23 @@ function TableSizePopover({ editor, close }: { editor: Editor; close: () => void
       window.removeEventListener("pointerdown", onDown);
     };
   }, []);
+}
+
+function TableSizePopover({ editor, close }: { editor: Editor; close: () => void }) {
+  const { t } = useTranslation();
+  const rootRef = useRef<HTMLDivElement>(null);
+  const [rows, setRows] = useState<number | string>(3);
+  const [cols, setCols] = useState<number | string>(3);
+  useDismiss(rootRef, editor, close);
+
+  const insert = () => {
+    close();
+    editor
+      .chain()
+      .focus()
+      .insertTable({ rows: toCount(rows), cols: toCount(cols), withHeaderRow: true })
+      .run();
+  };
 
   return (
     <Paper
@@ -93,7 +106,8 @@ function mountAtCaret(
   const { from } = editor.state.selection;
   const reference = {
     getBoundingClientRect: () => {
-      const c = editor.view.coordsAtPos(from);
+      // autoUpdate re-reads this on scroll/resize; a remote edit may have shrunk the doc.
+      const c = editor.view.coordsAtPos(Math.min(from, editor.state.doc.content.size));
       return new DOMRect(c.left, c.top, 0, c.bottom - c.top);
     },
   };
@@ -138,33 +152,19 @@ export function showAddCountPopover(editor: Editor, command: AddCommand) {
     const rootRef = useRef<HTMLDivElement>(null);
     const [count, setCount] = useState<number | string>(1);
 
+    useDismiss(rootRef, editor, close);
+
     const add = () => {
       close();
       let chain = editor.chain().focus();
-      for (let i = 0; i < (Number(count) || 1); i++) chain = chain[command]();
+      for (let i = 0; i < toCount(count); i++) chain = chain[command]();
       chain.run();
     };
 
     useEffect(() => {
       // Mantine Menu restores focus to its trigger on close; focus after that.
       const id = setTimeout(() => rootRef.current?.querySelector("input")?.select(), 50);
-      const onKey = (e: KeyboardEvent) => {
-        if (e.key === "Escape") {
-          e.preventDefault();
-          close();
-          editor.commands.focus();
-        }
-      };
-      const onDown = (e: PointerEvent) => {
-        if (!rootRef.current?.contains(e.target as Node)) close();
-      };
-      window.addEventListener("keydown", onKey);
-      window.addEventListener("pointerdown", onDown);
-      return () => {
-        clearTimeout(id);
-        window.removeEventListener("keydown", onKey);
-        window.removeEventListener("pointerdown", onDown);
-      };
+      return () => clearTimeout(id);
     }, []);
 
     return (

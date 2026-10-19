@@ -30,6 +30,21 @@ export class AuthAccountRepo {
       .executeTakeFirst();
   }
 
+  async findByUserAndProvider(
+    userId: string,
+    authProviderId: string,
+    trx?: KyselyTransaction,
+  ): Promise<AuthAccount | undefined> {
+    const db = dbOrTx(this.db, trx);
+    return db
+      .selectFrom('authAccounts')
+      .selectAll()
+      .where('userId', '=', userId)
+      .where('authProviderId', '=', authProviderId)
+      .where('deletedAt', 'is', null)
+      .executeTakeFirst();
+  }
+
   async findByUserId(
     userId: string,
     workspaceId: string,

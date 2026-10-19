@@ -33,7 +33,8 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const logPayload = {
       err: exception,
       method: request.method,
-      path: request.url,
+      // Drop the query string: it can carry tokens (share, download, OAuth).
+      path: request.url?.split('?')[0],
       status,
       workspaceId: (request.raw as { workspaceId?: string })?.workspaceId,
       userId: (request.raw as { user?: { id?: string } })?.user?.id,

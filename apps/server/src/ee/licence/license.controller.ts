@@ -17,6 +17,14 @@ import {
   WorkspaceCaslAction,
   WorkspaceCaslSubject,
 } from '../../core/casl/interfaces/workspace-ability.type';
+import { IsNotEmpty, IsString, MaxLength } from 'class-validator';
+
+class ActivateLicenseDto {
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(10000)
+  licenseKey: string;
+}
 
 @UseGuards(JwtAuthGuard)
 @Controller('license')
@@ -35,7 +43,7 @@ export class LicenseController {
   @HttpCode(HttpStatus.OK)
   @Post('activate')
   async activate(
-    @Body() body: { licenseKey: string },
+    @Body() body: ActivateLicenseDto,
     @AuthUser() user: User,
     @AuthWorkspace() workspace: Workspace,
   ) {

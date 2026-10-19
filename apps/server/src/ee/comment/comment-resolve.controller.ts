@@ -13,6 +13,7 @@ import { User, Workspace } from '@docmost/db/types/entity.types';
 import { CommentResolveService } from './comment-resolve.service';
 import { RequireFeature } from '../common/decorators/require-feature.decorator';
 import { Feature } from '../../common/features';
+import { ResolveCommentDto } from './dto/resolve-comment.dto';
 
 @UseGuards(JwtAuthGuard)
 @Controller('comments')
@@ -23,7 +24,7 @@ export class CommentResolveController {
   @Post('resolve')
   @RequireFeature(Feature.COMMENT_RESOLUTION)
   async resolve(
-    @Body() body: { commentId: string; pageId: string; resolved: boolean },
+    @Body() body: ResolveCommentDto,
     @AuthUser() user: User,
     @AuthWorkspace() workspace: Workspace,
   ) {

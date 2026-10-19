@@ -19,6 +19,7 @@ import { FastifyReply, FastifyRequest } from 'fastify';
 import { Public } from '../../common/decorators/public.decorator';
 import { CoreHooks } from '../../core/plugins/plugin-hooks';
 import { runHook } from '../../core/plugins/run-hook';
+import { AuthThrottle } from './auth-throttle.decorator';
 
 @Controller('mfa')
 export class MfaController {
@@ -40,6 +41,7 @@ export class MfaController {
     return this.mfaService.setup(user, workspace);
   }
 
+  @AuthThrottle()
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
   @Post('enable')
@@ -51,6 +53,7 @@ export class MfaController {
     return this.mfaService.enable(user.id, body.verificationCode);
   }
 
+  @AuthThrottle()
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
   @Post('disable')
@@ -63,6 +66,7 @@ export class MfaController {
     return this.mfaService.disable(user.id, workspace.id, body.confirmPassword);
   }
 
+  @AuthThrottle()
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
   @Post('generate-backup-codes')
@@ -86,6 +90,7 @@ export class MfaController {
     return this.mfaService.validateMfaAccess(req);
   }
 
+  @AuthThrottle()
   @Public()
   @HttpCode(HttpStatus.OK)
   @Post('verify')
@@ -103,11 +108,7 @@ export class MfaController {
       userAgent: req.headers['user-agent'],
     };
 
-    try {
-      mfaVerifyContext = await runHook(CoreHooks.BEFORE_MFA_VERIFY, mfaVerifyContext);
-    } catch (err) {
-      throw err;
-    }
+    mfaVerifyContext = await runHook(CoreHooks.BEFORE_MFA_VERIFY, mfaVerifyContext);
 
     return this.mfaService.verifyAndLogin(body.code, req, res);
   }

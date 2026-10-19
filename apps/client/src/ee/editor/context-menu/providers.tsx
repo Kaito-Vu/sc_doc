@@ -22,7 +22,7 @@ import {
 } from "@tabler/icons-react";
 import type { Editor } from "@tiptap/react";
 import i18n from "i18next";
-import { isCellSelection } from "@docmost/editor-ext";
+import { isCellSelection, sanitizeUrl } from "@docmost/editor-ext";
 import { canSplitCell, splitCellInto } from "../table-split/split-cell";
 import { showAddCountPopover } from "@/ee/table-size/table-size-popover";
 import { ContextMenuItem, registerContextMenuProvider } from "./registry";
@@ -42,7 +42,8 @@ registerContextMenuProvider({
   order: 10,
   match: (e) => e.isActive("link"),
   items: (e) => {
-    const href = e.getAttributes("link").href as string | undefined;
+    // Link marks can arrive via collab/API with any scheme: never open javascript: etc.
+    const href = sanitizeUrl(e.getAttributes("link").href as string | undefined);
     return [
       {
         id: "open-link",
@@ -215,7 +216,16 @@ registerContextMenuProvider({
         onClick: async () => {
           try {
             const text = await navigator.clipboard.readText();
-            e.chain().focus().insertContent(text).run();
+            if (!text) return;
+            // Paste as plain text through PM's paste pipeline (same as Ctrl+V),
+            // instead of insertContent(), which would parse the text as HTML.
+            const clipboardData = new DataTransfer();
+            clipboardData.setData("text/plain", text);
+            e.view.focus();
+            e.view.pasteText(
+              text,
+              new ClipboardEvent("paste", { clipboardData }),
+            );
           } catch {}
         },
       },
