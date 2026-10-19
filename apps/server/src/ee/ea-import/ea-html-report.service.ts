@@ -25,6 +25,7 @@ import { fileStem, pickPageTitle, pickReportTitle } from './ea-html-report.util'
 import { EaCpuJob, toYdoc } from './ea-cpu.tasks';
 import { runEaCpuJobs } from './ea-cpu.pool';
 import { errorMessage } from './ea-import.util';
+import { mapLimit } from '../common/map-limit';
 import { EaParseWarning } from './types/ea-import.types';
 
 /**
@@ -50,6 +51,7 @@ export interface EaHtmlReportResult {
 }
 
 const INSERT_BATCH = 20;
+const IO_CONCURRENCY = 4;
 
 const EMPTY_DOC = {
   type: 'doc',
@@ -125,48 +127,62 @@ export class EaHtmlReportService {
     });
 
     try {
-      for (const page of pages) {
-        const abs = safeJoin(tmpDir, page.relativePath);
-        await fs.mkdir(path.dirname(abs), { recursive: true });
-        await fs.writeFile(abs, page.html);
-      }
-      for (const image of archive.htmlImages) {
-        const abs = safeJoin(tmpDir, image.relativePath);
-        await fs.mkdir(path.dirname(abs), { recursive: true });
-        await fs.writeFile(abs, image.buffer);
-      }
+      await mapLimit(
+        [
+          ...pages.map((page) => ({ rel: page.relativePath, data: page.html })),
+          ...archive.htmlImages.map((image) => ({
+            rel: image.relativePath,
+            data: image.buffer,
+          })),
+        ],
+        IO_CONCURRENCY,
+        async ({ rel, data }) => {
+          const abs = safeJoin(tmpDir, rel);
+          await fs.mkdir(path.dirname(abs), { recursive: true });
+          await fs.writeFile(abs, data);
+        },
+      );
 
       const attachmentCandidates = await buildAttachmentCandidates(tmpDir);
 
       // Phase A (I/O): upload each page's attachments, rewriting its HTML.
-      const jobs: Array<Extract<EaCpuJob, { kind: 'page' }>> = [];
-      for (const [index, page] of pages.entries()) {
-        await opts.onProgress?.(10 + (40 * index) / pages.length);
-        const id = v7();
-        const html = page.html.toString('utf-8');
-        const fallback = fileStem(page.relativePath) || 'Untitled';
-        const title = (pickPageTitle(html, fallback) || 'Untitled').normalize(
-          'NFC',
-        );
-        try {
-          const withAttachments =
-            await this.importAttachmentService.processAttachments({
-              html,
-              pageRelativePath: page.relativePath,
-              extractDir: tmpDir,
-              pageId: id,
-              fileTask,
-              attachmentCandidates,
+      // Indexed so page order (and therefore sibling positions) is stable
+      // regardless of which upload finishes first.
+      const jobs: Array<Extract<EaCpuJob, { kind: 'page' }>> = new Array(
+        pages.length,
+      );
+      let started = 0;
+      await mapLimit(
+        pages.map((page, index) => ({ page, index })),
+        IO_CONCURRENCY,
+        async ({ page, index }) => {
+          await opts.onProgress?.(10 + (40 * started++) / pages.length);
+          const id = v7();
+          const html = page.html.toString('utf-8');
+          const fallback = fileStem(page.relativePath) || 'Untitled';
+          const title = (
+            pickPageTitle(html, fallback) || 'Untitled'
+          ).normalize('NFC');
+          try {
+            const withAttachments =
+              await this.importAttachmentService.processAttachments({
+                html,
+                pageRelativePath: page.relativePath,
+                extractDir: tmpDir,
+                pageId: id,
+                fileTask,
+                attachmentCandidates,
+              });
+            jobs[index] = { kind: 'page', id, html: withAttachments, title };
+          } catch (error) {
+            warnings.push({
+              page: title,
+              reason: `Failed to convert page content: ${errorMessage(error)}`,
             });
-          jobs.push({ kind: 'page', id, html: withAttachments, title });
-        } catch (error) {
-          warnings.push({
-            page: title,
-            reason: `Failed to convert page content: ${errorMessage(error)}`,
-          });
-          jobs.push({ kind: 'page', id, html: '', title });
-        }
-      }
+            jobs[index] = { kind: 'page', id, html: '', title };
+          }
+        },
+      );
 
       // Phase B (CPU): HTML -> ProseMirror -> Yjs on the EA worker pool.
       let converted = 0;

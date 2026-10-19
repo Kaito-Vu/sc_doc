@@ -20,6 +20,7 @@ import { Queue } from 'bullmq';
 import { QueueJob, QueueName } from '../../integrations/queue/constants';
 import { v7 as uuid7 } from 'uuid';
 import { Readable } from 'stream';
+import { mapLimit } from '../common/map-limit';
 
 @Injectable()
 export class PdfExportService {
@@ -101,9 +102,13 @@ export class PdfExportService {
       .where('createdAt', '<', cutoff)
       // Already-swept tasks would otherwise be re-processed on every run.
       .where('deletedAt', 'is', null)
+      // Bounded batch: the remainder is picked up by the next run.
+      .limit(500)
       .execute();
 
-    for (const task of tasks) {
+    if (tasks.length === 0) return;
+
+    await mapLimit(tasks, 4, async (task) => {
       try {
         if (task.filePath) {
           await this.storageService.delete(task.filePath);
@@ -111,12 +116,16 @@ export class PdfExportService {
       } catch (err) {
         this.logger.debug(`Failed to delete export file ${task.filePath}`);
       }
-      await this.db
-        .updateTable('fileTasks')
-        .set({ deletedAt: new Date() })
-        .where('id', '=', task.id)
-        .execute();
-    }
+    });
+    await this.db
+      .updateTable('fileTasks')
+      .set({ deletedAt: new Date() })
+      .where(
+        'id',
+        'in',
+        tasks.map((task) => task.id),
+      )
+      .execute();
   }
 
   async queuePageExport(

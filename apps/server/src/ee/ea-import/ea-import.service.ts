@@ -37,6 +37,7 @@ import {
 } from '../../integrations/import/utils/file.utils';
 import { StorageService } from '../../integrations/storage/storage.service';
 import { generateJitteredKeyBetween } from 'fractional-indexing-jittered';
+import { mapLimit } from '../common/map-limit';
 import { runEaCpuJobs } from './ea-cpu.pool';
 import {
   EaImageAsset,
@@ -85,22 +86,6 @@ const INSERT_BATCH = 20;
 /** Parse on a worker thread above this size; smaller files parse faster inline. */
 const PARSE_WORKER_MIN_BYTES = 512 * 1024;
 const MAX_PAGES = 300;
-
-/** Run `fn` over `items` with at most `limit` in flight. */
-async function mapLimit<T>(
-  items: T[],
-  limit: number,
-  fn: (item: T) => Promise<void>,
-): Promise<void> {
-  let next = 0;
-  await Promise.all(
-    Array.from({ length: Math.min(limit, items.length) }, async () => {
-      while (next < items.length) {
-        await fn(items[next++]);
-      }
-    }),
-  );
-}
 
 export interface EaImportResult {
   pageIds: string[];

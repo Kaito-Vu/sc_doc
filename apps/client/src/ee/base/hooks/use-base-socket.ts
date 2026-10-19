@@ -138,6 +138,63 @@ export function markRequestIdOutbound(requestId: string): void {
   }
 }
 
+type RowsCache = InfiniteData<IPagination<IBaseRow>>;
+
+// Cache writers below keep the reference of every page the event does not
+// touch (and of the whole cache when nothing matched), so React Query's
+// structural sharing and downstream selectors skip the unchanged rows.
+function patchCachedRow(
+  queryClient: QueryClient,
+  pageId: string,
+  rowId: string,
+  patch: (row: IBaseRow) => IBaseRow,
+): void {
+  queryClient.setQueriesData<RowsCache>(
+    { queryKey: ["base-rows", pageId] },
+    (old) => {
+      if (!old) return old;
+      let changed = false;
+      const pages = old.pages.map((page) => {
+        const index = page.items.findIndex((row) => row.id === rowId);
+        if (index === -1) return page;
+        changed = true;
+        const items = page.items.slice();
+        items[index] = patch(items[index]);
+        return { ...page, items };
+      });
+      return changed ? { ...old, pages } : old;
+    },
+  );
+}
+
+function removeCachedRows(
+  queryClient: QueryClient,
+  pageId: string,
+  rowIds: ReadonlySet<string>,
+): void {
+  queryClient.setQueriesData<RowsCache>(
+    { queryKey: ["base-rows", pageId] },
+    (old) => {
+      if (!old) return old;
+      let changed = false;
+      const pages = old.pages.map((page) => {
+        if (!page.items.some((row) => rowIds.has(row.id))) return page;
+        changed = true;
+        return {
+          ...page,
+          items: page.items.filter((row) => !rowIds.has(row.id)),
+        };
+      });
+      return changed ? { ...old, pages } : old;
+    },
+  );
+}
+
+function hasKanbanView(queryClient: QueryClient, pageId: string): boolean {
+  const base = queryClient.getQueryData<IBase>(["bases", pageId]);
+  return (base?.views ?? []).some((v) => v.type === "kanban");
+}
+
 function createBaseEventHandler(
   pageId: string,
   queryClient: QueryClient,
@@ -156,9 +213,7 @@ function createBaseEventHandler(
     switch (event.operation) {
       case "base:row:created": {
         const e = event as BaseRowCreated;
-        const baseForCreate = queryClient.getQueryData<IBase>(["bases", pageId]);
-        const hasKanbanForCreate = (baseForCreate?.views ?? []).some((v) => v.type === "kanban");
-        if (hasKanbanForCreate) {
+        if (hasKanbanView(queryClient, pageId)) {
           invalidateBaseRows(pageId);
         } else {
           queryClient.setQueriesData<InfiniteData<IPagination<IBaseRow>>>(
@@ -181,49 +236,19 @@ function createBaseEventHandler(
       }
       case "base:row:updated": {
         const e = event as BaseRowUpdated;
-        const baseForUpdate = queryClient.getQueryData<IBase>(["bases", pageId]);
-        const hasKanbanForUpdate = (baseForUpdate?.views ?? []).some((v) => v.type === "kanban");
-        if (hasKanbanForUpdate) {
+        if (hasKanbanView(queryClient, pageId)) {
           invalidateBaseRows(pageId);
         } else {
-          queryClient.setQueriesData<InfiniteData<IPagination<IBaseRow>>>(
-            { queryKey: ["base-rows", pageId] },
-            (old) =>
-              !old
-                ? old
-                : {
-                    ...old,
-                    pages: old.pages.map((page) => ({
-                      ...page,
-                      items: page.items.map((row) =>
-                        row.id === e.rowId
-                          ? {
-                              ...row,
-                              cells: { ...row.cells, ...e.updatedCells },
-                            }
-                          : row,
-                      ),
-                    })),
-                  },
-          );
+          patchCachedRow(queryClient, pageId, e.rowId, (row) => ({
+            ...row,
+            cells: { ...row.cells, ...e.updatedCells },
+          }));
         }
         break;
       }
       case "base:row:deleted": {
         const e = event as BaseRowDeleted;
-        queryClient.setQueriesData<InfiniteData<IPagination<IBaseRow>>>(
-          { queryKey: ["base-rows", pageId] },
-          (old) =>
-            !old
-              ? old
-              : {
-                  ...old,
-                  pages: old.pages.map((page) => ({
-                    ...page,
-                    items: page.items.filter((row) => row.id !== e.rowId),
-                  })),
-                },
-        );
+        removeCachedRows(queryClient, pageId, new Set([e.rowId]));
         const store = getDefaultStore();
         const selectedIdsAtom = selectedRowIdsAtomFamily(pageId);
         const current = store.get(selectedIdsAtom);
@@ -237,19 +262,7 @@ function createBaseEventHandler(
       case "base:rows:deleted": {
         const e = event as BaseRowsDeleted;
         const removeSet = new Set(e.rowIds);
-        queryClient.setQueriesData<InfiniteData<IPagination<IBaseRow>>>(
-          { queryKey: ["base-rows", pageId] },
-          (old) => {
-            if (!old) return old;
-            return {
-              ...old,
-              pages: old.pages.map((page) => ({
-                ...page,
-                items: page.items.filter((row) => !removeSet.has(row.id)),
-              })),
-            };
-          },
-        );
+        removeCachedRows(queryClient, pageId, removeSet);
         const store = getDefaultStore();
         const selectedIdsAtom = selectedRowIdsAtomFamily(pageId);
         const current = store.get(selectedIdsAtom);
@@ -265,28 +278,13 @@ function createBaseEventHandler(
       }
       case "base:row:reordered": {
         const e = event as BaseRowReordered;
-        const baseForReorder = queryClient.getQueryData<IBase>(["bases", pageId]);
-        const hasKanbanForReorder = (baseForReorder?.views ?? []).some((v) => v.type === "kanban");
-        if (hasKanbanForReorder) {
+        if (hasKanbanView(queryClient, pageId)) {
           invalidateBaseRows(pageId);
         } else {
-          queryClient.setQueriesData<InfiniteData<IPagination<IBaseRow>>>(
-            { queryKey: ["base-rows", pageId] },
-            (old) =>
-              !old
-                ? old
-                : {
-                    ...old,
-                    pages: old.pages.map((page) => ({
-                      ...page,
-                      items: page.items.map((row) =>
-                        row.id === e.rowId
-                          ? { ...row, position: e.position }
-                          : row,
-                      ),
-                    })),
-                  },
-          );
+          patchCachedRow(queryClient, pageId, e.rowId, (row) => ({
+            ...row,
+            position: e.position,
+          }));
         }
         break;
       }
