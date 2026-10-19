@@ -6,6 +6,8 @@ import { isCloud } from "@/lib/config.ts";
 import { SearchSpotlight } from "@/features/search/components/search-spotlight.tsx";
 import { EaImportTracker } from "@/ee/ea-import/ea-import-tracker.tsx";
 import { ShortcutsHelp } from "@/ee/shortcuts/shortcuts.tsx";
+import { CommandPalette } from "@/ee/command-palette/command-palette.tsx";
+import { InspectorStrip } from "@/ee/inspector/inspector-strip.tsx";
 import "@/ee/styles/sc-tokens.css";
 import React from "react";
 import { useGetSpaceBySlugQuery } from "@/features/space/queries/space-query.ts";
@@ -25,6 +27,8 @@ export default function Layout() {
       {isCloud() && <PosthogUser />}
       <EaImportTracker />
       <ShortcutsHelp />
+      <CommandPalette />
+      <InspectorStrip />
       <SearchSpotlight spaceId={space?.id} />
     </UserProvider>
   );

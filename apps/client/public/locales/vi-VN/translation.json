@@ -2017,5 +2017,10 @@
   "Summarize a page": "Tóm tắt một trang",
   "Update page content": "Cập nhật nội dung trang",
   "Updated page": "Đã cập nhật trang",
-  "No base ID provided": "Không có ID base"
+  "No base ID provided": "Không có ID base",
+  "Command palette": "Bảng lệnh",
+  "Page panels": "Bảng bên của trang",
+  "Type a command…": "Nhập lệnh…",
+  "Switch to classic UI": "Chuyển sang giao diện cổ điển",
+  "Switch to modern UI": "Chuyển sang giao diện hiện đại"
 }

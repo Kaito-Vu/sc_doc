@@ -1,0 +1,24 @@
+.strip {
+  position: fixed;
+  z-index: 98;
+  /* app header + page header + breathing room */
+  top: calc(var(--app-shell-header-offset, 45px) + 45px + 12px);
+  inset-inline-end: calc(var(--app-shell-aside-offset, 0px) + 8px);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 12px;
+  background: var(--sc-chrome-bg);
+  border: 1px solid var(--sc-hairline);
+  box-shadow: var(--sc-shadow-card);
+  backdrop-filter: blur(10px);
+
+  @media (max-width: $mantine-breakpoint-sm) {
+    display: none;
+  }
+
+  @media print {
+    display: none;
+  }
+}

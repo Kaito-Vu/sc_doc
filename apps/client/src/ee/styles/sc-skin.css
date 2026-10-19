@@ -51,6 +51,11 @@ html[data-sc-ui="modern"] {
   border-inline-start: 1px solid var(--sc-hairline);
 }
 
+/* Aside tab triggers move to the InspectorStrip; hide the header copies. */
+[data-sc-ui="modern"] [data-page-header="true"] button[aria-controls="aside-panel"] {
+  display: none;
+}
+
 /* ---------- controls ---------- */
 [data-sc-ui="modern"] .mantine-Button-root,
 [data-sc-ui="modern"] .mantine-Input-input,
