@@ -18,6 +18,7 @@ import { useTableClear } from "../hooks/use-table-clear";
 import { TableCopyMenuItem } from "@/ee/editor/table-copy/table-copy-menu-item";
 import { TableMergeMenuItem } from "@/ee/editor/table-merge/table-merge-menu-item";
 import { AlignmentSubmenu } from "./alignment-submenu";
+import { showAddCountPopover } from "@/ee/table-size/table-size-popover";
 
 interface RowHandleMenuProps {
   editor: Editor;
@@ -98,13 +99,13 @@ export const RowHandleMenu = React.memo(function RowHandleMenu({
 
       <Menu.Item
         leftSection={<IconRowInsertTop size={16} />}
-        onClick={() => editor.chain().focus().addRowBefore().run()}
+        onClick={() => showAddCountPopover(editor, "addRowBefore")}
       >
         {t("Add row above")}
       </Menu.Item>
       <Menu.Item
         leftSection={<IconRowInsertBottom size={16} />}
-        onClick={() => editor.chain().focus().addRowAfter().run()}
+        onClick={() => showAddCountPopover(editor, "addRowAfter")}
       >
         {t("Add row below")}
       </Menu.Item>

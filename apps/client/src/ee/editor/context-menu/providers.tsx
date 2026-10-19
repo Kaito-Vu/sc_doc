@@ -24,6 +24,7 @@ import type { Editor } from "@tiptap/react";
 import i18n from "i18next";
 import { isCellSelection } from "@docmost/editor-ext";
 import { canSplitCell, splitCellInto } from "../table-split/split-cell";
+import { showAddCountPopover } from "@/ee/table-size/table-size-popover";
 import { ContextMenuItem, registerContextMenuProvider } from "./registry";
 
 const t = (k: string) => i18n.t(k);
@@ -119,25 +120,25 @@ registerContextMenuProvider({
         id: "row-above",
         label: multi ? t("Add rows above") : t("Add row above"),
         icon: <IconRowInsertTop size={sz} />,
-        onClick: run(e, (c) => c.addRowBefore()),
+        onClick: () => showAddCountPopover(e, "addRowBefore"),
       },
       {
         id: "row-below",
         label: multi ? t("Add rows below") : t("Add row below"),
         icon: <IconRowInsertBottom size={sz} />,
-        onClick: run(e, (c) => c.addRowAfter()),
+        onClick: () => showAddCountPopover(e, "addRowAfter"),
       },
       {
         id: "col-left",
         label: t("Add column before"),
         icon: <IconColumnInsertLeft size={sz} />,
-        onClick: run(e, (c) => c.addColumnBefore()),
+        onClick: () => showAddCountPopover(e, "addColumnBefore"),
       },
       {
         id: "col-right",
         label: t("Add column after"),
         icon: <IconColumnInsertRight size={sz} />,
-        onClick: run(e, (c) => c.addColumnAfter()),
+        onClick: () => showAddCountPopover(e, "addColumnAfter"),
       },
       {
         id: "del-row",

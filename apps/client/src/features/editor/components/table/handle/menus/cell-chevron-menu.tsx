@@ -18,6 +18,7 @@ import { useTableClear } from "../hooks/use-table-clear";
 import { TABLE_COLORS } from "../../table-background-color";
 import { TableSplitMenuItems } from "@/ee/editor/table-split/table-split-controls";
 import { AlignmentSubmenu } from "./alignment-submenu";
+import { showAddCountPopover } from "@/ee/table-size/table-size-popover";
 
 interface CellChevronMenuProps {
   editor: Editor;
@@ -125,13 +126,13 @@ export const CellChevronMenu = React.memo(function CellChevronMenu({
 
       <Menu.Item
         leftSection={<IconColumnInsertRight size={16} />}
-        onClick={() => editor.chain().focus().addColumnAfter().run()}
+        onClick={() => showAddCountPopover(editor, "addColumnAfter")}
       >
         {t("Add column right")}
       </Menu.Item>
       <Menu.Item
         leftSection={<IconRowInsertBottom size={16} />}
-        onClick={() => editor.chain().focus().addRowAfter().run()}
+        onClick={() => showAddCountPopover(editor, "addRowAfter")}
       >
         {t("Add row below")}
       </Menu.Item>

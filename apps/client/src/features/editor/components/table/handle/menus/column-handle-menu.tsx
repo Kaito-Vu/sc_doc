@@ -20,6 +20,7 @@ import { useTableClear } from "../hooks/use-table-clear";
 import { useTableSort } from "../hooks/use-table-sort";
 import { TableCopyMenuItem } from "@/ee/editor/table-copy/table-copy-menu-item";
 import { AlignmentSubmenu } from "./alignment-submenu";
+import { showAddCountPopover } from "@/ee/table-size/table-size-popover";
 
 interface ColumnHandleMenuProps {
   editor: Editor;
@@ -132,13 +133,13 @@ export const ColumnHandleMenu = React.memo(function ColumnHandleMenu({
 
       <Menu.Item
         leftSection={<IconColumnInsertLeft size={16} />}
-        onClick={() => editor.chain().focus().addColumnBefore().run()}
+        onClick={() => showAddCountPopover(editor, "addColumnBefore")}
       >
         {t("Add column left")}
       </Menu.Item>
       <Menu.Item
         leftSection={<IconColumnInsertRight size={16} />}
-        onClick={() => editor.chain().focus().addColumnAfter().run()}
+        onClick={() => showAddCountPopover(editor, "addColumnAfter")}
       >
         {t("Add column right")}
       </Menu.Item>

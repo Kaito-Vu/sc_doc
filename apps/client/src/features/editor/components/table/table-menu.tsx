@@ -21,6 +21,7 @@ import { BubbleMenu } from "@tiptap/react/menus";
 import { isCellSelection, isEditorReady, isTextSelected } from "@docmost/editor-ext";
 import { useTranslation } from "react-i18next";
 import classes from "../common/toolbar-menu.module.css";
+import { showAddCountPopover } from "@/ee/table-size/table-size-popover";
 
 export const TableMenu = React.memo(
   ({ editor }: EditorMenuProps): JSX.Element => {
@@ -68,11 +69,11 @@ export const TableMenu = React.memo(
     }, [editor]);
 
     const addColumnLeft = useCallback(() => {
-      editor.chain().focus().addColumnBefore().run();
+      showAddCountPopover(editor, "addColumnBefore");
     }, [editor]);
 
     const addColumnRight = useCallback(() => {
-      editor.chain().focus().addColumnAfter().run();
+      showAddCountPopover(editor, "addColumnAfter");
     }, [editor]);
 
     const deleteColumn = useCallback(() => {
@@ -80,11 +81,11 @@ export const TableMenu = React.memo(
     }, [editor]);
 
     const addRowAbove = useCallback(() => {
-      editor.chain().focus().addRowBefore().run();
+      showAddCountPopover(editor, "addRowBefore");
     }, [editor]);
 
     const addRowBelow = useCallback(() => {
-      editor.chain().focus().addRowAfter().run();
+      showAddCountPopover(editor, "addRowAfter");
     }, [editor]);
 
     const deleteRow = useCallback(() => {
