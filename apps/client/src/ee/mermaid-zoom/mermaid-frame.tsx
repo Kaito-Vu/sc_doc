@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ActionIcon, Group, Paper, Text, Tooltip } from "@mantine/core";
-import { IconEdit, IconZoomIn, IconZoomOut } from "@tabler/icons-react";
+import { IconEdit, IconZoomIn, IconZoomOut, IconZoomReset } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
 
 const MIN = 0.25;
@@ -8,7 +8,7 @@ const MAX = 8;
 
 /**
  * Wraps a rendered mermaid <svg> with pan/zoom (Ctrl/Cmd + wheel, drag, toolbar buttons)
- * and a hover toolbar. Clicks never reach ProseMirror, so the code block only opens via Edit.
+ * and a toolbar. Clicks never reach ProseMirror, so the code block only opens via Edit.
  */
 export function MermaidFrame({
   children,
@@ -21,7 +21,6 @@ export function MermaidFrame({
   const frameRef = useRef<HTMLDivElement>(null);
   const view = useRef({ s: 1, tx: 0, ty: 0 });
   const [scale, setScale] = useState(1);
-  const [hover, setHover] = useState(false);
 
   const svg = () => frameRef.current?.querySelector("svg") as SVGElement | null;
   const apply = () => {
@@ -101,33 +100,33 @@ export function MermaidFrame({
     <div
       ref={frameRef}
       style={{ position: "relative", overflow: "hidden" }}
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
       onMouseDown={(e) => e.stopPropagation()}
       onPointerDown={onPointerDown}
       onDoubleClick={reset}
     >
       {children}
-      {hover && (
-        <Paper
+      <Paper
           data-mz-toolbar
           withBorder
           shadow="sm"
           p={2}
-          style={{ position: "absolute", top: 4, right: 4, zIndex: 1 }}
+          style={{ position: "absolute", bottom: 4, right: 4, zIndex: 2 }}
         >
           <Group gap={2} wrap="nowrap">
             <ActionIcon size="sm" variant="subtle" color="gray" onClick={() => zoomCenter(1 / 1.25)}>
               <IconZoomOut size={16} />
             </ActionIcon>
-            <Tooltip label={t("Reset zoom")} withArrow>
-              <Text size="xs" w={40} ta="center" style={{ cursor: "pointer" }} onClick={reset}>
-                {Math.round(scale * 100)}%
-              </Text>
-            </Tooltip>
+            <Text size="xs" w={40} ta="center">
+              {Math.round(scale * 100)}%
+            </Text>
             <ActionIcon size="sm" variant="subtle" color="gray" onClick={() => zoomCenter(1.25)}>
               <IconZoomIn size={16} />
             </ActionIcon>
+            <Tooltip label={t("Reset zoom")} withArrow>
+              <ActionIcon size="sm" variant="subtle" color="gray" onClick={reset}>
+                <IconZoomReset size={16} />
+              </ActionIcon>
+            </Tooltip>
             {onEdit && (
               <Tooltip label={t("Edit")} withArrow>
                 <ActionIcon size="sm" variant="subtle" color="gray" onClick={onEdit}>
@@ -136,8 +135,7 @@ export function MermaidFrame({
               </Tooltip>
             )}
           </Group>
-        </Paper>
-      )}
+      </Paper>
     </div>
   );
 }
