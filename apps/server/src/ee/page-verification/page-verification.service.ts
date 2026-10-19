@@ -29,8 +29,14 @@ import {
   computeExpiresAt,
   resolveVerificationStatus,
 } from './page-verification.status';
+import {
+  assertQmsTransition,
+  canQmsTransition,
+  REVIEW_STRATEGIES,
+  ReviewDecision,
+  ReviewDecisionStrategy,
+} from './qms-workflow';
 
-type ReviewDecision = 'approved' | 'rejected' | 'needs_clarification';
 
 @Injectable()
 export class PageVerificationService {
@@ -150,7 +156,7 @@ export class PageVerificationService {
           detail.type === 'qms' && status === 'draft' && canManage,
         canMarkObsolete:
           detail.type === 'qms' &&
-          status === 'approved' &&
+          canQmsTransition(status, 'markObsolete') &&
           canManage,
       },
     };
@@ -369,9 +375,7 @@ export class PageVerificationService {
       throw new NotFoundException('Verification not found');
     }
     await this.assertCanManage(page, user);
-    if (verification.status !== 'approved') {
-      throw new BadRequestException('Only approved documents can be obsolete');
-    }
+    assertQmsTransition(verification.status, 'markObsolete');
 
     await this.pageVerificationRepo.update(verification.id, {
       status: 'obsolete',
@@ -441,12 +445,7 @@ export class PageVerificationService {
       throw new BadRequestException('QMS verification required');
     }
     await this.assertCanManage(page, user);
-    if (
-      verification.status !== 'draft' &&
-      verification.status !== 'needs_clarification'
-    ) {
-      throw new BadRequestException('Page is not eligible for submission');
-    }
+    assertQmsTransition(verification.status, 'submit');
 
     const unresolvedCount = await this.commentRepo.countUnresolvedByPageId(
       page.id,
@@ -502,105 +501,71 @@ export class PageVerificationService {
   }
 
   async approve(pageId: string, user: User) {
-    const verification = await this.getInApprovalVerificationForVerifier(
-      pageId,
-      user,
-    );
-    await this.assertCommentGate(verification.pageId, false);
-
-    await executeTx(this.db, async (trx) => {
-      await this.recordDecision(verification.id, user.id, 'approved', trx);
-
-      const pendingCount = await this.pageVerificationRepo.countPendingReviews(
-        verification.id,
-        trx,
-      );
-      if (pendingCount === 0) {
-        await this.closeCycle(
-          verification.id,
-          {
-            status: 'approved',
-            verifiedAt: new Date(),
-            verifiedById: user.id,
-          },
-          trx,
-        );
-      }
-    });
+    return this.decide(REVIEW_STRATEGIES.approve, pageId, user);
   }
 
   async reject(data: { pageId: string; comment: string }, user: User) {
     if (!data.comment?.trim()) {
       throw new BadRequestException('A rejection comment is required');
     }
-    const verification = await this.getInApprovalVerificationForVerifier(
-      data.pageId,
-      user,
-    );
-    await this.assertCommentGate(verification.pageId, false);
-
-    await executeTx(this.db, async (trx) => {
-      await this.recordDecision(verification.id, user.id, 'rejected', trx);
-      await this.closeCycle(
-        verification.id,
-        {
-          status: 'draft',
-          rejectedAt: new Date(),
-          rejectedById: user.id,
-          rejectionComment: data.comment,
-        },
-        trx,
-      );
-    });
-
-    await this.notificationQueue.add(
-      QueueJob.PAGE_APPROVAL_REJECTED_NOTIFICATION,
-      {
-        pageId: verification.pageId,
-        spaceId: verification.spaceId,
-        workspaceId: verification.workspaceId,
-        actorId: user.id,
-        requestedById: verification.requestedById,
-        comment: data.comment,
-      },
-    );
+    return this.decide(REVIEW_STRATEGIES.reject, data.pageId, user, data.comment);
   }
 
   async requestClarification(pageId: string, user: User) {
+    return this.decide(REVIEW_STRATEGIES.requestClarification, pageId, user);
+  }
+
+  // One path for every verifier decision; the strategy supplies what differs
+  // (comment gate, closing patch, whether all verifiers must have decided,
+  // requester notification).
+  private async decide(
+    strategy: ReviewDecisionStrategy,
+    pageId: string,
+    user: User,
+    comment?: string,
+  ) {
     const verification = await this.getInApprovalVerificationForVerifier(
       pageId,
       user,
     );
-    await this.assertCommentGate(verification.pageId, true);
+    await this.assertCommentGate(
+      verification.pageId,
+      strategy.needsUnresolvedComment,
+    );
 
     await executeTx(this.db, async (trx) => {
       await this.recordDecision(
         verification.id,
         user.id,
-        'needs_clarification',
+        strategy.decision,
         trx,
       );
+      if (
+        strategy.closesOnlyWhenAllDecided &&
+        (await this.pageVerificationRepo.countPendingReviews(
+          verification.id,
+          trx,
+        )) > 0
+      ) {
+        return;
+      }
       await this.closeCycle(
         verification.id,
-        {
-          status: 'needs_clarification',
-          clarificationRequestedAt: new Date(),
-          clarificationRequestedById: user.id,
-        },
+        strategy.closingPatch(user.id, comment),
         trx,
       );
     });
 
-    await this.notificationQueue.add(
-      QueueJob.PAGE_APPROVAL_CLARIFICATION_NOTIFICATION,
-      {
+    if (strategy.notification) {
+      await this.notificationQueue.add(strategy.notification, {
         pageId: verification.pageId,
         spaceId: verification.spaceId,
         workspaceId: verification.workspaceId,
         actorId: user.id,
         requestedById: verification.requestedById,
-      },
-    );
+        ...(strategy.includeCommentInNotification && { comment }),
+      });
+    }
   }
 
   // Approve/reject need a clean comment slate; clarification needs an open
@@ -675,9 +640,7 @@ export class PageVerificationService {
     if (!isVerifier) {
       throw new ForbiddenException();
     }
-    if (verification.status !== 'in_approval') {
-      throw new BadRequestException('Page is not awaiting review');
-    }
+    assertQmsTransition(verification.status, 'review');
     return verification;
   }
 
