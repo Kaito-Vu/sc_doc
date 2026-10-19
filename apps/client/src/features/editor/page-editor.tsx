@@ -64,6 +64,7 @@ import {
 } from "@/features/editor/components/common/editor-paste-handler.tsx";
 import ExcalidrawMenu from "./components/excalidraw/excalidraw-menu-lazy";
 import DrawioMenu from "./components/drawio/drawio-menu";
+import { DrawioZoomLayer } from "@/ee/drawio-zoom/drawio-zoom-layer";
 import { useCollabToken } from "@/features/auth/queries/auth-query.tsx";
 import SearchAndReplaceDialog from "@/features/editor/components/search-and-replace/search-and-replace-dialog.tsx";
 import SearchNavigationDialog from "@/features/editor/components/search-and-replace/search-navigation-dialog.tsx";
@@ -515,6 +516,7 @@ function CollabPageEditor({
           <SearchAndReplaceDialog editor={editor} editable={editable} />
         )}
         {editor && <SearchNavigationDialog editor={editor} />}
+        {editor && <DrawioZoomLayer editor={editor} />}
 
         {editor && editorIsEditable && (
           <div>

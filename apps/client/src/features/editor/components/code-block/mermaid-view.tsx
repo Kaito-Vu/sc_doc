@@ -6,7 +6,7 @@ import classes from "./code-block.module.css";
 import { useTranslation } from "react-i18next";
 import { useComputedColorScheme } from "@mantine/core";
 import DOMPurify from "dompurify";
-import { useCtrlWheelZoom } from "@/ee/mermaid-zoom/use-ctrl-wheel-zoom";
+import { MermaidFrame } from "@/ee/mermaid-zoom/mermaid-frame";
 
 interface MermaidViewProps {
   props: NodeViewProps;
@@ -17,7 +17,6 @@ export default function MermaidView({ props }: MermaidViewProps) {
   const computedColorScheme = useComputedColorScheme();
   const { node } = props;
   const [preview, setPreview] = useState<string>("");
-  const zoomRef = useCtrlWheelZoom();
 
   // Update Mermaid config when theme changes.
   useEffect(() => {
@@ -52,11 +51,18 @@ export default function MermaidView({ props }: MermaidViewProps) {
   }, [node.textContent, computedColorScheme]);
 
   return (
-    <div
-      ref={zoomRef}
-      className={classes.mermaid}
-      contentEditable={false}
-      dangerouslySetInnerHTML={{ __html: preview }}
-    ></div>
+    <MermaidFrame
+      onEdit={
+        props.editor.isEditable
+          ? () => props.editor.commands.setTextSelection(props.getPos() + 1)
+          : undefined
+      }
+    >
+      <div
+        className={classes.mermaid}
+        contentEditable={false}
+        dangerouslySetInnerHTML={{ __html: preview }}
+      ></div>
+    </MermaidFrame>
   );
 }
