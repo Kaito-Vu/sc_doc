@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import { TokenService } from '../auth/services/token.service';
 import { UserSessionRepo } from '@docmost/db/repos/session/user-session.repo';
@@ -11,6 +11,11 @@ import {
 } from '../../common/middlewares/audit-context.middleware';
 import * as Bowser from 'bowser';
 import { WsService } from '../../ws/ws.service';
+import { AuditEvent, AuditResource } from '../../common/events/audit-events';
+import {
+  AUDIT_SERVICE,
+  IAuditService,
+} from '../../integrations/audit/audit.service';
 
 const MAX_SESSIONS_PER_USER = 25;
 const RETENTION_DAYS = 7;
@@ -25,6 +30,7 @@ export class SessionService {
     private readonly environmentService: EnvironmentService,
     private readonly cls: ClsService,
     private readonly wsService: WsService,
+    @Inject(AUDIT_SERVICE) private readonly auditService: IAuditService,
   ) {}
 
   @Interval('session-cleanup', 24 * 60 * 60 * 1000)
@@ -96,6 +102,13 @@ export class SessionService {
     if (revoked) {
       this.wsService.disconnectSession(sessionId);
     }
+
+    this.auditService.log({
+      event: AuditEvent.SESSION_REVOKED,
+      resourceType: AuditResource.SESSION,
+      resourceId: sessionId,
+      metadata: { revoked },
+    });
   }
 
   async revokeAllOtherSessions(
@@ -109,6 +122,12 @@ export class SessionService {
       workspaceId,
     );
     this.wsService.disconnectOtherSessions(userId, currentSessionId);
+
+    this.auditService.log({
+      event: AuditEvent.SESSIONS_REVOKED,
+      resourceType: AuditResource.SESSION,
+      metadata: { currentSessionId },
+    });
   }
 
   private parseDeviceName(userAgent: string | null): string | null {

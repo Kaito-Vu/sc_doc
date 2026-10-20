@@ -16,6 +16,7 @@ import SpaceAbilityFactory from '../../core/casl/abilities/space-ability.factory
 import { getQueueToken } from '@nestjs/bullmq';
 import { QueueName } from '../../integrations/queue/constants';
 import { KYSELY_MODULE_CONNECTION_TOKEN } from 'nestjs-kysely';
+import { AUDIT_SERVICE } from '../../integrations/audit/audit.service';
 
 describe('PageVerificationService.submit', () => {
   it('blocks submit when unresolved comments exist', async () => {
@@ -28,6 +29,7 @@ describe('PageVerificationService.submit', () => {
     const module = await Test.createTestingModule({
       providers: [
         PageVerificationService,
+        { provide: AUDIT_SERVICE, useValue: { log: jest.fn() } },
         { provide: PageVerificationRepo, useValue: pageVerificationRepo },
         { provide: PageRepo, useValue: pageRepo },
         { provide: CommentRepo, useValue: commentRepo },
@@ -109,6 +111,7 @@ describe('PageVerificationService.approve', () => {
     const module = await Test.createTestingModule({
       providers: [
         PageVerificationService,
+        { provide: AUDIT_SERVICE, useValue: { log: jest.fn() } },
         { provide: PageVerificationRepo, useValue: pageVerificationRepo },
         { provide: PageRepo, useValue: { findById: jest.fn().mockResolvedValue({ id: 'p1', spaceId: 's1', creatorId: 'u2', deletedAt: null }) } },
         { provide: CommentRepo, useValue: commentRepo },
@@ -225,6 +228,7 @@ describe('PageVerificationService aggregate decisions', () => {
     const module = await Test.createTestingModule({
       providers: [
         PageVerificationService,
+        { provide: AUDIT_SERVICE, useValue: { log: jest.fn() } },
         { provide: PageVerificationRepo, useValue: mocks.pageVerificationRepo },
         { provide: PageRepo, useValue: mocks.pageRepo },
         { provide: CommentRepo, useValue: mocks.commentRepo },
@@ -509,6 +513,7 @@ function buildBaseProviders(overrides: {
 }) {
   return [
     PageVerificationService,
+    { provide: AUDIT_SERVICE, useValue: { log: jest.fn() } },
     { provide: PageVerificationRepo, useValue: overrides.pageVerificationRepo },
     {
       provide: PageRepo,

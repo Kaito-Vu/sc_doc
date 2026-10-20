@@ -5,12 +5,16 @@ import { ClsService } from 'nestjs-cls';
 export interface AuditContext {
   workspaceId: string | null;
   actorId: string | null;
-  actorType: 'user' | 'system' | 'api_key';
+  actorType: 'user' | 'system' | 'api_key' | 'oauth';
   ipAddress: string | null;
   userAgent: string | null;
 }
 
 export const AUDIT_CONTEXT_KEY = 'auditContext';
+
+// Set as soon as a domain event is written for the current request, so the
+// generic API fallback interceptor does not write a duplicate entry.
+export const AUDIT_LOGGED_KEY = 'auditLogged';
 
 @Injectable()
 export class AuditContextMiddleware implements NestMiddleware {

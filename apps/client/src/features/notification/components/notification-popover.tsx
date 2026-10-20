@@ -33,7 +33,7 @@ export function NotificationPopover() {
   const { t } = useTranslation();
   const titleId = useId();
   const [opened, setOpened] = useState(false);
-  const [tab, setTab] = useState<NotificationTab>("direct");
+  const [tab, setTab] = useState<NotificationTab>("all");
   const [filter, setFilter] = useState<NotificationFilter>("all");
   const [filterMenuOpened, setFilterMenuOpened] = useState(false);
   const [moreMenuOpened, setMoreMenuOpened] = useState(false);
@@ -171,6 +171,7 @@ export function NotificationPopover() {
           color="dark"
         >
           <Tabs.List px="md">
+            <Tabs.Tab value="all">{t("All")}</Tabs.Tab>
             <Tabs.Tab value="direct">{t("Direct")}</Tabs.Tab>
             <Tabs.Tab value="updates">{t("Updates")}</Tabs.Tab>
           </Tabs.List>

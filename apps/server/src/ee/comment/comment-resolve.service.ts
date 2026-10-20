@@ -117,7 +117,9 @@ export class CommentResolveService {
     }
 
     this.auditService.log({
-      event: AuditEvent.COMMENT_RESOLVED,
+      event: data.resolved
+        ? AuditEvent.COMMENT_RESOLVED
+        : AuditEvent.COMMENT_REOPENED,
       resourceType: AuditResource.COMMENT,
       resourceId: comment.id,
       spaceId: page.spaceId,

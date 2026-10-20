@@ -1,4 +1,5 @@
 import {
+  Inject,
   Injectable,
   NotFoundException,
   ForbiddenException,
@@ -16,10 +17,16 @@ import {
 import { CollabAccessService } from '../../collaboration/services/collab-access.service';
 import { isPageLockActive } from './page-lock.util';
 import { isPageLockEnabled } from './page-lock.enabled';
+import { AuditEvent, AuditResource } from '../../common/events/audit-events';
+import {
+  AUDIT_SERVICE,
+  IAuditService,
+} from '../../integrations/audit/audit.service';
 
 @Injectable()
 export class PageLockService {
   constructor(
+    @Inject(AUDIT_SERVICE) private readonly auditService: IAuditService,
     @InjectKysely() private readonly db: KyselyDB,
     private readonly pageRepo: PageRepo,
     private readonly pageAccessService: PageAccessService,
@@ -68,6 +75,14 @@ export class PageLockService {
       .execute();
 
     await this.collabAccess.recheckAccess({ pageIds: [page.id] });
+
+    this.auditService.log({
+      event: AuditEvent.PAGE_LOCKED,
+      resourceType: AuditResource.PAGE,
+      resourceId: page.id,
+      spaceId: page.spaceId,
+    });
+
     return { isLocked: true, lockedById: user.id };
   }
 
@@ -91,6 +106,15 @@ export class PageLockService {
       .execute();
 
     await this.collabAccess.recheckAccess({ pageIds: [page.id] });
+
+    this.auditService.log({
+      event: AuditEvent.PAGE_UNLOCKED,
+      resourceType: AuditResource.PAGE,
+      resourceId: page.id,
+      spaceId: page.spaceId,
+      metadata: { previousLockedById: page.lockedById ?? null },
+    });
+
     return { isLocked: false, lockedById: null };
   }
 }

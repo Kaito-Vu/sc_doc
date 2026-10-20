@@ -11,6 +11,7 @@ import {
   IApprovalRequestedNotificationJob,
   ICommentNotificationJob,
   ICommentResolvedNotificationJob,
+  IPageEditSupplementJob,
   IPageMentionNotificationJob,
   IPageReverificationRequiredNotificationJob,
   IPageUpdateNotificationJob,
@@ -49,6 +50,7 @@ export class NotificationProcessor
       | ICommentResolvedNotificationJob
       | IPageMentionNotificationJob
       | IPageUpdateNotificationJob
+      | IPageEditSupplementJob
       | IPermissionGrantedNotificationJob
       | IVerificationExpiringNotificationJob
       | IVerificationExpiredNotificationJob
@@ -120,6 +122,14 @@ export class NotificationProcessor
         case QueueJob.PAGE_UPDATE_DIGEST: {
           const { userId } = job.data as unknown as { userId: string };
           await this.pageNotificationService.processDigest(userId, appUrl);
+          break;
+        }
+
+        case QueueJob.PAGE_EDIT_SUPPLEMENT: {
+          await this.runPageEditSupplement(
+            job as Job<IPageEditSupplementJob>,
+            appUrl,
+          );
           break;
         }
 
@@ -223,6 +233,20 @@ export class NotificationProcessor
       return;
     }
     await scheduler.reconcile();
+  }
+
+  private async runPageEditSupplement(
+    job: Job<IPageEditSupplementJob>,
+    appUrl: string,
+  ): Promise<void> {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const ee = require('../../ee/notifications/run-page-edit-supplement');
+      await ee.runPageEditSupplement(this.moduleRef, job.data, appUrl);
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException)?.code !== 'MODULE_NOT_FOUND') throw err;
+      this.logger.debug('PAGE_EDIT_SUPPLEMENT: EE not bundled in this build');
+    }
   }
 
   private async runApprovalClarification(

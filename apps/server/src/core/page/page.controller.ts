@@ -291,6 +291,26 @@ export class PageController {
       user,
     );
 
+    this.auditService.log({
+      event: AuditEvent.PAGE_UPDATED,
+      resourceType: AuditResource.PAGE,
+      resourceId: page.id,
+      spaceId: page.spaceId,
+      changes: {
+        before: {
+          title: getPageTitle(page.title),
+          icon: page.icon,
+        },
+        after: {
+          title: getPageTitle(updatedPage.title),
+          icon: updatedPage.icon,
+        },
+      },
+      metadata: {
+        contentChanged: Boolean(updatePageDto.content),
+      },
+    });
+
     const permissions = { canEdit: true, hasRestriction };
 
     if (
@@ -552,7 +572,17 @@ export class PageController {
     }
     await this.pageAccessService.validateCanEdit(page, user);
 
-    return this.pageHistoryService.restore(dto.historyId, user);
+    const restored = await this.pageHistoryService.restore(dto.historyId, user);
+
+    this.auditService.log({
+      event: AuditEvent.PAGE_VERSION_RESTORED,
+      resourceType: AuditResource.PAGE,
+      resourceId: page.id,
+      spaceId: page.spaceId,
+      metadata: { historyId: dto.historyId },
+    });
+
+    return restored;
   }
 
   @HttpCode(HttpStatus.OK)

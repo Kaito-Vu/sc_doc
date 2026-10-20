@@ -67,11 +67,15 @@ export const AuditEvent = {
 
   // Page
   PAGE_CREATED: 'page.created',
+  PAGE_UPDATED: 'page.updated',
   PAGE_TRASHED: 'page.trashed',
   PAGE_DELETED: 'page.deleted',
   PAGE_RESTORED: 'page.restored',
   PAGE_MOVED_TO_SPACE: 'page.moved_to_space',
   PAGE_DUPLICATED: 'page.duplicated',
+  PAGE_VERSION_RESTORED: 'page.version_restored',
+  PAGE_LOCKED: 'page.locked',
+  PAGE_UNLOCKED: 'page.unlocked',
   // Page permission
   PAGE_RESTRICTED: 'page.restricted',
   PAGE_RESTRICTION_REMOVED: 'page.restriction_removed',
@@ -85,6 +89,7 @@ export const AuditEvent = {
   PAGE_VERIFIED: 'page.verified',
   PAGE_APPROVAL_REQUESTED: 'page.approval_requested',
   PAGE_APPROVAL_REJECTED: 'page.approval_rejected',
+  PAGE_CLARIFICATION_REQUESTED: 'page.clarification_requested',
   PAGE_MARKED_OBSOLETE: 'page.marked_obsolete',
 
   // Share
@@ -122,18 +127,31 @@ export const AuditEvent = {
 
   // Template
   TEMPLATE_CREATED: 'template.created',
+  TEMPLATE_UPDATED: 'template.updated',
   TEMPLATE_DELETED: 'template.deleted',
+
+  // Document metadata
+  DOC_METADATA_UPDATED: 'doc_metadata.updated',
+
+  // Sessions
+  SESSION_REVOKED: 'session.revoked',
+  SESSIONS_REVOKED: 'session.all_revoked',
+
+  // Audit trail management
+  AUDIT_RETENTION_UPDATED: 'audit.retention_updated',
+  AUDIT_EXPORTED: 'audit.exported',
+  AUDIT_PURGED: 'audit.purged',
+
+  // Generic fallback for every state-changing API call that does not emit a
+  // dedicated domain event. Guarantees that no user action goes unrecorded.
+  API_REQUEST: 'api.request',
 } as const;
 
 export type AuditEventType = (typeof AuditEvent)[keyof typeof AuditEvent];
 
-export const EXCLUDED_AUDIT_EVENTS: Set<string> = new Set([
-  AuditEvent.PAGE_CREATED,
-  AuditEvent.PAGE_MOVED_TO_SPACE,
-  AuditEvent.PAGE_DUPLICATED,
-  AuditEvent.ATTACHMENT_UPLOADED,
-  AuditEvent.SIEM_DESTINATION_TEST,
-]);
+// Every action is audited. Keep the set for backwards compatibility, but do
+// not silence any event: the audit trail must be complete.
+export const EXCLUDED_AUDIT_EVENTS: Set<string> = new Set<string>();
 
 export const AuditResource = {
   WORKSPACE: 'workspace',
@@ -155,12 +173,19 @@ export const AuditResource = {
   LICENSE: 'license',
   SIEM_DESTINATION: 'siem_destination',
   TEMPLATE: 'template',
+  LABEL: 'label',
+  BASE: 'base',
+  SESSION: 'session',
+  DOC_METADATA: 'doc_metadata',
+  PERSONAL_SPACE: 'personal_space',
+  AUDIT_LOG: 'audit_log',
+  API_REQUEST: 'api_request',
 } as const;
 
 export type AuditResourceType =
   (typeof AuditResource)[keyof typeof AuditResource];
 
-export type ActorType = 'user' | 'system' | 'api_key';
+export type ActorType = 'user' | 'system' | 'api_key' | 'oauth';
 
 export interface AuditLogPayload {
   event: AuditEventType;

@@ -68,6 +68,13 @@ export interface IPageUpdateNotificationJob {
   actorIds: string[];
 }
 
+export interface IPageEditSupplementJob {
+  pageId: string;
+  spaceId: string;
+  workspaceId: string;
+  actorIds: string[];
+}
+
 export interface IPermissionGrantedNotificationJob {
   userIds: string[];
   pageId: string;

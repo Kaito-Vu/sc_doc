@@ -139,6 +139,27 @@ export class SignupService {
       trx,
     );
 
+    // Written after the transaction commits: audit rows reference the new
+    // workspace by id, so the workspace must be visible first.
+    this.auditService.logWithContext(
+      {
+        event: AuditEvent.WORKSPACE_CREATED,
+        resourceType: AuditResource.WORKSPACE,
+        resourceId: workspace.id,
+        changes: {
+          after: {
+            name: workspace.name,
+            description: workspace.description,
+          },
+        },
+      },
+      {
+        workspaceId: workspace.id,
+        actorId: user.id,
+        actorType: 'user',
+      },
+    );
+
     return { user, workspace };
   }
 }

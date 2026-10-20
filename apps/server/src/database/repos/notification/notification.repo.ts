@@ -13,7 +13,7 @@ import { jsonObjectFrom } from 'kysely/helpers/postgres';
 import { SpaceMemberRepo } from '@docmost/db/repos/space/space-member.repo';
 import {
   NotificationTab,
-  NotificationType,
+  UPDATES_NOTIFICATION_TYPES,
 } from '../../../core/notification/notification.constants';
 
 @Injectable()
@@ -55,9 +55,9 @@ export class NotificationRepo {
       );
 
     if (type === 'direct') {
-      query = query.where('type', '!=', NotificationType.PAGE_UPDATED);
+      query = query.where('type', 'not in', UPDATES_NOTIFICATION_TYPES);
     } else if (type === 'updates') {
-      query = query.where('type', '=', NotificationType.PAGE_UPDATED);
+      query = query.where('type', 'in', UPDATES_NOTIFICATION_TYPES);
     }
 
     return executeWithCursorPagination(query, {

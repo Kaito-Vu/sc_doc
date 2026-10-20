@@ -1,5 +1,6 @@
 import { HistoryProcessor } from './history.processor';
 import { EventName } from '../../common/events/event.contants';
+import { QueueJob } from '../../integrations/queue/constants';
 
 describe('HistoryProcessor content-updated event', () => {
   it('emits PAGE_CONTENT_UPDATED after saving a new history row', async () => {
@@ -13,7 +14,9 @@ describe('HistoryProcessor content-updated event', () => {
     const pageHistoryRepo = {
       findPageLastHistory: jest
         .fn()
-        .mockResolvedValue({ content: { type: 'doc', content: [{ type: 'paragraph' }] } }),
+        .mockResolvedValue({
+          content: { type: 'doc', content: [{ type: 'paragraph' }] },
+        }),
       saveHistory: jest.fn().mockResolvedValue(savedHistory),
     };
     const pageRepo = { findById: jest.fn().mockResolvedValue(page) };
@@ -24,8 +27,17 @@ describe('HistoryProcessor content-updated event', () => {
     };
     const watcherService = { addPageWatchers: jest.fn() };
     const notificationQueue = { add: jest.fn() };
-    const generalQueue = { add: jest.fn().mockReturnValue({ catch: jest.fn() }) };
+    const generalQueue = {
+      add: jest.fn().mockReturnValue({ catch: jest.fn() }),
+    };
     const eventEmitter = { emit: jest.fn() };
+    const auditDb = {
+      insertInto: jest.fn(() => ({
+        values: jest.fn(() => ({
+          execute: jest.fn().mockResolvedValue(undefined),
+        })),
+      })),
+    };
 
     const processor: any = new HistoryProcessor(
       pageHistoryRepo as any,
@@ -35,13 +47,90 @@ describe('HistoryProcessor content-updated event', () => {
       notificationQueue as any,
       generalQueue as any,
       eventEmitter as any,
+      auditDb as any,
     );
 
-    await processor.process({ name: 'page-history', data: { pageId: 'p1' } } as any);
+    await processor.process({
+      name: 'page-history',
+      data: { pageId: 'p1' },
+    } as any);
 
     expect(eventEmitter.emit).toHaveBeenCalledWith(
       EventName.PAGE_CONTENT_UPDATED,
-      { pageId: 'p1', spaceId: 's1', workspaceId: 'w1', historyId: 'hist-1' },
+      {
+        pageId: 'p1',
+        spaceId: 's1',
+        workspaceId: 'w1',
+        historyId: 'hist-1',
+        actorIds: [],
+      },
+    );
+  });
+
+  it('queues both watcher and explicit-recipient page update jobs', async () => {
+    const page = {
+      id: 'p1',
+      spaceId: 's1',
+      workspaceId: 'w1',
+      content: { type: 'doc', content: [] },
+    };
+    const pageHistoryRepo = {
+      findPageLastHistory: jest
+        .fn()
+        .mockResolvedValue({
+          content: { type: 'doc', content: [{ type: 'paragraph' }] },
+        }),
+      saveHistory: jest.fn().mockResolvedValue({ id: 'hist-1' }),
+    };
+    const pageRepo = { findById: jest.fn().mockResolvedValue(page) };
+    const collabHistory = {
+      popContributors: jest.fn().mockResolvedValue(['u1']),
+      addContributors: jest.fn(),
+      clearContributors: jest.fn(),
+    };
+    const watcherService = { addPageWatchers: jest.fn() };
+    const notificationQueue = { add: jest.fn().mockResolvedValue(undefined) };
+    const generalQueue = {
+      add: jest.fn().mockReturnValue({ catch: jest.fn() }),
+    };
+    const eventEmitter = { emit: jest.fn() };
+    const auditDb = {
+      insertInto: jest.fn(() => ({
+        values: jest.fn(() => ({
+          execute: jest.fn().mockResolvedValue(undefined),
+        })),
+      })),
+    };
+
+    const processor: any = new HistoryProcessor(
+      pageHistoryRepo as any,
+      pageRepo as any,
+      collabHistory as any,
+      watcherService as any,
+      notificationQueue as any,
+      generalQueue as any,
+      eventEmitter as any,
+      auditDb as any,
+    );
+
+    await processor.process({
+      name: 'page-history',
+      data: { pageId: 'p1' },
+    } as any);
+
+    const expectedPayload = expect.objectContaining({
+      pageId: 'p1',
+      spaceId: 's1',
+      workspaceId: 'w1',
+      actorIds: ['u1'],
+    });
+    expect(notificationQueue.add).toHaveBeenCalledWith(
+      QueueJob.PAGE_UPDATED,
+      expectedPayload,
+    );
+    expect(notificationQueue.add).toHaveBeenCalledWith(
+      QueueJob.PAGE_EDIT_SUPPLEMENT,
+      expectedPayload,
     );
   });
 });

@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  Inject,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -21,10 +22,16 @@ import {
   UpdateDocMetadataDto,
 } from './dto/doc-metadata.dto';
 import { User, Workspace } from '@docmost/db/types/entity.types';
+import { AuditEvent, AuditResource } from '../../common/events/audit-events';
+import {
+  AUDIT_SERVICE,
+  IAuditService,
+} from '../../integrations/audit/audit.service';
 
 @Injectable()
 export class DocMetadataService {
   constructor(
+    @Inject(AUDIT_SERVICE) private readonly auditService: IAuditService,
     private readonly repo: DocMetadataRepo,
     private readonly pageRepo: PageRepo,
     private readonly pageAccessService: PageAccessService,
@@ -107,8 +114,7 @@ export class DocMetadataService {
       archivedAt: row.archived_at?.toISOString() ?? null,
       notes: row.notes,
       verificationStatus: row.verification_status,
-      verificationExpiresAt:
-        row.verification_expires_at?.toISOString() ?? null,
+      verificationExpiresAt: row.verification_expires_at?.toISOString() ?? null,
       canEdit,
       updatedAt: row.updated_at.toISOString(),
     };
@@ -162,15 +168,13 @@ export class DocMetadataService {
     return this.mapRow(row, canEdit);
   }
 
-  async update(
-    dto: UpdateDocMetadataDto,
-    user: User,
-    workspace: Workspace,
-  ) {
+  async update(dto: UpdateDocMetadataDto, user: User, workspace: Workspace) {
     const page = await this.getPage(dto.pageId, workspace.id);
     await this.pageAccessService.validateCanEdit(page, user, {
       ignoreLock: true,
     });
+
+    const before = await this.getInfo(page.id, user, workspace);
 
     if (dto.ownerId) {
       await this.assertWorkspaceUser(dto.ownerId, workspace.id);
@@ -220,7 +224,44 @@ export class DocMetadataService {
 
     await this.repo.update(page.id, patch);
 
+    const changedFields = Object.keys(dto).filter(
+      (key) => key !== 'pageId' && dto[key] !== undefined,
+    );
+
+    this.auditService.log({
+      event: AuditEvent.DOC_METADATA_UPDATED,
+      resourceType: AuditResource.DOC_METADATA,
+      resourceId: page.id,
+      spaceId: page.spaceId,
+      changes: {
+        before: this.pickMetadataFields(before),
+        after: {
+          ...this.pickMetadataFields(before),
+          ...Object.fromEntries(
+            changedFields.map((key) => [
+              key,
+              dto[key] === '' ? null : dto[key],
+            ]),
+          ),
+        },
+      },
+      metadata: { pageId: page.id, fields: changedFields },
+    });
+
     return this.getInfo(page.id, user, workspace);
+  }
+
+  private pickMetadataFields(metadata: DocMetadata) {
+    return {
+      ownerId: metadata.ownerId,
+      reviewerId: metadata.reviewerId,
+      classification: metadata.classification,
+      docType: metadata.docType,
+      effectiveAt: metadata.effectiveAt,
+      reviewDueAt: metadata.reviewDueAt,
+      archivedAt: metadata.archivedAt,
+      notes: metadata.notes,
+    };
   }
 
   private async accessibleSpaceIds(user: User, requested?: string[]) {
@@ -253,10 +294,11 @@ export class DocMetadataService {
     const hasMore = rows.length > limit;
     const page = rows.slice(0, limit);
 
-    const permissions = await this.pagePermissionRepo.filterAccessiblePageIdsWithPermissions(
-      page.map((row) => row.page_id),
-      user.id,
-    );
+    const permissions =
+      await this.pagePermissionRepo.filterAccessiblePageIdsWithPermissions(
+        page.map((row) => row.page_id),
+        user.id,
+      );
     const permissionMap = new Map(
       permissions.map((permission) => [permission.id, permission.canEdit]),
     );
@@ -271,11 +313,7 @@ export class DocMetadataService {
     };
   }
 
-  async health(
-    dto: { spaceIds?: string[] },
-    user: User,
-    workspace: Workspace,
-  ) {
+  async health(dto: { spaceIds?: string[] }, user: User, workspace: Workspace) {
     const spaceIds = await this.accessibleSpaceIds(user, dto.spaceIds);
     if (spaceIds.length === 0) {
       return {

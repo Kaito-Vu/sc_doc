@@ -9,12 +9,16 @@ function makeService(revoked: boolean) {
     disconnectSession: jest.fn(),
     disconnectOtherSessions: jest.fn(),
   };
+  const auditService = {
+    log: jest.fn(),
+  };
   const service = new SessionService(
     {} as any,
     userSessionRepo as any,
     {} as any,
     {} as any,
     wsService as any,
+    auditService as any,
   );
   return { service, wsService };
 }

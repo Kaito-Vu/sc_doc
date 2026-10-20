@@ -26,6 +26,8 @@ import {
 } from '../../../integrations/audit/audit.service';
 import { WsService } from '../../../ws/ws.service';
 import { CollabAccessService } from '../../../collaboration/services/collab-access.service';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { EventName } from '../../../common/events/event.contants';
 
 @Injectable()
 export class SpaceMemberService {
@@ -39,6 +41,7 @@ export class SpaceMemberService {
     @Inject(AUDIT_SERVICE) private readonly auditService: IAuditService,
     private readonly wsService: WsService,
     private readonly collabAccessService: CollabAccessService,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   async addUserToSpace(
@@ -215,6 +218,16 @@ export class SpaceMemberService {
           },
         });
       }
+
+      if (validUsers.length > 0 || validGroups.length > 0) {
+        this.eventEmitter.emit(EventName.SPACE_MEMBER_ADDED, {
+          userIds: validUsers.map((user) => user.id),
+          groupIds: validGroups.map((group) => group.id),
+          spaceId: dto.spaceId,
+          workspaceId,
+          actorId: authUser.id,
+        });
+      }
     }
   }
 
@@ -308,6 +321,14 @@ export class SpaceMemberService {
         memberType: spaceMember.userId ? 'user' : 'group',
       },
     });
+
+    if (affectedUserIds.length > 0) {
+      this.eventEmitter.emit(EventName.SPACE_MEMBER_REMOVED, {
+        userIds: affectedUserIds,
+        spaceId: dto.spaceId,
+        workspaceId,
+      });
+    }
   }
 
   async updateSpaceMemberRole(

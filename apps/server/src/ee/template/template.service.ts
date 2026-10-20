@@ -1,5 +1,6 @@
 import {
   ForbiddenException,
+  Inject,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -23,10 +24,16 @@ import { PaginationOptions } from '@docmost/db/pagination/pagination-options';
 import { ContentFormat } from '../../core/page/dto/create-page.dto';
 import { JsonValue } from '@docmost/db/types/db';
 import { resolveTemplateSkeletons } from './utils/resolve-template-skeletons.util';
+import { AuditEvent, AuditResource } from '../../common/events/audit-events';
+import {
+  AUDIT_SERVICE,
+  IAuditService,
+} from '../../integrations/audit/audit.service';
 
 @Injectable()
 export class TemplateService {
   constructor(
+    @Inject(AUDIT_SERVICE) private readonly auditService: IAuditService,
     private readonly templateRepo: TemplateRepo,
     private readonly spaceMemberRepo: SpaceMemberRepo,
     private readonly pageService: PageService,
@@ -84,10 +91,7 @@ export class TemplateService {
     allowMemberTemplates = false,
   ) {
     if (data.spaceId) {
-      const ability = await this.spaceAbility.createForUser(
-        user,
-        data.spaceId,
-      );
+      const ability = await this.spaceAbility.createForUser(user, data.spaceId);
       if (ability.cannot(SpaceCaslAction.Edit, SpaceCaslSubject.Page)) {
         throw new ForbiddenException();
       }
@@ -97,7 +101,10 @@ export class TemplateService {
       } as Workspace);
       if (
         !allowMemberTemplates &&
-        ability.cannot(WorkspaceCaslAction.Manage, WorkspaceCaslSubject.Settings)
+        ability.cannot(
+          WorkspaceCaslAction.Manage,
+          WorkspaceCaslSubject.Settings,
+        )
       ) {
         throw new ForbiddenException();
       }
@@ -112,6 +119,20 @@ export class TemplateService {
       workspaceId,
       creatorId: user.id,
       lastUpdatedById: user.id,
+    });
+
+    this.auditService.log({
+      event: AuditEvent.TEMPLATE_CREATED,
+      resourceType: AuditResource.TEMPLATE,
+      resourceId: result.id,
+      spaceId: data.spaceId,
+      changes: {
+        after: {
+          title: data.title ?? 'Untitled',
+          description: data.description ?? null,
+          spaceId: data.spaceId ?? null,
+        },
+      },
     });
 
     return this.templateRepo.findById(result.id, workspaceId);
@@ -150,6 +171,25 @@ export class TemplateService {
       workspaceId,
     );
 
+    this.auditService.log({
+      event: AuditEvent.TEMPLATE_UPDATED,
+      resourceType: AuditResource.TEMPLATE,
+      resourceId: data.templateId,
+      spaceId: existing.spaceId,
+      changes: {
+        before: {
+          title: existing.title,
+          description: existing.description,
+          icon: existing.icon,
+        },
+        after: {
+          title: data.title ?? existing.title,
+          description: data.description ?? existing.description,
+          icon: data.icon ?? existing.icon,
+        },
+      },
+    });
+
     return this.templateRepo.findById(data.templateId, workspaceId, {
       includeContent: true,
     });
@@ -162,6 +202,20 @@ export class TemplateService {
     }
     await this.assertCanManage(existing, user, workspaceId);
     await this.templateRepo.deleteTemplate(templateId, workspaceId);
+
+    this.auditService.log({
+      event: AuditEvent.TEMPLATE_DELETED,
+      resourceType: AuditResource.TEMPLATE,
+      resourceId: templateId,
+      spaceId: existing.spaceId,
+      changes: {
+        before: {
+          title: existing.title,
+          description: existing.description,
+          spaceId: existing.spaceId,
+        },
+      },
+    });
   }
 
   async useTemplate(

@@ -1,7 +1,12 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { Feature } from '../../common/features';
 import { WorkspaceRepo } from '@docmost/db/repos/workspace/workspace.repo';
 import { EnvironmentService } from '../../integrations/environment/environment.service';
+import { AuditEvent, AuditResource } from '../../common/events/audit-events';
+import {
+  AUDIT_SERVICE,
+  IAuditService,
+} from '../../integrations/audit/audit.service';
 
 const ALL_FEATURES = Object.values(Feature);
 
@@ -10,6 +15,7 @@ export class LicenseService {
   constructor(
     private readonly workspaceRepo: WorkspaceRepo,
     private readonly environmentService: EnvironmentService,
+    @Inject(AUDIT_SERVICE) private readonly auditService: IAuditService,
   ) {}
 
   isValidEELicense(_licenseKey: string): boolean {
@@ -46,10 +52,29 @@ export class LicenseService {
 
   async activateLicense(workspaceId: string, licenseKey: string) {
     await this.workspaceRepo.updateWorkspace({ licenseKey }, workspaceId);
-    return this.getLicenseInfo(workspaceId);
+    const info = await this.getLicenseInfo(workspaceId);
+
+    this.auditService.log({
+      event: AuditEvent.LICENSE_ACTIVATED,
+      resourceType: AuditResource.LICENSE,
+      resourceId: workspaceId,
+      metadata: {
+        licenseType: info.licenseType,
+        seatCount: info.seatCount,
+        expiresAt: info.expiresAt,
+      },
+    });
+
+    return info;
   }
 
   async removeLicense(workspaceId: string) {
     await this.workspaceRepo.updateWorkspace({ licenseKey: null }, workspaceId);
+
+    this.auditService.log({
+      event: AuditEvent.LICENSE_REMOVED,
+      resourceType: AuditResource.LICENSE,
+      resourceId: workspaceId,
+    });
   }
 }

@@ -9,6 +9,9 @@ import { WsGateway } from '../../ws/ws.gateway';
 import { MailService } from '../../integrations/mail/mail.service';
 import { NotificationTab, NotificationType, NotificationTypeToSettingKey } from './notification.constants';
 import { PagePermissionRepo } from '@docmost/db/repos/page/page-permission.repo';
+import { randomUUID } from 'crypto';
+import { Notification } from '@docmost/db/types/entity.types';
+import { isChannelEnabled } from './notification-preferences';
 import { EventName } from '../../common/events/event.contants';
 
 @Injectable()
@@ -27,13 +30,21 @@ export class NotificationService {
   async create(data: InsertableNotification) {
     const user = await this.db
       .selectFrom('users')
-      .select(['id'])
+      .select(['id', 'settings'])
       .where('id', '=', data.userId)
       .where('deletedAt', 'is', null)
       .where('deactivatedAt', 'is', null)
       .executeTakeFirst();
 
     if (!user) return null;
+
+    const web = isChannelEnabled(user.settings, data.type, 'web');
+    if (!web) {
+      // Not stored or pushed; the id only lets queueEmail proceed (see there).
+      return isChannelEnabled(user.settings, data.type, 'email')
+        ? ({ ...data, id: randomUUID() } as unknown as Notification)
+        : null;
+    }
 
     const notification = await this.notificationRepo.insert(data);
 
@@ -110,6 +121,16 @@ export class NotificationService {
         .executeTakeFirst();
 
       if (!user?.email) return;
+
+      // Unsaved row (in-app disabled, email enabled) is not found: send.
+      // Only users who customised something need the type lookup.
+      const settings = user.settings as any;
+      if (settings?.notificationPrefs || settings?.notifications) {
+        const stored = await this.notificationRepo.findById(notificationId);
+        if (stored && !isChannelEnabled(settings, stored.type, 'email')) {
+          return;
+        }
+      }
 
       if (type) {
         const settingKey = NotificationTypeToSettingKey[type];

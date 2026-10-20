@@ -1,3 +1,6 @@
+/** Mirrors the server floor for audit retention. */
+export const MIN_RETENTION_DAYS = 90;
+
 export type RetentionUnit = "days" | "months" | "years";
 
 /** Picks the largest unit that divides `days` evenly (365-day years, 30-day months). */

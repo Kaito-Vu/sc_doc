@@ -30,6 +30,7 @@ import { WorkspaceLocaleModule } from './workspace-locale/workspace-locale.modul
 import { DocMetadataModule } from './docs/doc-metadata.module';
 import { ClientLogModule } from './logging/client-log.module';
 import { PlatformModule } from './platform/platform.module';
+import { NotificationsModule } from './notifications/notifications.module';
 import { FeatureGateGuard } from './common/guards/feature-gate.guard';
 
 @Module({
@@ -65,6 +66,7 @@ import { FeatureGateGuard } from './common/guards/feature-gate.guard';
     PluginsModule,
     WorkspaceLocaleModule,
     DocMetadataModule,
+    NotificationsModule,
   ],
   providers: [FeatureGateGuard],
   exports: [

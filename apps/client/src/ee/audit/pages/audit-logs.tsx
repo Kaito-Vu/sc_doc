@@ -1,38 +1,60 @@
-import { useState, useMemo, useEffect } from "react";
+import { useMemo, useState } from "react";
 import {
   ActionIcon,
   Button,
   Group,
-  NumberInput,
-  Popover,
-  Select,
   Space,
   Tabs,
   Text,
   Tooltip,
 } from "@mantine/core";
+import { useDebouncedValue } from "@mantine/hooks";
+import { notifications } from "@mantine/notifications";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router-dom";
-import { IconSettings } from "@tabler/icons-react";
+import { IconDownload, IconRefresh, IconSettings } from "@tabler/icons-react";
+import { saveAs } from "file-saver";
+import { useQueryClient } from "@tanstack/react-query";
 import SettingsTitle from "@/components/settings/settings-title";
 import Paginate from "@/components/common/paginate";
 import { useCursorPaginate } from "@/hooks/use-cursor-paginate";
 import {
+  useAuditFacetsQuery,
   useAuditLogsQuery,
-  useAuditRetentionQuery,
-  useUpdateAuditRetentionMutation,
+  useAuditLogDetailQuery,
+  useAuditStatsQuery,
+  useExportAuditLogsMutation,
 } from "@/ee/audit/queries/audit-query";
-import { IAuditLogParams } from "@/ee/audit/types/audit.types";
-import { eventFilterOptions } from "@/ee/audit/lib/audit-event-labels";
+import { IAuditLog, IAuditLogParams } from "@/ee/audit/types/audit.types";
 import AuditLogsTable from "@/ee/audit/components/audit-logs-table";
+import { AuditOverview } from "@/ee/audit/components/audit-overview";
+import {
+  AuditFilters,
+  AuditFilterState,
+  emptyAuditFilters,
+} from "@/ee/audit/components/audit-filters";
+import { AuditLogDrawer } from "@/ee/audit/components/audit-log-drawer";
+import { AuditRetentionModal } from "@/ee/audit/components/audit-retention-modal";
 import SiemStreamingPanel from "@/ee/siem/components/siem-streaming-panel";
 import useUserRole from "@/hooks/use-user-role";
 import { DocumentTitle } from "@/components/ui/document-title.tsx";
-import {
-  daysToRetention,
-  retentionToDays,
-  RetentionUnit,
-} from "@/ee/lib/retention";
+
+const PAGE_SIZE = 50;
+
+function looksLikeIp(value: string): boolean {
+  const candidate = value.trim();
+  if (!candidate) return false;
+
+  const ipv4 = candidate.split(".");
+  if (
+    ipv4.length === 4 &&
+    ipv4.every((part) => /^\d{1,3}$/.test(part) && Number(part) <= 255)
+  ) {
+    return true;
+  }
+
+  return candidate.includes(":") && /^[0-9a-fA-F:]+$/.test(candidate);
+}
 
 export default function AuditLogs() {
   const { t } = useTranslation();
@@ -40,42 +62,62 @@ export default function AuditLogs() {
   const { cursor, goNext, goPrev, resetCursor } = useCursorPaginate();
   const location = useLocation();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
-  const [eventFilter, setEventFilter] = useState<string | null>(null);
-  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [filters, setFilters] = useState<AuditFilterState>(emptyAuditFilters);
+  const [debouncedSearch] = useDebouncedValue(filters.search, 350);
+  const [retentionOpened, setRetentionOpened] = useState(false);
+  const [selectedLogId, setSelectedLogId] = useState<string | null>(null);
 
-  const { data: retentionData } = useAuditRetentionQuery();
-  const updateRetention = useUpdateAuditRetentionMutation();
+  const queryFilters: IAuditLogParams = useMemo(() => {
+    const search = debouncedSearch.trim();
+    const ipAddress = filters.ipAddress.trim();
 
-  const currentDays = retentionData?.retentionDays ?? 365;
-  const parsed = daysToRetention(currentDays);
-  const [retentionAmount, setRetentionAmount] = useState<number | string>(parsed.amount);
-  const [retentionUnit, setRetentionUnit] = useState<RetentionUnit>(parsed.unit);
-
-  useEffect(() => {
-    if (retentionData) {
-      const { amount, unit } = daysToRetention(retentionData.retentionDays);
-      setRetentionAmount(amount);
-      setRetentionUnit(unit);
-    }
-  }, [retentionData?.retentionDays]);
-
-  const resetRetentionForm = () => {
-    const { amount, unit } = daysToRetention(currentDays);
-    setRetentionAmount(amount);
-    setRetentionUnit(unit);
-  };
+    return {
+      search: search || undefined,
+      events: filters.events.length > 0 ? filters.events : undefined,
+      resourceType: filters.resourceType ?? undefined,
+      actorId: filters.actorId ?? undefined,
+      spaceId: filters.spaceId ?? undefined,
+      actorTypes:
+        filters.actorTypes.length > 0 ? filters.actorTypes : undefined,
+      ipAddress: looksLikeIp(ipAddress) ? ipAddress : undefined,
+      startDate: filters.startDate ?? undefined,
+      endDate: filters.endDate ?? undefined,
+    };
+  }, [
+    debouncedSearch,
+    filters.events,
+    filters.resourceType,
+    filters.actorId,
+    filters.spaceId,
+    filters.actorTypes,
+    filters.ipAddress,
+    filters.startDate,
+    filters.endDate,
+  ]);
 
   const params: IAuditLogParams = useMemo(
-    () => ({
-      cursor,
-      limit: 50,
-      event: eventFilter ?? undefined,
-    }),
-    [cursor, eventFilter],
+    () => ({ ...queryFilters, cursor, limit: PAGE_SIZE }),
+    [queryFilters, cursor],
   );
 
-  const { data, isLoading } = useAuditLogsQuery(params);
+  const { data, isLoading, isFetching } = useAuditLogsQuery(params);
+  const { data: stats, isLoading: statsLoading } =
+    useAuditStatsQuery(queryFilters);
+  const { data: facets } = useAuditFacetsQuery(queryFilters);
+  const detailQuery = useAuditLogDetailQuery(selectedLogId);
+  const exportMutation = useExportAuditLogsMutation();
+
+  const activeFilterCount =
+    (filters.events.length > 0 ? 1 : 0) +
+    (filters.resourceType ? 1 : 0) +
+    (filters.actorId ? 1 : 0) +
+    (filters.spaceId ? 1 : 0) +
+    (filters.actorTypes.length > 0 ? 1 : 0) +
+    (filters.ipAddress ? 1 : 0) +
+    (filters.startDate ? 1 : 0) +
+    (filters.search ? 1 : 0);
 
   const activeTab = location.pathname.endsWith("/siem") ? "siem" : "audit";
 
@@ -83,9 +125,13 @@ export default function AuditLogs() {
     return null;
   }
 
-  const handleEventChange = (value: string | null) => {
-    setEventFilter(value);
+  const handleFilters = (next: AuditFilterState) => {
+    setFilters(next);
     resetCursor();
+  };
+
+  const handleReset = () => {
+    handleFilters(emptyAuditFilters);
   };
 
   const handleTabChange = (value: string | null) => {
@@ -96,11 +142,38 @@ export default function AuditLogs() {
     }
   };
 
+  const handleRefresh = () => {
+    queryClient.invalidateQueries({ queryKey: ["audit-logs"] });
+    queryClient.invalidateQueries({ queryKey: ["audit-stats"] });
+    queryClient.invalidateQueries({ queryKey: ["audit-facets"] });
+  };
+
+  const handleExport = () => {
+    exportMutation.mutate(queryFilters, {
+      onSuccess: (blob) => {
+        saveAs(blob, `audit-logs-${new Date().toISOString().slice(0, 10)}.csv`);
+        notifications.show({
+          message: t("Audit log export is ready."),
+          color: "green",
+        });
+      },
+    });
+  };
+
+  const handleSelect = (entry: IAuditLog) => {
+    setSelectedLogId(entry.id);
+  };
+
+  const totalLabel =
+    data?.items && data.items.length > 0
+      ? t("Showing {{total}} events", { total: data.items.length })
+      : null;
+
   return (
     <>
-      <DocumentTitle title={t("Audit logs & SIEM")} />
+      <DocumentTitle title={t("Audit logs")} />
 
-      <SettingsTitle title={t("Audit logs & SIEM")} />
+      <SettingsTitle title={t("Audit logs")} />
 
       <Tabs color="dark" value={activeTab} onChange={handleTabChange}>
         <Tabs.List>
@@ -113,109 +186,73 @@ export default function AuditLogs() {
         </Tabs.List>
 
         <Tabs.Panel value="audit" pt="md">
-          <Group mb="md" gap="sm">
-            <Select
-              placeholder={t("Filter by event")}
-              data={eventFilterOptions.map((group) => ({
-                group: t(group.group),
-                items: group.items.map((item) => ({
-                  value: item.value,
-                  label: t(item.label),
-                })),
-              }))}
-              value={eventFilter}
-              onChange={handleEventChange}
-              clearable
-              searchable
-              w={220}
-              size="sm"
-            />
+          <AuditOverview stats={stats} isLoading={statsLoading} />
 
-            <Popover
-              position="bottom-end"
-              shadow="md"
-              width={260}
-              withArrow
-              opened={settingsOpen}
-              onChange={(opened) => {
-                if (!opened) resetRetentionForm();
-                setSettingsOpen(opened);
-              }}
-            >
-              <Popover.Target>
-                <Tooltip label={t("Audit settings")}>
-                  <ActionIcon variant="default" size="input-sm" ml="auto" onClick={() => setSettingsOpen((o) => !o)}>
-                    aria-label={t("Audit settings")}
-                    <IconSettings size={16} />
-                  </ActionIcon>
-                </Tooltip>
-              </Popover.Target>
-              <Popover.Dropdown>
-                <Text fz="sm" fw={500} mb={4}>
-                  {t("Retention")}
+          <AuditFilters
+            value={filters}
+            facets={facets}
+            onChange={handleFilters}
+            onReset={handleReset}
+          />
+
+          <Group justify="space-between" mb="xs" wrap="wrap" gap="sm">
+            <Group gap="xs">
+              <Text fw={600}>{t("Activity")}</Text>
+              {totalLabel && (
+                <Text size="xs" c="dimmed">
+                  {totalLabel}
                 </Text>
-                <Text fz="xs" c="dimmed" mb="sm">
-                  {t("Logs older than this period are automatically deleted.")}
+              )}
+              {isFetching && (
+                <Text size="xs" c="dimmed">
+                  {t("Refreshing…")}
                 </Text>
-                <Group gap="xs" wrap="nowrap" mb="sm">
-                  <NumberInput
-                    value={retentionAmount}
-                    onChange={(val) => setRetentionAmount(val)}
-                    min={1}
-                    hideControls
-                    size="sm"
-                    w={60}
-                  />
-                  <Select
-                    data={[
-                      { value: "days", label: t("days") },
-                      { value: "months", label: t("months") },
-                      { value: "years", label: t("years") },
-                    ]}
-                    value={retentionUnit}
-                    onChange={(value) => {
-                      if (value === "days" || value === "months" || value === "years") {
-                        setRetentionUnit(value);
-                      }
-                    }}
-                    size="sm"
-                    style={{ flex: 1 }}
-                    comboboxProps={{ withinPortal: false }}
-                  />
-                </Group>
-                <Group gap="xs" grow>
-                  <Button
-                    size="xs"
-                    variant="default"
-                    onClick={() => {
-                      resetRetentionForm();
-                      setSettingsOpen(false);
-                    }}
-                  >
-                    {t("Cancel")}
-                  </Button>
-                  <Button
-                    size="xs"
-                    onClick={() => {
-                      const num = typeof retentionAmount === "number" ? retentionAmount : 1;
-                      const clamped = Math.max(1, num);
-                      setRetentionAmount(clamped);
-                      const days = retentionToDays(clamped, retentionUnit);
-                      if (days !== currentDays) {
-                        updateRetention.mutate({ auditRetentionDays: days });
-                      }
-                      setSettingsOpen(false);
-                    }}
-                    loading={updateRetention.isPending}
-                  >
-                    {t("Save")}
-                  </Button>
-                </Group>
-              </Popover.Dropdown>
-            </Popover>
+              )}
+            </Group>
+
+            <Group gap="xs">
+              <Tooltip label={t("Refresh")}>
+                <ActionIcon
+                  variant="default"
+                  size="input-sm"
+                  onClick={handleRefresh}
+                  loading={isFetching && !isLoading}
+                  aria-label={t("Refresh")}
+                >
+                  <IconRefresh size={16} />
+                </ActionIcon>
+              </Tooltip>
+              <Tooltip label={t("Export current view as CSV")}>
+                <Button
+                  variant="default"
+                  size="compact-sm"
+                  leftSection={<IconDownload size={16} />}
+                  onClick={handleExport}
+                  loading={exportMutation.isPending}
+                >
+                  {t("Export CSV")}
+                </Button>
+              </Tooltip>
+              <Tooltip label={t("Retention settings")}>
+                <ActionIcon
+                  variant="default"
+                  size="input-sm"
+                  onClick={() => setRetentionOpened(true)}
+                  aria-label={t("Retention settings")}
+                >
+                  <IconSettings size={16} />
+                </ActionIcon>
+              </Tooltip>
+            </Group>
           </Group>
 
-          <AuditLogsTable items={data?.items} isLoading={isLoading} />
+          <AuditLogsTable
+            items={data?.items}
+            isLoading={isLoading}
+            onSelect={handleSelect}
+            hasFilters={activeFilterCount > 0}
+            onClearFilters={handleReset}
+          />
 
           <Space h="md" />
 
@@ -233,6 +270,18 @@ export default function AuditLogs() {
           <SiemStreamingPanel />
         </Tabs.Panel>
       </Tabs>
+
+      <AuditLogDrawer
+        opened={Boolean(selectedLogId)}
+        onClose={() => setSelectedLogId(null)}
+        log={detailQuery.data}
+        isLoading={detailQuery.isLoading}
+      />
+
+      <AuditRetentionModal
+        opened={retentionOpened}
+        onClose={() => setRetentionOpened(false)}
+      />
     </>
   );
 }

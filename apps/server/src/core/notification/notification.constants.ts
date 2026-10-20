@@ -5,6 +5,10 @@ export const NotificationType = {
   PAGE_USER_MENTION: 'page.user_mention',
   PAGE_PERMISSION_GRANTED: 'page.permission_granted',
   PAGE_UPDATED: 'page.updated',
+  PAGE_CREATED: 'page.created',
+  PAGE_TRASHED: 'page.trashed',
+  PAGE_RESTORED: 'page.restored',
+  PAGE_MOVED: 'page.moved',
   PAGE_VERIFICATION_EXPIRING: 'page.verification_expiring',
   PAGE_VERIFICATION_EXPIRED: 'page.verification_expired',
   PAGE_VERIFIED: 'page.verified',
@@ -54,6 +58,10 @@ export const DIRECT_NOTIFICATION_TYPES: NotificationType[] = [
 
 export const UPDATES_NOTIFICATION_TYPES: NotificationType[] = [
   NotificationType.PAGE_UPDATED,
+  NotificationType.PAGE_CREATED,
+  NotificationType.PAGE_TRASHED,
+  NotificationType.PAGE_RESTORED,
+  NotificationType.PAGE_MOVED,
 ];
 
 export function getTypesForTab(tab: NotificationTab): NotificationType[] | undefined {

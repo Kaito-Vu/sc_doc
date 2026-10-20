@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "sc_doc Runtime Architecture",
+    "output": ".archify/architecture-sc-doc-20261020-120000/sc-doc.html",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "git@github.com:Kaito-Vu/sc_doc.git",
+      "link_mode": "local-only",
+      "revision": "23aa5ab70e8f974b60249faf8628d2b3c1eff399"
+    }
+  },
+  "components": [
+    { "id": "users", "type": "external", "label": "Users", "sublabel": "Browser", "pos": [40, 300], "size": [120, 60] },
+    { "id": "client", "type": "frontend", "label": "Web Client", "sublabel": "React + Vite SPA", "pos": [220, 300], "size": [150, 60],
+      "sources": [{ "path": "apps/client/src/main.tsx", "line": 1 }, { "path": "apps/client/src/ee/hooks/use-feature.ts", "line": 1, "label": "EE feature gating" }] },
+    { "id": "api", "type": "backend", "label": "NestJS API", "sublabel": "Fastify + core modules", "pos": [450, 270], "size": [170, 120],
+      "sources": [{ "path": "apps/server/src/main.ts", "line": 27, "label": "FastifyAdapter" }, { "path": "apps/server/src/app.module.ts", "line": 49, "end_line": 60, "label": "AppModule imports" }] },
+    { "id": "ee", "type": "security", "label": "EE Modules", "sublabel": "SSO, audit, bases, ...", "pos": [450, 110], "size": [170, 64],
+      "sources": [{ "path": "apps/server/src/app.module.ts", "line": 35, "end_line": 47, "label": "dynamic require" }] },
+    { "id": "db", "type": "database", "label": "PostgreSQL", "sublabel": "Kysely", "pos": [450, 480], "size": [170, 60],
+      "sources": [{ "path": "apps/server/src/database/database.module.ts", "line": 39, "end_line": 50, "label": "PostgresJSDialect" }] },
+    { "id": "collab", "type": "backend", "label": "Collaboration", "sublabel": "Hocuspocus / Yjs", "pos": [220, 480], "size": [150, 60],
+      "sources": [{ "path": "apps/server/src/collaboration/collaboration.gateway.ts", "line": 50 }, { "path": "apps/server/src/collaboration/extensions/persistence.extension.ts", "line": 104, "label": "onStoreDocument" }] },
+    { "id": "redis", "type": "messagebus", "label": "Redis", "sublabel": "cache + BullMQ", "pos": [740, 240], "size": [150, 60],
+      "sources": [{ "path": "apps/server/src/app.module.ts", "line": 61, "end_line": 63, "label": "RedisModule" }, { "path": "apps/server/src/integrations/queue/queue.module.ts", "line": 11, "label": "BullModule" }] },
+    { "id": "storage", "type": "cloud", "label": "File Storage", "sublabel": "local / S3 / Azure", "pos": [740, 400], "size": [150, 60],
+      "sources": [{ "path": "apps/server/src/integrations/storage/providers/storage.provider.ts", "line": 19, "end_line": 28, "label": "driver switch" }] }
+  ],
+  "connections": [
+    { "id": "users-client", "from": "users", "to": "client", "label": "HTTPS", "variant": "emphasis" },
+    { "id": "client-api", "from": "client", "to": "api", "label": "REST", "variant": "emphasis" },
+    { "id": "api-ee", "from": "api", "to": "ee", "label": "loads if present", "variant": "dashed", "fromSide": "top", "toSide": "bottom" },
+    { "id": "api-db", "from": "api", "to": "db", "label": "SQL", "fromSide": "bottom", "toSide": "top" },
+    { "id": "client-collab", "from": "client", "to": "collab", "label": "WebSocket (Yjs)", "fromSide": "bottom", "toSide": "top" },
+    { "id": "collab-db", "from": "collab", "to": "db", "label": "persist doc" },
+    { "id": "api-redis", "from": "api", "to": "redis", "label": "cache + queues" },
+    { "id": "api-storage", "from": "api", "to": "storage", "label": "files" }
+  ],
+  "cards": [
+    { "dot": "violet", "title": "Fork policy", "items": ["Fork-specific features live under ee/ in both apps", "Server tolerates a missing ee/ module"] },
+    { "dot": "cyan", "title": "Collaboration", "items": ["In-process or standalone collab process", "Optional Redis sync between instances"] },
+    { "dot": "amber", "title": "Queues", "items": ["BullMQ queues: email, attachment, history, notification, audit, search"] }
+  ]
+}

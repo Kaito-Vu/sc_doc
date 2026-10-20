@@ -9,16 +9,19 @@ type EventGroup = {
 };
 
 export const auditEventLabels: Record<string, string> = {
+  // Workspace
   "workspace.created": "Created workspace",
   "workspace.updated": "Updated workspace",
   "workspace.invite_created": "Created invitation",
   "workspace.invite_resent": "Resent invitation",
   "workspace.invite_revoked": "Revoked invitation",
 
+  // Users & access
   "user.created": "Created user",
   "user.deleted": "Deleted user",
-  "user.login": "Logged in",
-  "user.logout": "Logged out",
+  "user.login": "Signed in",
+  "user.login_failed": "Failed sign-in attempt",
+  "user.logout": "Signed out",
   "user.role_changed": "Changed user role",
   "user.password_changed": "Changed password",
   "user.password_reset": "Reset password",
@@ -29,20 +32,29 @@ export const auditEventLabels: Record<string, string> = {
   "user.mfa_enabled": "Enabled MFA",
   "user.mfa_disabled": "Disabled MFA",
   "user.mfa_backup_code_generated": "Generated MFA backup codes",
+  "session.revoked": "Revoked session",
+  "session.all_revoked": "Revoked all other sessions",
 
+  // API keys & OAuth
   "api_key.created": "Created API key",
   "api_key.updated": "Updated API key",
   "api_key.deleted": "Deleted API key",
+  "oauth_client.registered": "Registered OAuth client",
+  "oauth_grant.created": "Authorized OAuth app",
+  "oauth_grant.revoked": "Revoked OAuth grant",
 
+  // Integrations
   "integration.installed": "Installed integration",
   "integration.uninstalled": "Uninstalled integration",
   "integration.connected": "Connected integration account",
   "integration.disconnected": "Disconnected integration account",
 
+  // SCIM
   "scim_token.created": "Created SCIM token",
   "scim_token.updated": "Updated SCIM token",
   "scim_token.deleted": "Deleted SCIM token",
 
+  // Spaces
   "space.created": "Created space",
   "space.updated": "Updated space",
   "space.deleted": "Deleted space",
@@ -51,24 +63,36 @@ export const auditEventLabels: Record<string, string> = {
   "space.member_role_changed": "Changed space member role",
   "space.exported": "Exported space",
 
+  // Groups
   "group.created": "Created group",
   "group.updated": "Updated group",
   "group.deleted": "Deleted group",
   "group.member_added": "Added group member",
   "group.member_removed": "Removed group member",
+  "group.member_role_changed": "Changed group member role",
 
+  // Comments
+  "comment.created": "Created comment",
   "comment.updated": "Updated comment",
   "comment.resolved": "Resolved comment",
   "comment.reopened": "Reopened comment",
   "comment.deleted": "Deleted comment",
 
+  // Attachments
+  "attachment.uploaded": "Uploaded attachment",
   "attachment.deleted": "Deleted attachment",
 
-  "page.trashed": "Trashed page",
+  // Pages
+  "page.created": "Created page",
+  "page.updated": "Updated page",
+  "page.trashed": "Moved page to trash",
   "page.deleted": "Deleted page",
   "page.restored": "Restored page",
-  "page.imported": "Imported page",
-  "page.exported": "Exported page",
+  "page.moved_to_space": "Moved page to another space",
+  "page.duplicated": "Duplicated page",
+  "page.version_restored": "Restored page version",
+  "page.locked": "Locked page",
+  "page.unlocked": "Unlocked page",
   "page.restricted": "Restricted page",
   "page.restriction_removed": "Removed page restriction",
   "page.permission_added": "Added page permission",
@@ -80,177 +104,162 @@ export const auditEventLabels: Record<string, string> = {
   "page.verified": "Verified page",
   "page.approval_requested": "Requested page approval",
   "page.approval_rejected": "Rejected page approval",
+  "page.clarification_requested": "Requested page clarification",
   "page.marked_obsolete": "Marked page as obsolete",
+  "page.imported": "Imported page",
+  "page.exported": "Exported page",
 
+  // Sharing
   "share.created": "Created share link",
   "share.deleted": "Deleted share link",
 
+  // SSO
   "sso.provider_created": "Created SSO provider",
   "sso.provider_updated": "Updated SSO provider",
   "sso.provider_deleted": "Deleted SSO provider",
 
+  // License & SIEM
   "license.activated": "Activated license",
   "license.removed": "Removed license",
-
   "siem_destination.created": "Created SIEM destination",
   "siem_destination.updated": "Updated SIEM destination",
   "siem_destination.deleted": "Deleted SIEM destination",
+  "siem_destination.test": "Tested SIEM destination",
 
+  // Templates & document data
   "template.created": "Created template",
+  "template.updated": "Updated template",
   "template.deleted": "Deleted template",
+  "doc_metadata.updated": "Updated document metadata",
+
+  // Audit trail
+  "audit.retention_updated": "Updated retention policy",
+  "audit.exported": "Exported audit logs",
+  "audit.purged": "Purged expired audit logs",
+  "api.request": "Performed an action",
 };
 
 export function getEventLabel(event: string): string {
   return auditEventLabels[event] ?? event;
 }
 
-export const eventFilterOptions: EventGroup[] = [
-  {
-    group: "Workspace",
-    items: [
-      { value: "workspace.updated", label: "Updated workspace" },
-      { value: "workspace.invite_created", label: "Created invitation" },
-      { value: "workspace.invite_revoked", label: "Revoked invitation" },
-    ],
-  },
-  {
-    group: "User",
-    items: [
-      { value: "user.login", label: "Logged in" },
-      { value: "user.logout", label: "Logged out" },
-      { value: "user.created", label: "Created user" },
-      { value: "user.deleted", label: "Deleted user" },
-      { value: "user.deactivated", label: "Deactivated user" },
-      { value: "user.activated", label: "Activated user" },
-      { value: "user.role_changed", label: "Changed user role" },
-      { value: "user.password_changed", label: "Changed password" },
-      {
-        value: "user.password_reset_requested",
-        label: "Requested password reset",
-      },
-      { value: "user.mfa_enabled", label: "Enabled MFA" },
-      { value: "user.mfa_disabled", label: "Disabled MFA" },
-    ],
-  },
-  {
-    group: "Space",
-    items: [
-      { value: "space.created", label: "Created space" },
-      { value: "space.updated", label: "Updated space" },
-      { value: "space.deleted", label: "Deleted space" },
-      { value: "space.member_added", label: "Added space member" },
-      { value: "space.member_removed", label: "Removed space member" },
-    ],
-  },
-  {
-    group: "Group",
-    items: [
-      { value: "group.created", label: "Created group" },
-      { value: "group.updated", label: "Updated group" },
-      { value: "group.deleted", label: "Deleted group" },
-      { value: "group.member_added", label: "Added group member" },
-      { value: "group.member_removed", label: "Removed group member" },
-    ],
-  },
-  {
-    group: "Comment",
-    items: [
-      { value: "comment.updated", label: "Updated comment" },
-      { value: "comment.resolved", label: "Resolved comment" },
-      { value: "comment.reopened", label: "Reopened comment" },
-      { value: "comment.deleted", label: "Deleted comment" },
-    ],
-  },
-  {
-    group: "Attachment",
-    items: [
-      { value: "attachment.deleted", label: "Deleted attachment" },
-    ],
-  },
-  {
-    group: "Page",
-    items: [
-      { value: "page.trashed", label: "Trashed page" },
-      { value: "page.deleted", label: "Deleted page" },
-      { value: "page.restored", label: "Restored page" },
-      { value: "page.imported", label: "Imported page" },
-      { value: "page.exported", label: "Exported page" },
-      { value: "page.restricted", label: "Restricted page" },
-      { value: "page.restriction_removed", label: "Removed page restriction" },
-      { value: "page.permission_added", label: "Added page permission" },
-      { value: "page.permission_removed", label: "Removed page permission" },
-      {
-        value: "page.permission_role_changed",
-        label: "Changed page permission",
-      },
-      { value: "page.verification_created", label: "Created page verification" },
-      { value: "page.verification_updated", label: "Updated page verification" },
-      { value: "page.verification_removed", label: "Removed page verification" },
-      { value: "page.verified", label: "Verified page" },
-      { value: "page.approval_requested", label: "Requested page approval" },
-      { value: "page.approval_rejected", label: "Rejected page approval" },
-      { value: "page.marked_obsolete", label: "Marked page as obsolete" },
-    ],
-  },
-  {
-    group: "Share",
-    items: [
-      { value: "share.created", label: "Created share link" },
-      { value: "share.deleted", label: "Deleted share link" },
-    ],
-  },
-  {
-    group: "SSO",
-    items: [
-      { value: "sso.provider_created", label: "Created SSO provider" },
-      { value: "sso.provider_updated", label: "Updated SSO provider" },
-      { value: "sso.provider_deleted", label: "Deleted SSO provider" },
-    ],
-  },
-  {
-    group: "API key",
-    items: [
-      { value: "api_key.created", label: "Created API key" },
-      { value: "api_key.deleted", label: "Deleted API key" },
-    ],
-  },
-  {
-    group: "Integrations",
-    items: [
-      { value: "integration.installed", label: "Installed integration" },
-      { value: "integration.uninstalled", label: "Uninstalled integration" },
-      { value: "integration.connected", label: "Connected integration account" },
-      { value: "integration.disconnected", label: "Disconnected integration account" },
-    ],
-  },
-  {
-    group: "SCIM token",
-    items: [
-      { value: "scim_token.created", label: "Created SCIM token" },
-      { value: "scim_token.updated", label: "Updated SCIM token" },
-      { value: "scim_token.deleted", label: "Deleted SCIM token" },
-    ],
-  },
-  {
-    group: "License",
-    items: [
-      { value: "license.activated", label: "Activated license" },
-      { value: "license.removed", label: "Removed license" },
-    ],
-  },
-  {
-    group: "SIEM",
-    items: [
-      { value: "siem_destination.created", label: "Created SIEM destination" },
-      { value: "siem_destination.updated", label: "Updated SIEM destination" },
-      { value: "siem_destination.deleted", label: "Deleted SIEM destination" },
-    ],
-  },
-  {
-    group: "Template",
-    items: [
-      { value: "template.created", label: "Created template" },
-      { value: "template.deleted", label: "Deleted template" },
-    ],
-  },
+export type AuditEventCategory = {
+  key: string;
+  label: string;
+  color: string;
+};
+
+const CATEGORIES: Record<string, AuditEventCategory> = {
+  security: { key: "security", label: "Security & access", color: "red" },
+  user: { key: "user", label: "Users", color: "orange" },
+  workspace: { key: "workspace", label: "Workspace", color: "indigo" },
+  space: { key: "space", label: "Spaces & groups", color: "cyan" },
+  page: { key: "page", label: "Pages", color: "blue" },
+  comment: { key: "comment", label: "Comments", color: "grape" },
+  data: { key: "data", label: "Data & content", color: "green" },
+  integration: { key: "integration", label: "Integrations", color: "teal" },
+  system: { key: "system", label: "System", color: "gray" },
+};
+
+export function getEventCategory(event: string): AuditEventCategory {
+  if (
+    /^(user\.(login|logout|login_failed|password|mfa)|session\.)/.test(event)
+  ) {
+    return CATEGORIES.security;
+  }
+  if (event.startsWith("user.")) return CATEGORIES.user;
+  if (event.startsWith("workspace.")) return CATEGORIES.workspace;
+  if (event.startsWith("space.") || event.startsWith("group.")) {
+    return CATEGORIES.space;
+  }
+  if (event.startsWith("page.")) return CATEGORIES.page;
+  if (event.startsWith("comment.")) return CATEGORIES.comment;
+  if (
+    event.startsWith("attachment.") ||
+    event.startsWith("template.") ||
+    event.startsWith("doc_metadata.") ||
+    event === "page.imported" ||
+    event === "page.exported" ||
+    event === "space.exported"
+  ) {
+    return CATEGORIES.data;
+  }
+  if (
+    event.startsWith("api_key.") ||
+    event.startsWith("oauth") ||
+    event.startsWith("integration.") ||
+    event.startsWith("scim_") ||
+    event.startsWith("sso.") ||
+    event.startsWith("license.") ||
+    event.startsWith("siem_")
+  ) {
+    return CATEGORIES.integration;
+  }
+  return CATEGORIES.system;
+}
+
+const CATEGORY_ORDER = [
+  "security",
+  "user",
+  "workspace",
+  "space",
+  "page",
+  "comment",
+  "data",
+  "integration",
+  "system",
 ];
+
+export const eventFilterOptions: EventGroup[] = CATEGORY_ORDER.map((key) => {
+  const category = CATEGORIES[key];
+  return {
+    group: category.label,
+    items: Object.entries(auditEventLabels)
+      .filter(([event]) => getEventCategory(event).key === key)
+      .map(([value, label]) => ({ value, label })),
+  };
+}).filter((group) => group.items.length > 0);
+
+export const resourceTypeLabels: Record<string, string> = {
+  workspace: "Workspace",
+  user: "User",
+  page: "Page",
+  space: "Space",
+  space_member: "Space member",
+  group: "Group",
+  comment: "Comment",
+  share: "Share link",
+  api_key: "API key",
+  oauth_client: "OAuth client",
+  oauth_grant: "OAuth grant",
+  integration: "Integration",
+  scim_token: "SCIM token",
+  sso_provider: "SSO provider",
+  workspace_invitation: "Invitation",
+  attachment: "Attachment",
+  license: "License",
+  siem_destination: "SIEM destination",
+  template: "Template",
+  label: "Label",
+  base: "Base",
+  session: "Session",
+  doc_metadata: "Document metadata",
+  personal_space: "Personal space",
+  audit_log: "Audit log",
+  api_request: "API request",
+};
+
+export function getResourceTypeLabel(resourceType: string): string {
+  return resourceTypeLabels[resourceType] ?? resourceType;
+}
+
+export const actorTypeLabels: Record<string, string> = {
+  user: "User",
+  system: "System",
+  api_key: "API key",
+  oauth: "OAuth app",
+};
+
+export function getActorTypeLabel(actorType: string): string {
+  return actorTypeLabels[actorType] ?? actorType;
+}

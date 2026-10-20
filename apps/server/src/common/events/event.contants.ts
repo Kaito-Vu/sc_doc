@@ -11,6 +11,8 @@ export enum EventName {
   SPACE_CREATED = 'space.created',
   SPACE_UPDATED = 'space.updated',
   SPACE_DELETED = 'space.deleted',
+  SPACE_MEMBER_ADDED = 'space.member_added',
+  SPACE_MEMBER_REMOVED = 'space.member_removed',
 
   USER_PASSWORD_RESET = 'user.password.reset',
 

@@ -60,10 +60,7 @@ export class PagePermissionService {
   // Space admins (incl. workspace owners/admins) always manage. Otherwise a
   // restricted page (direct or inherited) needs page-level writer access;
   // space-level Manage(Page) alone is not enough since space writers hold it.
-  private async canManagePermissions(
-    user: User,
-    page: Page,
-  ): Promise<boolean> {
+  private async canManagePermissions(user: User, page: Page): Promise<boolean> {
     const ability = await this.spaceAbility.createForUser(user, page.spaceId);
     if (ability.can(SpaceCaslAction.Manage, SpaceCaslSubject.Settings)) {
       return true;
@@ -464,9 +461,25 @@ export class PagePermissionService {
     if (demoting) {
       await this.onAccessReduced(page);
     }
+
+    this.auditService.log({
+      event: AuditEvent.PAGE_PERMISSION_ROLE_CHANGED,
+      resourceType: AuditResource.PAGE,
+      resourceId: page.id,
+      spaceId: page.spaceId,
+      metadata: {
+        role: data.role,
+        userId: data.userId ?? null,
+        groupId: data.groupId ?? null,
+      },
+    });
   }
 
-  async getPermissions(pageId: string, user: User, pagination: PaginationOptions) {
+  async getPermissions(
+    pageId: string,
+    user: User,
+    pagination: PaginationOptions,
+  ) {
     const page = await this.getPageOrThrow(pageId);
     await this.pageAccessService.validateCanView(page, user);
 
@@ -474,7 +487,10 @@ export class PagePermissionService {
       page.id,
     );
     if (!pageAccess) {
-      return { items: [], meta: { hasNextPage: false, hasPreviousPage: false } };
+      return {
+        items: [],
+        meta: { hasNextPage: false, hasPreviousPage: false },
+      };
     }
 
     return this.pagePermissionRepo.getPagePermissionsPaginated(

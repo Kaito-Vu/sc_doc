@@ -23,6 +23,10 @@ import { formatRelativeTime } from "../notification.utils";
 import classes from "../notification.module.css";
 import { getReviewUrlOverride } from "@/ee/page-verification/notification-url-override";
 import { getDocxDownloadUrl } from "@/ee/docx-export/notification-download-url";
+import {
+  getEeNotificationMessageKey,
+  getEeNotificationUrl,
+} from "@/ee/notifications/notification-renderers";
 
 type NotificationItemProps = {
   notification: INotification;
@@ -40,6 +44,9 @@ export function NotificationItem({
   const isUnread = !notification.readAt;
 
   const getNotificationMessageKey = (): string => {
+    const eeMessageKey = getEeNotificationMessageKey(notification);
+    if (eeMessageKey) return eeMessageKey;
+
     switch (notification.type) {
       case "comment.user_mention":
         return "<bold>{{name}}</bold> mentioned you in a comment";
@@ -95,7 +102,10 @@ export function NotificationItem({
       : undefined;
   const downloadUrl = getDocxDownloadUrl(notification);
   const pageUrl =
-    getReviewUrlOverride(notification) ?? downloadUrl ?? defaultPageUrl;
+    getEeNotificationUrl(notification) ??
+    getReviewUrlOverride(notification) ??
+    downloadUrl ??
+    defaultPageUrl;
 
   const isSiemDestination = notification.type.startsWith("siem_destination.");
   const destinationName =

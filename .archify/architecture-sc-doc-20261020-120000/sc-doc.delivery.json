@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "receiptId": "531637de-9675-4121-b297-e4c5c9726ce7",
+  "status": "current",
+  "command": "deliver",
+  "type": "architecture",
+  "input": "D:\\working\\02.ETC\\qltl\\etc\\sc_doc\\.archify\\architecture-sc-doc-20261020-120000\\candidate.json",
+  "output": "D:\\working\\02.ETC\\qltl\\etc\\sc_doc\\.archify\\architecture-sc-doc-20261020-120000\\sc-doc.html",
+  "specification": {
+    "sha256": "e2c99dca03ba19f89704f1c64a21651c6a4d982c0220bf52695005f55f88362b",
+    "bytes": 4001
+  },
+  "artifact": {
+    "sha256": "f9c2926c67585a18521cfa9bd8eeb9d584438d6db01b28ae5f7822a74bfc54ab",
+    "bytes": 761039
+  }
+}

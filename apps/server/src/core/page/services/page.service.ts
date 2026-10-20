@@ -541,7 +541,15 @@ export class PageService {
         );
       }
 
-      return { childPageIds };
+      return { childPageIds, movedPageIds: pageIdsToMove };
+    });
+
+    this.eventEmitter.emit(EventName.PAGE_MOVED_TO_SPACE, {
+      pageIds: result.movedPageIds,
+      spaceId,
+      oldSpaceId: rootPage.spaceId,
+      actorId: userId,
+      workspaceId: rootPage.workspaceId,
     });
 
     await this.collabAccessService.recheckAccess({ pageIds: [rootPage.id] });

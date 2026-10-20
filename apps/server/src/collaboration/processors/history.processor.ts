@@ -5,6 +5,7 @@ import { Job, Queue } from 'bullmq';
 import { QueueJob, QueueName } from '../../integrations/queue/constants';
 import {
   IPageBacklinkJob,
+  IPageEditSupplementJob,
   IPageHistoryJob,
   IPageUpdateNotificationJob,
 } from '../../integrations/queue/constants/queue.interface';
@@ -21,6 +22,9 @@ import { WatcherService } from '../../core/watcher/watcher.service';
 import { isEmptyParagraphDoc } from '../collaboration.util';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { EventName } from '../../common/events/event.contants';
+import { InjectKysely } from 'nestjs-kysely';
+import { KyselyDB } from '@docmost/db/types/kysely.types';
+import { AuditEvent, AuditResource } from '../../common/events/audit-events';
 
 @Processor(QueueName.HISTORY_QUEUE)
 export class HistoryProcessor extends WorkerHost implements OnModuleDestroy {
@@ -34,6 +38,7 @@ export class HistoryProcessor extends WorkerHost implements OnModuleDestroy {
     @InjectQueue(QueueName.NOTIFICATION_QUEUE) private notificationQueue: Queue,
     @InjectQueue(QueueName.GENERAL_QUEUE) private generalQueue: Queue,
     private readonly eventEmitter: EventEmitter2,
+    @InjectKysely() private readonly db: KyselyDB,
   ) {
     super();
   }
@@ -86,11 +91,21 @@ export class HistoryProcessor extends WorkerHost implements OnModuleDestroy {
           });
           this.logger.debug(`History created for page: ${pageId}`);
 
+          // Collaborative edits arrive over the websocket, not through the
+          // REST page endpoints. Record one audit row per saved history
+          // snapshot so content changes are attributable to their editors.
+          await this.auditPageContentUpdate(
+            page,
+            contributorIds,
+            savedHistory.id,
+          );
+
           this.eventEmitter.emit(EventName.PAGE_CONTENT_UPDATED, {
             pageId,
             spaceId: page.spaceId,
             workspaceId: page.workspaceId,
             historyId: savedHistory.id,
+            actorIds: contributorIds,
           });
         } catch (err) {
           await this.collabHistory.addContributors(pageId, contributorIds);
@@ -115,22 +130,74 @@ export class HistoryProcessor extends WorkerHost implements OnModuleDestroy {
           });
 
         if (contributorIds.length > 0 && lastHistory?.content) {
+          const pageUpdateJob = {
+            pageId,
+            spaceId: page.spaceId,
+            workspaceId: page.workspaceId,
+            actorIds: contributorIds,
+          };
+
           await this.notificationQueue
-            .add(QueueJob.PAGE_UPDATED, {
-              pageId,
-              spaceId: page.spaceId,
-              workspaceId: page.workspaceId,
-              actorIds: contributorIds,
-            } as IPageUpdateNotificationJob)
+            .add(
+              QueueJob.PAGE_UPDATED,
+              pageUpdateJob as IPageUpdateNotificationJob,
+            )
             .catch((err) => {
               this.logger.error(
                 `Failed to queue page update notification for ${pageId}: ${err.message}`,
+              );
+            });
+
+          await this.notificationQueue
+            .add(
+              QueueJob.PAGE_EDIT_SUPPLEMENT,
+              pageUpdateJob as IPageEditSupplementJob,
+            )
+            .catch((err) => {
+              this.logger.error(
+                `Failed to queue page edit supplement for ${pageId}: ${err.message}`,
               );
             });
         }
       }
     } catch (err) {
       throw err;
+    }
+  }
+
+  private async auditPageContentUpdate(
+    page: { id: string; spaceId: string; workspaceId: string; title?: string },
+    contributorIds: string[],
+    historyId: string,
+  ): Promise<void> {
+    if (!this.db || contributorIds.length === 0) return;
+
+    try {
+      await this.db
+        .insertInto('audit')
+        .values({
+          workspaceId: page.workspaceId,
+          actorId: contributorIds[0],
+          actorType: 'user',
+          event: AuditEvent.PAGE_UPDATED,
+          resourceType: AuditResource.PAGE,
+          resourceId: page.id,
+          spaceId: page.spaceId,
+          changes: {
+            after: { title: page.title ?? null },
+          },
+          metadata: {
+            source: 'collaboration',
+            historyId,
+            contributorIds,
+          },
+        })
+        .execute();
+    } catch (err: any) {
+      // Auditing must never block saving the history row.
+      this.logger.warn(
+        `Failed to write page.updated audit for ${page.id}: ${err?.message}`,
+      );
     }
   }
 

@@ -1,161 +1,111 @@
-import { Fragment, useState } from "react";
 import {
+  Anchor,
+  Badge,
+  Box,
+  Center,
+  Group,
+  Paper,
+  Skeleton,
+  Stack,
   Table,
   Text,
-  Group,
-  Skeleton,
-  Anchor,
-  Collapse,
-  Box,
+  ThemeIcon,
+  Tooltip,
 } from "@mantine/core";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
   IconChevronRight,
-  IconChevronDown,
-  IconArrowRight,
+  IconHistory,
+  IconSearchOff,
 } from "@tabler/icons-react";
 import { IAuditLog } from "@/ee/audit/types/audit.types";
 import { CustomAvatar } from "@/components/ui/custom-avatar";
-import { getEventLabel } from "@/ee/audit/lib/audit-event-labels";
-import { formattedDate } from "@/lib/time";
-import NoTableResults from "@/components/common/no-table-results";
+import {
+  getActorTypeLabel,
+  getEventCategory,
+  getEventLabel,
+  getResourceTypeLabel,
+} from "@/ee/audit/lib/audit-event-labels";
+import { buildPageUrl } from "@/features/page/page.utils";
+import { formattedDate, shortTimeAgo } from "@/lib/time";
 import classes from "./audit-logs.module.css";
 
 type AuditLogsTableProps = {
   items?: IAuditLog[];
   isLoading: boolean;
+  onSelect: (entry: IAuditLog) => void;
+  hasFilters?: boolean;
+  onClearFilters?: () => void;
 };
 
-function hasDetails(entry: IAuditLog): boolean {
-  return !!(entry.changes?.before || entry.changes?.after || entry.metadata);
-}
-
 function getResourceUrl(entry: IAuditLog): string | null {
-  if (!entry.resource) return null;
+  const resource = entry.resource;
+  if (!resource) return null;
 
   switch (entry.resourceType) {
+    case "page":
+      return resource.slugId
+        ? buildPageUrl(resource.spaceSlug, resource.slugId, resource.name)
+        : null;
     case "group":
-      return `/settings/groups/${entry.resource.id}`;
+      return `/settings/groups/${resource.id}`;
     case "space":
     case "space_member":
-      return entry.resource.slug ? `/s/${entry.resource.slug}` : null;
+    case "personal_space":
+      return resource.slug ? `/s/${resource.slug}` : null;
     default:
       return null;
   }
 }
 
-function formatValue(value: unknown): string {
-  if (value === null || value === undefined) return "—";
-  if (typeof value === "boolean") return value ? "true" : "false";
-  if (typeof value === "object") return JSON.stringify(value);
-  return String(value);
-}
-
-function ChangesDiff({ changes }: { changes: IAuditLog["changes"] }) {
+function ActorCell({ entry }: { entry: IAuditLog }) {
   const { t } = useTranslation();
-  if (!changes) return null;
 
-  const { before, after } = changes;
-  const allKeys = new Set([
-    ...Object.keys(before ?? {}),
-    ...Object.keys(after ?? {}),
-  ]);
-
-  if (allKeys.size === 0) return null;
-
-  return (
-    <Box>
-      <Text fz="xs" fw={600} mb={4}>
-        {t("Changes")}
-      </Text>
-      {[...allKeys].map((key) => {
-        const hasBefore = before && key in before;
-        const hasAfter = after && key in after;
-
-        return (
-          <Group key={key} gap={6} mb={2} wrap="nowrap" align="center">
-            <Text
-              fz="xs"
-              c="dimmed"
-              fw={500}
-              style={{ minWidth: "fit-content" }}
-            >
-              {key}:
-            </Text>
-            {hasBefore && (
-              <Text fz="xs" component="span">
-                {formatValue(before[key])}
-              </Text>
-            )}
-            {hasBefore && hasAfter && (
-              <IconArrowRight size={10} color="var(--mantine-color-dimmed)" />
-            )}
-            {hasAfter && (
-              <Text fz="xs" component="span">
-                {formatValue(after[key])}
-              </Text>
-            )}
-          </Group>
-        );
-      })}
-    </Box>
-  );
-}
-
-function MetadataDisplay({ metadata }: { metadata: Record<string, any> }) {
-  const { t } = useTranslation();
-  const entries = Object.entries(metadata);
-  if (entries.length === 0) return null;
-
-  return (
-    <Box>
-      <Text fz="xs" fw={600} mb={4}>
-        {t("Metadata")}
-      </Text>
-      {entries.map(([key, value]) => (
-        <Group key={key} gap={6} mb={2} wrap="nowrap">
-          <Text fz="xs" c="dimmed" fw={500}>
-            {key}:
+  if (entry.actor) {
+    return (
+      <Group gap="sm" wrap="nowrap">
+        <CustomAvatar
+          avatarUrl={entry.actor.avatarUrl}
+          name={entry.actor.name}
+          size={34}
+        />
+        <div style={{ minWidth: 0 }}>
+          <Text fz="sm" fw={500} lineClamp={1}>
+            {entry.actor.name}
           </Text>
-          <Text fz="xs">{formatValue(value)}</Text>
-        </Group>
-      ))}
-    </Box>
-  );
-}
+          <Text fz="xs" c="dimmed" lineClamp={1}>
+            {entry.actor.email}
+          </Text>
+        </div>
+      </Group>
+    );
+  }
 
-function TableSkeleton() {
   return (
-    <>
-      {Array.from({ length: 8 }).map((_, i) => (
-        <Table.Tr key={i}>
-          <Table.Td>
-            <Group gap="sm" wrap="nowrap">
-              <Skeleton circle height={36} />
-              <div>
-                <Skeleton height={14} width={120} mb={4} />
-                <Skeleton height={10} width={160} />
-              </div>
-            </Group>
-          </Table.Td>
-          <Table.Td>
-            <Skeleton height={14} width={140} />
-          </Table.Td>
-          <Table.Td>
-            <Skeleton height={14} width={120} />
-          </Table.Td>
-          <Table.Td>
-            <Skeleton height={14} width={120} />
-          </Table.Td>
-        </Table.Tr>
-      ))}
-    </>
+    <Group gap="xs" wrap="nowrap">
+      <ThemeIcon size={30} radius="xl" variant="light" color="gray">
+        <IconHistory size={15} />
+      </ThemeIcon>
+      <div>
+        <Text fz="sm" fw={500}>
+          {t(getActorTypeLabel(entry.actorType))}
+        </Text>
+        {entry.actorType !== "user" && (
+          <Text fz="xs" c="dimmed">
+            {entry.actorId ?? t("No actor")}
+          </Text>
+        )}
+      </div>
+    </Group>
   );
 }
 
 function ResourceCell({ entry }: { entry: IAuditLog }) {
-  if (!entry.resource?.name) {
+  const { t } = useTranslation();
+  const url = getResourceUrl(entry);
+
+  if (!entry.resource?.name && !entry.resourceId) {
     return (
       <Text fz="sm" c="dimmed">
         —
@@ -163,128 +113,170 @@ function ResourceCell({ entry }: { entry: IAuditLog }) {
     );
   }
 
-  const url = getResourceUrl(entry);
-
-  if (url) {
-    return (
-      <Anchor
-        size="sm"
-        underline="never"
-        style={{
-          cursor: "pointer",
-          color: "var(--mantine-color-text)",
-        }}
-        component={Link}
-        to={url}
-      >
-        <div className={classes.resourceLinkText}>
-          <Text fz="sm" fw={500} lineClamp={1}>
-            {entry.resource.name}
-          </Text>
-        </div>
-      </Anchor>
-    );
-  }
+  const name = entry.resource?.name ?? entry.resourceId;
+  const typeLabel = t(getResourceTypeLabel(entry.resourceType));
 
   return (
-    <Text fz="sm" lineClamp={1}>
-      {entry.resource.name}
-    </Text>
+    <div style={{ minWidth: 0 }}>
+      <Text fz="xs" c="dimmed">
+        {typeLabel}
+      </Text>
+      {url ? (
+        <Anchor
+          size="sm"
+          fw={500}
+          underline="never"
+          component={Link}
+          to={url}
+          className={classes.resourceLinkText}
+          onClick={(event) => event.stopPropagation()}
+        >
+          <Text fz="sm" fw={500} lineClamp={1} component="span">
+            {name}
+          </Text>
+        </Anchor>
+      ) : (
+        <Text fz="sm" lineClamp={1}>
+          {name}
+        </Text>
+      )}
+    </div>
+  );
+}
+
+function TableSkeleton() {
+  return (
+    <>
+      {Array.from({ length: 8 }).map((_, index) => (
+        <Table.Tr key={index}>
+          <Table.Td>
+            <Skeleton height={12} width={90} />
+          </Table.Td>
+          <Table.Td>
+            <Group gap="sm" wrap="nowrap">
+              <Skeleton circle height={34} />
+              <div>
+                <Skeleton height={12} width={110} mb={5} />
+                <Skeleton height={9} width={150} />
+              </div>
+            </Group>
+          </Table.Td>
+          <Table.Td>
+            <Skeleton height={20} width={150} radius="sm" />
+          </Table.Td>
+          <Table.Td>
+            <Skeleton height={12} width={130} />
+          </Table.Td>
+          <Table.Td>
+            <Skeleton height={12} width={90} />
+          </Table.Td>
+          <Table.Td>
+            <Skeleton height={12} width={16} />
+          </Table.Td>
+        </Table.Tr>
+      ))}
+    </>
   );
 }
 
 export default function AuditLogsTable({
   items,
   isLoading,
+  onSelect,
+  hasFilters,
+  onClearFilters,
 }: AuditLogsTableProps) {
   const { t } = useTranslation();
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
-
-  const toggleExpanded = (id: string) => {
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
-      }
-      return next;
-    });
-  };
 
   return (
-    <Table.ScrollContainer minWidth={700}>
-      <Table highlightOnHover verticalSpacing="xs" className={classes.table}>
-        <Table.Thead>
-          <Table.Tr>
-            <Table.Th>{t("Actor")}</Table.Th>
-            <Table.Th>{t("Event")}</Table.Th>
-            <Table.Th>{t("Resource")}</Table.Th>
-            <Table.Th>{t("Date")}</Table.Th>
-          </Table.Tr>
-        </Table.Thead>
+    <Paper withBorder radius="md" className={classes.tableCard}>
+      <Table.ScrollContainer minWidth={860}>
+        <Table
+          highlightOnHover
+          verticalSpacing="sm"
+          horizontalSpacing="md"
+          className={classes.table}
+        >
+          <Table.Thead>
+            <Table.Tr>
+              <Table.Th w={130}>{t("When")}</Table.Th>
+              <Table.Th w={240}>{t("Actor")}</Table.Th>
+              <Table.Th>{t("Action")}</Table.Th>
+              <Table.Th w={190}>{t("Resource")}</Table.Th>
+              <Table.Th w={140}>{t("IP address")}</Table.Th>
+              <Table.Th w={40} />
+            </Table.Tr>
+          </Table.Thead>
 
-        <Table.Tbody>
-          {isLoading ? (
-            <TableSkeleton />
-          ) : items && items.length > 0 ? (
-            items.map((entry) => {
-              const expandable = hasDetails(entry);
-              const isExpanded = expanded.has(entry.id);
-
-              return (
-                <Fragment key={entry.id}>
+          <Table.Tbody>
+            {isLoading ? (
+              <TableSkeleton />
+            ) : items && items.length > 0 ? (
+              items.map((entry) => {
+                const category = getEventCategory(entry.event);
+                return (
                   <Table.Tr
-                    onClick={
-                      expandable ? () => toggleExpanded(entry.id) : undefined
-                    }
-                    style={{ cursor: expandable ? "pointer" : undefined }}
+                    key={entry.id}
+                    onClick={() => onSelect(entry)}
+                    style={{ cursor: "pointer" }}
+                    className={classes.row}
                   >
                     <Table.Td>
-                      <Group gap="sm" wrap="nowrap">
-                        {expandable ? (
-                          isExpanded ? (
-                            <IconChevronDown
-                              size={16}
-                              color="var(--mantine-color-dimmed)"
-                            />
-                          ) : (
-                            <IconChevronRight
-                              size={16}
-                              color="var(--mantine-color-dimmed)"
-                            />
-                          )
-                        ) : (
-                          <Box w={16} />
-                        )}
-                        {entry.actor ? (
-                          <Group gap="sm" wrap="nowrap">
-                            <CustomAvatar
-                              avatarUrl={entry.actor.avatarUrl}
-                              name={entry.actor.name}
-                              size={36}
-                            />
-                            <div>
-                              <Text fz="sm" fw={500} lineClamp={1}>
-                                {entry.actor.name}
-                              </Text>
-                              <Text fz="xs" c="dimmed">
-                                {entry.actor.email}
-                              </Text>
-                            </div>
-                          </Group>
-                        ) : (
-                          <Text fz="sm" c="dimmed" fs="italic">
-                            {entry.actorType === "system"
-                              ? t("System")
-                              : t("System")}
+                      <Tooltip
+                        label={formattedDate(new Date(entry.createdAt))}
+                        position="top"
+                        withArrow
+                      >
+                        <Box>
+                          <Text
+                            fz="sm"
+                            fw={500}
+                            style={{ whiteSpace: "nowrap" }}
+                          >
+                            {shortTimeAgo(new Date(entry.createdAt))}
                           </Text>
-                        )}
-                      </Group>
+                          <Text
+                            fz="xs"
+                            c="dimmed"
+                            style={{ whiteSpace: "nowrap" }}
+                          >
+                            {new Date(entry.createdAt).toLocaleTimeString(
+                              undefined,
+                              { hour: "2-digit", minute: "2-digit" },
+                            )}
+                          </Text>
+                        </Box>
+                      </Tooltip>
                     </Table.Td>
 
                     <Table.Td>
-                      <Text fz="sm">{t(getEventLabel(entry.event))}</Text>
+                      <ActorCell entry={entry} />
+                    </Table.Td>
+
+                    <Table.Td>
+                      <Group gap={6} wrap="nowrap">
+                        <Badge
+                          size="sm"
+                          radius="sm"
+                          variant="light"
+                          color={category.color}
+                          tt="none"
+                        >
+                          {t(getEventLabel(entry.event))}
+                        </Badge>
+                        {entry.metadata && (
+                          <Tooltip label={t("Has metadata")}>
+                            <Badge
+                              size="xs"
+                              variant="default"
+                              radius="sm"
+                              tt="none"
+                            >
+                              +info
+                            </Badge>
+                          </Tooltip>
+                        )}
+                      </Group>
                     </Table.Td>
 
                     <Table.Td>
@@ -292,42 +284,59 @@ export default function AuditLogsTable({
                     </Table.Td>
 
                     <Table.Td>
-                      <Text fz="sm" style={{ whiteSpace: "nowrap" }}>
-                        {formattedDate(new Date(entry.createdAt))}
+                      <Text fz="xs" c="dimmed" ff="monospace">
+                        {entry.ipAddress ?? "—"}
                       </Text>
                     </Table.Td>
-                  </Table.Tr>
 
-                  {expandable && (
-                    <Table.Tr className={classes.detailRow}>
-                      <Table.Td colSpan={4} p={0}>
-                        <Collapse expanded={isExpanded}>
-                          <Box
-                            px="md"
-                            py="sm"
-                            className={classes.detailContent}
-                          >
-                            <Group gap="xl" align="flex-start">
-                              {entry.changes && (
-                                <ChangesDiff changes={entry.changes} />
-                              )}
-                              {entry.metadata && (
-                                <MetadataDisplay metadata={entry.metadata} />
-                              )}
-                            </Group>
-                          </Box>
-                        </Collapse>
-                      </Table.Td>
-                    </Table.Tr>
-                  )}
-                </Fragment>
-              );
-            })
-          ) : (
-            <NoTableResults colSpan={4} />
-          )}
-        </Table.Tbody>
-      </Table>
-    </Table.ScrollContainer>
+                    <Table.Td>
+                      <IconChevronRight
+                        size={16}
+                        color="var(--mantine-color-dimmed)"
+                      />
+                    </Table.Td>
+                  </Table.Tr>
+                );
+              })
+            ) : (
+              <Table.Tr>
+                <Table.Td colSpan={6}>
+                  <Center py={48}>
+                    <Stack align="center" gap="xs" maw={360}>
+                      <ThemeIcon
+                        size={48}
+                        radius="xl"
+                        variant="light"
+                        color="gray"
+                      >
+                        <IconSearchOff size={24} />
+                      </ThemeIcon>
+                      <Text fw={600}>{t("No audit events found")}</Text>
+                      <Text size="sm" c="dimmed" ta="center">
+                        {hasFilters
+                          ? t("Try a wider date range or remove some filters.")
+                          : t(
+                              "Events will appear here as people work in the workspace.",
+                            )}
+                      </Text>
+                      {hasFilters && onClearFilters && (
+                        <Anchor
+                          component="button"
+                          type="button"
+                          size="sm"
+                          onClick={onClearFilters}
+                        >
+                          {t("Clear all filters")}
+                        </Anchor>
+                      )}
+                    </Stack>
+                  </Center>
+                </Table.Td>
+              </Table.Tr>
+            )}
+          </Table.Tbody>
+        </Table>
+      </Table.ScrollContainer>
+    </Paper>
   );
 }

@@ -29,6 +29,11 @@ import {
   computeExpiresAt,
   resolveVerificationStatus,
 } from './page-verification.status';
+import { AuditEvent, AuditResource } from '../../common/events/audit-events';
+import {
+  AUDIT_SERVICE,
+  IAuditService,
+} from '../../integrations/audit/audit.service';
 
 type ReviewDecision = 'approved' | 'rejected' | 'needs_clarification';
 
@@ -45,6 +50,7 @@ export class PageVerificationService {
     @InjectKysely() private readonly db: KyselyDB,
     @InjectQueue(QueueName.NOTIFICATION_QUEUE)
     private readonly notificationQueue: Queue,
+    @Inject(AUDIT_SERVICE) private readonly auditService: IAuditService,
   ) {}
 
   private async getPageOrThrow(pageId: string) {
@@ -149,9 +155,7 @@ export class PageVerificationService {
         canSubmitForApproval:
           detail.type === 'qms' && status === 'draft' && canManage,
         canMarkObsolete:
-          detail.type === 'qms' &&
-          status === 'approved' &&
-          canManage,
+          detail.type === 'qms' && status === 'approved' && canManage,
       },
     };
   }
@@ -218,6 +222,22 @@ export class PageVerificationService {
         trx,
       );
     });
+
+    this.auditService.log({
+      event: AuditEvent.PAGE_VERIFICATION_CREATED,
+      resourceType: AuditResource.PAGE,
+      resourceId: page.id,
+      spaceId: page.spaceId,
+      changes: {
+        after: {
+          type,
+          mode,
+          periodAmount: data.periodAmount ?? null,
+          periodUnit: data.periodUnit ?? null,
+          verifierIds,
+        },
+      },
+    });
   }
 
   async update(
@@ -249,7 +269,8 @@ export class PageVerificationService {
 
     const updates: Record<string, unknown> = {};
     if (data.mode !== undefined) updates.mode = data.mode;
-    if (data.periodAmount !== undefined) updates.periodAmount = data.periodAmount;
+    if (data.periodAmount !== undefined)
+      updates.periodAmount = data.periodAmount;
     if (data.periodUnit !== undefined) updates.periodUnit = data.periodUnit;
     if (data.mode === 'fixed' && data.fixedExpiresAt) {
       updates.expiresAt = new Date(data.fixedExpiresAt);
@@ -268,12 +289,32 @@ export class PageVerificationService {
         );
       }
     });
+
+    this.auditService.log({
+      event: AuditEvent.PAGE_VERIFICATION_UPDATED,
+      resourceType: AuditResource.PAGE,
+      resourceId: page.id,
+      spaceId: page.spaceId,
+      changes: {
+        after: {
+          ...updates,
+          verifierIds: verifierIds ?? undefined,
+        },
+      },
+    });
   }
 
   async remove(pageId: string, user: User) {
     const page = await this.getPageOrThrow(pageId);
     await this.assertCanManage(page, user);
     await this.pageVerificationRepo.delete(page.id);
+
+    this.auditService.log({
+      event: AuditEvent.PAGE_VERIFICATION_REMOVED,
+      resourceType: AuditResource.PAGE,
+      resourceId: page.id,
+      spaceId: page.spaceId,
+    });
   }
 
   async verify(pageId: string, user: User) {
@@ -318,6 +359,17 @@ export class PageVerificationService {
       expiresAt,
       status: null,
     });
+
+    this.auditService.log({
+      event: AuditEvent.PAGE_VERIFIED,
+      resourceType: AuditResource.PAGE,
+      resourceId: page.id,
+      spaceId: page.spaceId,
+      changes: {
+        before: { verifiedAt: verification.verifiedAt },
+        after: { verifiedAt: now, expiresAt },
+      },
+    });
   }
 
   // Superseded by submit() (design §2/§5). Kept only so the endpoint returns
@@ -341,10 +393,7 @@ export class PageVerificationService {
   // single verifier could one-click reject and discard other verifiers'
   // pending/approved decisions for the cycle. Always QMS-only (pre-existing
   // guard below); QMS rejection must go through reject() on the review page.
-  async rejectApproval(
-    data: { pageId: string; comment?: string },
-    user: User,
-  ) {
+  async rejectApproval(data: { pageId: string; comment?: string }, user: User) {
     const verification = await this.pageVerificationRepo.findByPageId(
       data.pageId,
     );
@@ -375,6 +424,17 @@ export class PageVerificationService {
 
     await this.pageVerificationRepo.update(verification.id, {
       status: 'obsolete',
+    });
+
+    this.auditService.log({
+      event: AuditEvent.PAGE_MARKED_OBSOLETE,
+      resourceType: AuditResource.PAGE,
+      resourceId: page.id,
+      spaceId: page.spaceId,
+      changes: {
+        before: { status: verification.status },
+        after: { status: 'obsolete' },
+      },
     });
   }
 
@@ -499,6 +559,17 @@ export class PageVerificationService {
         verifierIds: verifiers.map((v) => v.id),
       },
     );
+
+    this.auditService.log({
+      event: AuditEvent.PAGE_APPROVAL_REQUESTED,
+      resourceType: AuditResource.PAGE,
+      resourceId: page.id,
+      spaceId: page.spaceId,
+      metadata: {
+        verificationId: verification.id,
+        verifierIds: verifiers.map((v) => v.id),
+      },
+    });
   }
 
   async approve(pageId: string, user: User) {
@@ -526,6 +597,14 @@ export class PageVerificationService {
           trx,
         );
       }
+    });
+
+    this.auditService.log({
+      event: AuditEvent.PAGE_VERIFIED,
+      resourceType: AuditResource.PAGE,
+      resourceId: verification.pageId,
+      spaceId: verification.spaceId,
+      metadata: { verificationId: verification.id, decision: 'approved' },
     });
   }
 
@@ -564,6 +643,17 @@ export class PageVerificationService {
         comment: data.comment,
       },
     );
+
+    this.auditService.log({
+      event: AuditEvent.PAGE_APPROVAL_REJECTED,
+      resourceType: AuditResource.PAGE,
+      resourceId: verification.pageId,
+      spaceId: verification.spaceId,
+      metadata: {
+        verificationId: verification.id,
+        comment: data.comment,
+      },
+    });
   }
 
   async requestClarification(pageId: string, user: User) {
@@ -601,6 +691,14 @@ export class PageVerificationService {
         requestedById: verification.requestedById,
       },
     );
+
+    this.auditService.log({
+      event: AuditEvent.PAGE_CLARIFICATION_REQUESTED,
+      resourceType: AuditResource.PAGE,
+      resourceId: verification.pageId,
+      spaceId: verification.spaceId,
+      metadata: { verificationId: verification.id },
+    });
   }
 
   // Approve/reject need a clean comment slate; clarification needs an open
