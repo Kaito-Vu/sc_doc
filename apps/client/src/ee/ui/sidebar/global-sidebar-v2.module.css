@@ -159,3 +159,10 @@
   outline: 2px solid var(--mantine-primary-color-filled);
   outline-offset: -2px;
 }
+
+@media (max-width: 48em) {
+  .userRow {
+    min-height: 40px;
+  }
+}
+

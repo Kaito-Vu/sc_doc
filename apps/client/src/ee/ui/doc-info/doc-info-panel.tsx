@@ -103,6 +103,7 @@ export function DocInfoPanel({ initialTab = "info" }: DocInfoPanelProps) {
         onChange={(value) => setActiveTab((value as DocInfoTab) ?? "info")}
         className={classes.tabs}
         variant="default"
+        aria-label={t("Document info")}
       >
         <Tabs.List grow>
           <Tabs.Tab value="info">{t("Info")}</Tabs.Tab>

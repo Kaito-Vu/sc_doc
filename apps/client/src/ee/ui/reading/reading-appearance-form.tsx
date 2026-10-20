@@ -127,7 +127,11 @@ export function ReadingAppearanceForm() {
 
       <div className={classes.control}>
         <Text size="sm">{t("Background")}</Text>
-        <div className={classes.swatchGrid}>
+        <div
+          className={classes.swatchGrid}
+          role="group"
+          aria-label={t("Background")}
+        >
           {READING_THEMES.map((theme) => {
             const themePalette = resolveReadingPalette(theme.id, colorScheme);
             return (

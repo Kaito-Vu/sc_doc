@@ -160,6 +160,7 @@ export function DocumentLibraryPage() {
                 key={card.key}
                 className={classes.healthCard}
                 data-active={filter === card.key || undefined}
+                aria-pressed={filter === card.key}
                 onClick={() => {
                   setFilter(card.key);
                   resetOffset();

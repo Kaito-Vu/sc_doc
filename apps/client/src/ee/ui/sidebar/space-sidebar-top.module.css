@@ -79,3 +79,10 @@
   margin: 8px 8px 4px;
   background: light-dark(rgb(15 23 42 / 6%), rgb(255 255 255 / 8%));
 }
+
+@media (max-width: 48em) {
+  .newPage {
+    min-height: 40px;
+  }
+}
+

@@ -10,7 +10,7 @@ import {
   ScrollArea,
   Text,
   TextInput,
-  UnstyledButton,
+  VisuallyHidden,
 } from "@mantine/core";
 import { useDebouncedValue, useHotkeys } from "@mantine/hooks";
 import {
@@ -285,6 +285,15 @@ export function CommandPalette() {
         onKeyDown={handleKeyDown}
         placeholder={t("Search or run a command...")}
         aria-label={t("Search or run a command...")}
+        role="combobox"
+        aria-autocomplete="list"
+        aria-expanded={opened}
+        aria-controls="sc-command-listbox"
+        aria-activedescendant={
+          items[activeIndex]
+            ? `sc-command-option-${items[activeIndex].id}`
+            : undefined
+        }
         leftSection={<IconSearch size={18} />}
         rightSection={
           isFetching ? <Loader size="xs" /> : <Kbd size="xs">Esc</Kbd>
@@ -297,6 +306,12 @@ export function CommandPalette() {
 
       <Divider />
 
+      <VisuallyHidden role="status" aria-live="polite">
+        {items.length > 0
+          ? t("{{count}} results", { count: items.length })
+          : t("No results")}
+      </VisuallyHidden>
+
       <ScrollArea.Autosize mah={420} type="scroll">
         {grouped.length === 0 ? (
           <Box p="xl">
@@ -305,9 +320,19 @@ export function CommandPalette() {
             </Text>
           </Box>
         ) : (
-          <Box py="xs">
+          <Box
+            py="xs"
+            id="sc-command-listbox"
+            role="listbox"
+            aria-label={t("Commands and documents")}
+          >
             {grouped.map((group) => (
-              <Box key={group.section} mb={4}>
+              <Box
+                key={group.section}
+                mb={4}
+                role="group"
+                aria-label={t(group.section)}
+              >
                 <Text
                   size="xs"
                   fw={700}
@@ -315,6 +340,7 @@ export function CommandPalette() {
                   tt="uppercase"
                   px="md"
                   py={6}
+                  aria-hidden="true"
                 >
                   {t(group.section)}
                 </Text>
@@ -324,8 +350,12 @@ export function CommandPalette() {
                   );
                   const isActive = index === activeIndex;
                   return (
-                    <UnstyledButton
+                    <Box
                       key={item.id}
+                      id={`sc-command-option-${item.id}`}
+                      role="option"
+                      aria-selected={isActive}
+                      tabIndex={-1}
                       data-command-active={isActive || undefined}
                       onClick={() => run(item.run)}
                       onMouseEnter={() => setActiveIndex(index)}
@@ -336,6 +366,7 @@ export function CommandPalette() {
                         display: "flex",
                         alignItems: "center",
                         gap: 10,
+                        cursor: "pointer",
                         background: isActive
                           ? "light-dark(var(--mantine-color-gray-1), var(--mantine-color-dark-5))"
                           : undefined,
@@ -358,7 +389,7 @@ export function CommandPalette() {
                         </Badge>
                       ) : null}
                       <IconArrowRight size={14} opacity={0.45} />
-                    </UnstyledButton>
+                    </Box>
                   );
                 })}
               </Box>

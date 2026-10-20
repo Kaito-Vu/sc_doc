@@ -20,6 +20,11 @@
   border-color: light-dark(var(--mantine-color-gray-4), var(--mantine-color-dark-4));
 }
 
+.healthCard:focus-visible {
+  outline: 2px solid var(--mantine-primary-color-filled);
+  outline-offset: 2px;
+}
+
 .healthCard[data-active] {
   border-color: var(--mantine-primary-color-filled);
   box-shadow: 0 0 0 1px var(--mantine-primary-color-filled);

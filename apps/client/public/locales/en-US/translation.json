@@ -2166,5 +2166,12 @@
   "Private": "Private",
   "Quick actions": "Quick actions",
   "Visibility": "Visibility",
-  "Your role": "Your role"
+  "Your role": "Your role",
+  "Commands and documents": "Commands and documents",
+  "No results": "No results",
+  "Searching...": "Searching...",
+  "Apply saved view {{name}}": "Apply saved view {{name}}",
+  "Remove saved view {{name}}": "Remove saved view {{name}}",
+  "Document info": "Document info",
+  "View all members": "View all members"
 }

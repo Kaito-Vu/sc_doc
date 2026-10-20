@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useId, useState } from "react";
 import clsx from "clsx";
 import {
   Collapse,
@@ -101,15 +101,17 @@ export function SidebarSection({
   children,
 }: SidebarSectionProps) {
   const [opened, setOpened] = useState(defaultOpened);
+  const contentId = useId();
 
   return (
-    <section className={classes.section}>
+    <section className={classes.section} aria-label={title}>
       <div className={classes.sectionHeader}>
         {collapsible ? (
           <UnstyledButton
             className={classes.sectionTitleButton}
             onClick={() => setOpened((value) => !value)}
             aria-expanded={opened}
+            aria-controls={contentId}
           >
             <span>{title}</span>
             <IconChevronDown
@@ -127,7 +129,11 @@ export function SidebarSection({
       </div>
 
       {collapsible ? (
-        <Collapse expanded={opened} transitionDuration={160}>
+        <Collapse
+          id={contentId}
+          expanded={opened}
+          transitionDuration={160}
+        >
           {children}
         </Collapse>
       ) : (

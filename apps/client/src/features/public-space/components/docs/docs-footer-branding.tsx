@@ -12,11 +12,11 @@ export default function DocsFooterBranding({
     <footer className={clsx(styles.footer, className)}>
       <a
         className={styles.footerBranding}
-        href={`https://docmost.com?ref=${refSource}`}
+        href="https://doc.etc.vn"
         target="_blank"
         rel="noreferrer"
       >
-        Powered by Docmost
+        Copyright © 2026 DocManagement. All rights reserved.
       </a>
     </footer>
   );

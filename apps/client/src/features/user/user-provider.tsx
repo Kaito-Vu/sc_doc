@@ -4,6 +4,7 @@ import React, { useEffect } from "react";
 import useCurrentUser from "@/features/user/hooks/use-current-user";
 import { useTranslation } from "react-i18next";
 import { useWorkspaceLocale } from "@/ee/workspace-locale/use-workspace-locale";
+import { normalizeLocale } from "@/lib/locales";
 import { socketAtom } from "@/features/websocket/atoms/socket-atom.ts";
 import { io } from "socket.io-client";
 import { SOCKET_URL } from "@/features/websocket/types";
@@ -56,9 +57,7 @@ export function UserProvider({ children }: React.PropsWithChildren) {
   useEffect(() => {
     if (data && data.user && data.workspace) {
       setCurrentUser(data);
-      i18n.changeLanguage(
-        data.user.locale === "en" ? "en-US" : data.user.locale,
-      );
+      i18n.changeLanguage(normalizeLocale(data.user.locale));
     }
   }, [data, isLoading]);
 

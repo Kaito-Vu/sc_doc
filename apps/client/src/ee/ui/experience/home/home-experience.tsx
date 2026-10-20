@@ -161,11 +161,6 @@ export function HomeExperience() {
                 <h2 className={classes.sectionTitle}>
                   {t("Continue working")}
                 </h2>
-                {recentPages.length > 0 && (
-                  <Anchor component={Link} to="/favorites" size="xs">
-                    {t("View all")}
-                  </Anchor>
-                )}
               </div>
 
               {recentPages.length === 0 ? (

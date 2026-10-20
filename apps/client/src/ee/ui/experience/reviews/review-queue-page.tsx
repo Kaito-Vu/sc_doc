@@ -199,7 +199,12 @@ export function ReviewQueuePage() {
                         </UnstyledButton>
 
                         <Group gap="xs" wrap="nowrap">
-                          <Group gap={-6} wrap="nowrap">
+                          <Group
+                            gap={-6}
+                            wrap="nowrap"
+                            role="group"
+                            aria-label={t("Reviewers")}
+                          >
                             {item.verifiers?.slice(0, 3).map((verifier) => (
                               <Avatar
                                 key={verifier.id}

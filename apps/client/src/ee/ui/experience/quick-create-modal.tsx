@@ -87,7 +87,7 @@ export function QuickCreateModal() {
           <Divider />
 
           <Group justify="space-between" wrap="wrap">
-            <Text size="sm" c="dimmed">
+            <Text size="sm" c="dimmed" aria-live="polite">
               {selection
                 ? selection.type === "space"
                   ? t("New page in {{name}}", {

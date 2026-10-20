@@ -157,6 +157,7 @@ export function SpaceOverviewPage() {
                       color="blue"
                       leftSection={<IconWorld size={11} />}
                       rightSection={<IconExternalLink size={10} />}
+                      aria-label={t("Open public site")}
                       style={{ cursor: "pointer", flexShrink: 0 }}
                     >
                       {t("Public")}
@@ -347,6 +348,7 @@ export function SpaceOverviewPage() {
                   <Button
                     variant="subtle"
                     size="compact-xs"
+                    aria-label={t("View all members")}
                     onClick={() => openSpaceSettings("members")}
                   >
                     {t("View all")}

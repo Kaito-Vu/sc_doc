@@ -336,7 +336,9 @@ export default function SettingsSidebar() {
       </Group>
 
       <ScrollArea w="100%" style={{ flex: 1, minHeight: 0 }}>
-        <div data-sc-nav>{menuItems}</div>
+        <nav data-sc-nav aria-label={t("Settings navigation")}>
+          {menuItems}
+        </nav>
       </ScrollArea>
 
       {!isCloud() && <AppVersion />}

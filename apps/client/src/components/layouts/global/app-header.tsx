@@ -1,9 +1,8 @@
+import { BrandLogo } from "@/ee/ui/brand/brand-logo";
 import {
   ActionIcon,
   Badge,
-  Box,
   Group,
-  Text,
   Tooltip,
   UnstyledButton,
 } from "@mantine/core";
@@ -86,22 +85,7 @@ export function AppHeader() {
           </Tooltip>
 
           <Link to="/home" className={classes.brand} aria-label={workspace?.name || "SC Doc"}>
-            <Box hiddenFrom="sm" className={classes.brandIcon}>
-              <img
-                src="/icons/favicon-32x32.png"
-                alt={workspace?.name || "SC Doc"}
-                width={22}
-                height={22}
-              />
-            </Box>
-            <Text
-              size="lg"
-              fw={600}
-              style={{ userSelect: "none" }}
-              visibleFrom="sm"
-            >
-              {workspace?.name || "SC Doc"}
-            </Text>
+            <BrandLogo />
           </Link>
 
           <Group ml={50} gap={5} className={classes.links} visibleFrom="sm">

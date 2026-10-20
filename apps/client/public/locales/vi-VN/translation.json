@@ -2166,5 +2166,12 @@
   "Private": "Riêng tư",
   "Quick actions": "Thao tác nhanh",
   "Visibility": "Hiển thị",
-  "Your role": "Vai trò của bạn"
+  "Your role": "Vai trò của bạn",
+  "Commands and documents": "Lệnh và tài liệu",
+  "No results": "Không có kết quả",
+  "Searching...": "Đang tìm...",
+  "Apply saved view {{name}}": "Áp dụng chế độ xem {{name}}",
+  "Remove saved view {{name}}": "Xóa chế độ xem {{name}}",
+  "Document info": "Thông tin tài liệu",
+  "View all members": "Xem tất cả thành viên"
 }

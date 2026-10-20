@@ -28,6 +28,7 @@ export class UpdateUserDto extends PartialType(
 
   @IsOptional()
   @IsString()
+  @IsIn(['en-US', 'vi-VN'])
   locale: string;
 
   @IsOptional()

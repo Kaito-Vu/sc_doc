@@ -20,6 +20,7 @@ import {
   TextInput,
   Tooltip,
   UnstyledButton,
+  VisuallyHidden,
 } from "@mantine/core";
 import { useDebouncedValue } from "@mantine/hooks";
 import { modals } from "@mantine/modals";
@@ -398,31 +399,46 @@ export function SearchPage() {
                 {t("Saved views")}
               </Text>
               {views.map((view) => (
-                <Badge
-                  key={view.id}
-                  variant="light"
-                  color="gray"
-                  rightSection={
-                    <ActionIcon
-                      size={14}
-                      variant="transparent"
-                      color="gray"
-                      aria-label={t("Remove view")}
-                      onClick={() => removeView(view.id)}
-                    >
-                      <IconX size={10} />
-                    </ActionIcon>
-                  }
-                  style={{ cursor: "pointer" }}
-                  onClick={() => applyView(view)}
-                >
-                  {view.name}
-                </Badge>
+                <Group key={view.id} gap={2} wrap="nowrap">
+                  <Badge
+                    component="button"
+                    type="button"
+                    variant="light"
+                    color="gray"
+                    aria-label={t("Apply saved view {{name}}", {
+                      name: view.name,
+                    })}
+                    className={classes.savedView}
+                    style={{ cursor: "pointer" }}
+                    onClick={() => applyView(view)}
+                  >
+                    {view.name}
+                  </Badge>
+                  <ActionIcon
+                    size="sm"
+                    variant="subtle"
+                    color="gray"
+                    aria-label={t("Remove saved view {{name}}", {
+                      name: view.name,
+                    })}
+                    onClick={() => removeView(view.id)}
+                  >
+                    <IconX size={12} />
+                  </ActionIcon>
+                </Group>
               ))}
             </Group>
           )}
 
           <Divider />
+
+          <VisuallyHidden role="status" aria-live="polite">
+            {isFetching
+              ? t("Searching...")
+              : canSearch
+                ? t("{{count}} results", { count: results.length })
+                : ""}
+          </VisuallyHidden>
 
           {!canSearch ? (
             <Paper p="xl" withBorder radius="md">
