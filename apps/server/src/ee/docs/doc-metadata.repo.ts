@@ -106,7 +106,7 @@ export class DocMetadataRepo {
       ) v ON true
       WHERE m.page_id = ${pageId}
       LIMIT 1
-    `.execute(this.db);
+    `.execute(this.db.withoutPlugins());
 
     return result.rows[0];
   }
@@ -240,7 +240,7 @@ export class DocMetadataRepo {
       ORDER BY m.updated_at DESC
       LIMIT ${limit}
       OFFSET ${offset}
-    `.execute(this.db);
+    `.execute(this.db.withoutPlugins());
 
     return result.rows;
   }
@@ -291,7 +291,7 @@ export class DocMetadataRepo {
       WHERE m.workspace_id = ${workspaceId}
         AND p.deleted_at IS NULL
         ${spaceFilter}
-    `.execute(this.db);
+    `.execute(this.db.withoutPlugins());
 
     const duplicateResult = await sql<{ duplicate_titles: string }>`
       SELECT COALESCE(SUM(cnt - 1), 0) AS duplicate_titles
@@ -307,7 +307,7 @@ export class DocMetadataRepo {
         GROUP BY m.space_id, lower(p.title)
         HAVING COUNT(*) > 1
       ) duplicates
-    `.execute(this.db);
+    `.execute(this.db.withoutPlugins());
 
     const row = result.rows[0];
     return {
