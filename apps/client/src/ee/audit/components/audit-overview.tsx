@@ -8,6 +8,7 @@ import {
   Tooltip,
 } from "@mantine/core";
 import { LineChart } from "@mantine/charts";
+import "@mantine/charts/styles.css";
 import {
   IconActivityHeartbeat,
   IconAlertTriangle,

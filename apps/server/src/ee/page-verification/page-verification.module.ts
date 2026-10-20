@@ -8,9 +8,10 @@ import { ReviewNotificationService } from './review-notification.service';
 import { PageAccessModule } from '../../core/page/page-access/page-access.module';
 import { QueueModule } from '../../integrations/queue/queue.module';
 import { NotificationModule } from '../../core/notification/notification.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
-  imports: [PageAccessModule, QueueModule, NotificationModule],
+  imports: [PageAccessModule, QueueModule, NotificationModule, NotificationsModule],
   providers: [
     PageVerificationService,
     PageVerificationRepo,

@@ -9,7 +9,6 @@ import { FastifyReply } from 'fastify';
 import { InjectKysely } from 'nestjs-kysely';
 import { AuthProviderRepo } from '../sso/auth-provider.repo';
 import { SsoService } from '../sso/sso.service';
-import { UserRepo } from '@docmost/db/repos/user/user.repo';
 import { KyselyDB } from '@docmost/db/types/kysely.types';
 import { executeTx } from '@docmost/db/utils';
 import { MfaGateService, MfaGateResult } from '../mfa/services/mfa-gate.service';
@@ -20,7 +19,7 @@ import {
   IAuditService,
 } from '../../integrations/audit/audit.service';
 import { AuditEvent, AuditResource } from '../../common/events/audit-events';
-import { SsoUserProvisioningService } from './sso-user-provisioning.service';
+import { SsoIdentityResolver } from './sso-identity-resolver';
 import { buildLdapUserFilter, firstLdapValue } from './ldap.util';
 
 const LDAP_TIMEOUT_MS = 10_000;
@@ -31,8 +30,7 @@ export class SsoAuthService {
   constructor(
     private readonly authProviderRepo: AuthProviderRepo,
     private readonly ssoService: SsoService,
-    private readonly userRepo: UserRepo,
-    private readonly userProvisioning: SsoUserProvisioningService,
+    private readonly identityResolver: SsoIdentityResolver,
     private readonly mfaGateService: MfaGateService,
     @Inject(AUDIT_SERVICE) private readonly auditService: IAuditService,
     @InjectKysely() private readonly db: KyselyDB,
@@ -68,17 +66,12 @@ export class SsoAuthService {
       `${firstLdapValue(entry.uid) ?? data.username}@${workspaceId}.ldap.local`;
     const name = firstLdapValue(entry.cn) || data.username;
 
-    const user = await executeTx(this.db, async (trx) => {
-      const existing = await this.userRepo.findByEmail(email, workspaceId, {
+    const user = await executeTx(this.db, (trx) =>
+      this.identityResolver.resolve(
+        { email, name, providerUserId: entry.dn, provider, workspaceId },
         trx,
-      });
-      if (existing) return existing;
-      if (!provider.allowSignup) return undefined;
-      return this.userProvisioning.provision({ email, name, workspaceId }, trx);
-    });
-    if (!user) {
-      throw new UnauthorizedException('User not provisioned');
-    }
+      ),
+    );
 
     return this.mfaGateService.checkAndChallenge(user, workspace, res, {
       method: 'ldap',

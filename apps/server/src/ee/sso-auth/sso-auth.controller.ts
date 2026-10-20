@@ -12,6 +12,7 @@ import {
   Req,
   Res,
 } from '@nestjs/common';
+import { setAuthCookie } from '../mfa/auth-cookies';
 import { AuthThrottle } from '../mfa/auth-throttle.decorator';
 import { SsoAuthService } from './sso-auth.service';
 import { OidcAuthService } from './oidc-auth.service';
@@ -59,7 +60,7 @@ export class SsoAuthController {
       };
     }
 
-    this.setAuthCookie(res, result.authToken);
+    setAuthCookie(res, this.environmentService, result.authToken);
     return {};
   }
 
@@ -182,7 +183,7 @@ export class SsoAuthController {
         return { url: `${appUrl}/login/mfa`, statusCode: 302 };
       }
 
-      this.setAuthCookie(res, result.authToken);
+      setAuthCookie(res, this.environmentService, result.authToken);
       return { url: `${appUrl}${result.redirect ?? '/'}`, statusCode: 302 };
     } catch (error) {
       this.logger.error(
@@ -192,15 +193,5 @@ export class SsoAuthController {
       res.clearCookie('oidc_state', { path: '/' });
       return { url: `${appUrl}/login?error=sso_failed`, statusCode: 302 };
     }
-  }
-
-  private setAuthCookie(res: FastifyReply, authToken: string) {
-    res.setCookie('authToken', authToken, {
-      httpOnly: true,
-      sameSite: 'lax',
-      path: '/',
-      expires: this.environmentService.getCookieExpiresIn(),
-      secure: this.environmentService.isHttps(),
-    });
   }
 }

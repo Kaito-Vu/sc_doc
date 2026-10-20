@@ -6,7 +6,11 @@ import { ScimProvisioningService } from './scim-provisioning.service';
 import { ScimProvisioningController } from './scim-provisioning.controller';
 import { ScimAuthGuard } from './scim-auth.guard';
 
+import { WorkspaceModule } from '../../core/workspace/workspace.module';
+import { GroupModule } from '../../core/group/group.module';
+
 @Module({
+  imports: [WorkspaceModule, GroupModule],
   providers: [
     ScimTokenService,
     ScimTokenRepo,

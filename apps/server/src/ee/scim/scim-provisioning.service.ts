@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -7,6 +8,11 @@ import { InjectKysely } from 'nestjs-kysely';
 import { KyselyDB } from '@docmost/db/types/kysely.types';
 import { UserRepo } from '@docmost/db/repos/user/user.repo';
 import { GroupRepo } from '@docmost/db/repos/group/group.repo';
+import { GroupUserRepo } from '@docmost/db/repos/group/group-user.repo';
+import { executeTx } from '@docmost/db/utils';
+import { WorkspaceService } from '../../core/workspace/services/workspace.service';
+import { GroupService } from '../../core/group/services/group.service';
+import { User } from '@docmost/db/types/entity.types';
 import { nanoIdGen } from '../../common/helpers';
 import { UserRole } from '../../common/helpers/types/permission';
 
@@ -19,12 +25,19 @@ function toPage(startIndex: number, count: number) {
   return { start, size, offset: start - 1 };
 }
 
+// Core user/group operations need an acting user. SCIM acts with admin rights, so
+// core's owner protections (admin cannot deactivate/delete an owner) apply.
+const SCIM_ACTOR = { id: 'scim', role: UserRole.ADMIN } as User;
+
 @Injectable()
 export class ScimProvisioningService {
   constructor(
     @InjectKysely() private readonly db: KyselyDB,
     private readonly userRepo: UserRepo,
     private readonly groupRepo: GroupRepo,
+    private readonly groupUserRepo: GroupUserRepo,
+    private readonly workspaceService: WorkspaceService,
+    private readonly groupService: GroupService,
   ) {}
 
   private mapUser(user: any) {
@@ -115,27 +128,67 @@ export class ScimProvisioningService {
     if (existing) {
       return this.mapUser(existing);
     }
-    const user = await this.userRepo.insertUser({
-      email,
-      name: body?.name?.formatted || body?.displayName || email.split('@')[0],
-      password: nanoIdGen(16),
-      role: UserRole.MEMBER,
-      workspaceId,
-      scimExternalId: body?.externalId ?? null,
-      hasGeneratedPassword: true,
-    } as any);
+    // Same provisioning as signup/SSO: workspace default role + default group
+    // (the default group is what grants default space access).
+    const user = await executeTx(this.db, async (trx) => {
+      const created = await this.userRepo.insertUser(
+        {
+          email,
+          name:
+            body?.name?.formatted || body?.displayName || email.split('@')[0],
+          password: nanoIdGen(16),
+          role: UserRole.MEMBER,
+          workspaceId,
+          scimExternalId: body?.externalId ?? null,
+          hasGeneratedPassword: true,
+        } as any,
+        trx,
+      );
+      await this.workspaceService.addUserToWorkspace(
+        created.id,
+        workspaceId,
+        undefined,
+        trx,
+      );
+      await this.groupUserRepo.addUserToDefaultGroup(
+        created.id,
+        workspaceId,
+        trx,
+      );
+      return created;
+    });
     return this.mapUser(user);
   }
 
   async replaceUser(workspaceId: string, userId: string, body: any) {
     const user = await this.userRepo.findById(userId, workspaceId);
-    if (!user) throw new NotFoundException();
-    const email = body?.emails?.[0]?.value || body?.userName || user.email;
+    if (!user || user.deletedAt) throw new NotFoundException();
+
+    const rawEmail = body?.emails?.[0]?.value || body?.userName;
+    const email =
+      typeof rawEmail === 'string' ? rawEmail.trim().toLowerCase() : user.email;
+    if (email !== user.email.toLowerCase()) {
+      if (!email.includes('@')) {
+        throw new BadRequestException('A valid email is required');
+      }
+      const taken = await this.userRepo.findByEmail(email, workspaceId);
+      if (taken && taken.id !== userId) {
+        throw new ConflictException('Email is already in use');
+      }
+    }
+
+    // Status goes through core so sessions, websockets, integrations and audit
+    // are handled. An omitted `active` leaves the current status untouched.
+    if (body?.active === false && !user.deactivatedAt) {
+      await this.workspaceService.deactivateUser(SCIM_ACTOR, userId, workspaceId);
+    } else if (body?.active === true && user.deactivatedAt) {
+      await this.workspaceService.activateUser(SCIM_ACTOR, userId, workspaceId);
+    }
+
     await this.userRepo.updateUser(
       {
         email,
         name: body?.name?.formatted || user.name,
-        deactivatedAt: body?.active === false ? new Date() : null,
         scimExternalId: body?.externalId ?? user.scimExternalId,
       } as any,
       userId,
@@ -145,11 +198,10 @@ export class ScimProvisioningService {
   }
 
   async deleteUser(workspaceId: string, userId: string) {
-    await this.userRepo.updateUser(
-      { deletedAt: new Date() } as any,
-      userId,
-      workspaceId,
-    );
+    const user = await this.userRepo.findById(userId, workspaceId);
+    if (!user || user.deletedAt) throw new NotFoundException();
+    // Core delete: blocks owners, anonymises, removes memberships/sessions.
+    await this.workspaceService.deleteUser(SCIM_ACTOR, userId, workspaceId);
   }
 
   async listGroups(workspaceId: string, startIndex = 1, count = 100) {
@@ -222,6 +274,9 @@ export class ScimProvisioningService {
   async createGroup(workspaceId: string, body: any) {
     const name = body?.displayName;
     if (!name) throw new BadRequestException('displayName required');
+    if (await this.groupRepo.findByName(name, workspaceId)) {
+      throw new ConflictException('A group with this name already exists');
+    }
     const group = await this.groupRepo.insertGroup({
       name,
       workspaceId,
@@ -247,10 +302,7 @@ export class ScimProvisioningService {
   }
 
   async deleteGroup(workspaceId: string, groupId: string) {
-    await this.groupRepo.update(
-      { deletedAt: new Date() } as any,
-      groupId,
-      workspaceId,
-    );
+    // Core delete: refuses default groups and revokes access of members.
+    await this.groupService.deleteGroup(groupId, workspaceId);
   }
 }

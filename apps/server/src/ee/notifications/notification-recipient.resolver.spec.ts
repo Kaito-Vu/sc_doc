@@ -102,3 +102,21 @@ describe('NotificationRecipientResolver', () => {
     expect(recipients).toEqual(['watcher-1']);
   });
 });
+
+describe('NotificationRecipientResolver.filterPageAccessible', () => {
+  it('applies space access then page access, and short-circuits', async () => {
+    const { resolver } = createResolver({
+      spaceAccess: ['a', 'b'],
+      pageAccess: ['b'],
+    });
+    expect(
+      await resolver.filterPageAccessible(['a', 'b', 'c'], 'p', 's'),
+    ).toEqual(['b']);
+    expect(await resolver.filterPageAccessible([], 'p', 's')).toEqual([]);
+  });
+
+  it('returns [] when nobody has space access', async () => {
+    const { resolver } = createResolver({ spaceAccess: [] });
+    expect(await resolver.filterPageAccessible(['a'], 'p', 's')).toEqual([]);
+  });
+});

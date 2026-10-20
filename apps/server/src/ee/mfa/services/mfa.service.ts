@@ -24,6 +24,8 @@ import {
 } from '../../../integrations/audit/audit.service';
 import { AuditEvent, AuditResource } from '../../../common/events/audit-events';
 import { throwIfEmailNotVerified } from '../../../core/auth/auth.util';
+import { setAuthCookie, setMfaCookie } from '../auth-cookies';
+import { resolveMfaState } from './mfa-gate.service';
 import { WorkspaceRepo } from '@docmost/db/repos/workspace/workspace.repo';
 
 @Injectable()
@@ -206,16 +208,18 @@ export class MfaService {
     });
 
     const mfa = await this.userMfaRepo.findByUserId(user.id);
-    const userHasMfa = mfa?.isEnabled === true;
-    const isMfaEnforced = workspace.enforceMfa === true;
+    const { userHasMfa, isMfaEnforced, requiresMfa } = resolveMfaState(
+      mfa,
+      workspace,
+    );
 
-    if (userHasMfa || isMfaEnforced) {
+    if (requiresMfa) {
       const mfaToken = await this.tokenService.generateMfaToken(
         user,
         workspace.id,
         { method: 'local' },
       );
-      this.setMfaCookie(res, mfaToken);
+      setMfaCookie(res, this.environmentService, mfaToken);
 
       return {
         userHasMfa,
@@ -315,7 +319,7 @@ export class MfaService {
     const authToken = await this.sessionService.createSessionAndToken(user);
     // Must match the path it was set with, or the browser keeps the cookie.
     res.clearCookie('mfaToken', { path: '/' });
-    this.setAuthCookie(res, authToken);
+    setAuthCookie(res, this.environmentService, authToken);
 
     this.auditService.setActorId(user.id);
     this.auditService.setActorType('user');
@@ -406,25 +410,5 @@ export class MfaService {
       backupCodes.map((code) => bcrypt.hash(code, 10)),
     );
     return { backupCodes, hashedCodes };
-  }
-
-  private setMfaCookie(res: FastifyReply, token: string) {
-    res.setCookie('mfaToken', token, {
-      httpOnly: true,
-      sameSite: 'lax',
-      path: '/',
-      expires: new Date(Date.now() + 5 * 60 * 1000),
-      secure: this.environmentService.isHttps(),
-    });
-  }
-
-  private setAuthCookie(res: FastifyReply, token: string) {
-    res.setCookie('authToken', token, {
-      httpOnly: true,
-      sameSite: 'lax',
-      path: '/',
-      expires: this.environmentService.getCookieExpiresIn(),
-      secure: this.environmentService.isHttps(),
-    });
   }
 }

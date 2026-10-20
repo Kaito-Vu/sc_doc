@@ -81,7 +81,16 @@ export class NotificationRecipientResolver {
 
     if (candidates.size === 0) return [];
 
-    const userIds = [...candidates];
+    return this.filterPageAccessible([...candidates], pageId, spaceId);
+  }
+
+  /** Keeps only users with space access and (restriction-aware) page access. */
+  async filterPageAccessible(
+    userIds: string[],
+    pageId: string,
+    spaceId: string,
+  ): Promise<string[]> {
+    if (userIds.length === 0) return [];
     const inSpace = await this.spaceMemberRepo.getUserIdsWithSpaceAccess(
       userIds,
       spaceId,

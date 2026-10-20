@@ -1,4 +1,5 @@
 import { LineChart } from "@mantine/charts";
+import "@mantine/charts/styles.css";
 import { Paper, Text } from "@mantine/core";
 import { IWeeklyCount } from "@/ee/statistics/types/statistics.types";
 

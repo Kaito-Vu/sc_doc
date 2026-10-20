@@ -20,5 +20,10 @@ import { SpaceMembershipNotificationListener } from './listeners/space-membershi
     PageLifecycleNotificationListener,
     SpaceMembershipNotificationListener,
   ],
+  exports: [
+    NotificationRecipientsRepo,
+    NotificationRecipientResolver,
+    NotificationDispatcher,
+  ],
 })
 export class NotificationsModule {}

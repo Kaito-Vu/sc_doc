@@ -12,6 +12,7 @@ import {
 import { AuditEvent, AuditResource } from '../../../common/events/audit-events';
 import { LoginContext } from '../types/login-context';
 import { isUserDisabled } from '../../../common/helpers';
+import { setMfaCookie } from '../auth-cookies';
 
 export interface MfaGateResult {
   requiresMfa: boolean;
@@ -19,6 +20,20 @@ export interface MfaGateResult {
   userHasMfa?: boolean;
   requiresMfaSetup?: boolean;
   isMfaEnforced?: boolean;
+}
+
+/** The one MFA enforcement rule: challenge if user has MFA or workspace enforces it. */
+export function resolveMfaState(
+  mfa: { isEnabled?: boolean | null } | null | undefined,
+  workspace: Pick<Workspace, 'enforceMfa'>,
+) {
+  const userHasMfa = mfa?.isEnabled === true;
+  const isMfaEnforced = workspace.enforceMfa === true;
+  return {
+    userHasMfa,
+    isMfaEnforced,
+    requiresMfa: userHasMfa || isMfaEnforced,
+  };
 }
 
 @Injectable()
@@ -44,22 +59,18 @@ export class MfaGateService {
     }
 
     const mfa = await this.userMfaRepo.findByUserId(user.id);
-    const userHasMfa = mfa?.isEnabled === true;
-    const isMfaEnforced = workspace.enforceMfa === true;
+    const { userHasMfa, isMfaEnforced, requiresMfa } = resolveMfaState(
+      mfa,
+      workspace,
+    );
 
-    if (userHasMfa || isMfaEnforced) {
+    if (requiresMfa) {
       const mfaToken = await this.tokenService.generateMfaToken(
         user,
         workspace.id,
         loginContext,
       );
-      res.setCookie('mfaToken', mfaToken, {
-        httpOnly: true,
-        sameSite: 'lax',
-        path: '/',
-        expires: new Date(Date.now() + 5 * 60 * 1000),
-        secure: this.environmentService.isHttps(),
-      });
+      setMfaCookie(res, this.environmentService, mfaToken);
       return {
         requiresMfa: true,
         userHasMfa,
