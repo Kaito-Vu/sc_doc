@@ -1,3 +1,4 @@
+import { activeWorkspaceUsers } from '../common/active-user';
 import { Injectable } from '@nestjs/common';
 import { InjectKysely } from 'nestjs-kysely';
 import { KyselyDB, KyselyTransaction } from '@docmost/db/types/kysely.types';
@@ -116,13 +117,9 @@ export class PageVerificationRepo {
     workspaceId: string,
   ): Promise<string[]> {
     if (userIds.length === 0) return [];
-    const rows = await this.db
-      .selectFrom('users')
-      .select('id')
-      .where('id', 'in', userIds)
-      .where('workspaceId', '=', workspaceId)
-      .where('deletedAt', 'is', null)
-      .where('deactivatedAt', 'is', null)
+    const rows = await activeWorkspaceUsers(this.db, workspaceId)
+      .select('users.id')
+      .where('users.id', 'in', userIds)
       .execute();
     return rows.map((r) => r.id);
   }

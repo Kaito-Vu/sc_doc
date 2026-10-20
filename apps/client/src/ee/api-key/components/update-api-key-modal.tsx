@@ -1,16 +1,8 @@
-import { Modal, TextInput, Button, Group, Stack } from "@mantine/core";
-import { useForm } from "@mantine/form";
-import { zod4Resolver } from "mantine-form-zod-resolver";
-import { z } from "zod/v4";
+import { Modal } from "@mantine/core";
 import { useTranslation } from "react-i18next";
 import { useUpdateApiKeyMutation } from "@/ee/api-key/queries/api-key-query";
 import { IApiKey } from "@/ee/api-key";
-import { useEffect } from "react";
-
-const formSchema = z.object({
-  name: z.string().min(1, "Name is required"),
-});
-type FormValues = z.infer<typeof formSchema>;
+import { RenameCredentialForm } from "@/ee/components/rename-credential-form";
 
 interface UpdateApiKeyModalProps {
   opened: boolean;
@@ -26,29 +18,6 @@ export function UpdateApiKeyModal({
   const { t } = useTranslation();
   const updateApiKeyMutation = useUpdateApiKeyMutation();
 
-  const form = useForm<FormValues>({
-    validate: zod4Resolver(formSchema),
-    initialValues: {
-      name: "",
-    },
-  });
-
-  useEffect(() => {
-    if (opened && apiKey) {
-      form.setValues({ name: apiKey.name });
-    }
-  }, [opened, apiKey]);
-
-  const handleSubmit = async (data: { name?: string }) => {
-    const apiKeyData = {
-      apiKeyId: apiKey.id,
-      name: data.name,
-    };
-
-    await updateApiKeyMutation.mutateAsync(apiKeyData);
-    onClose();
-  };
-
   return (
     <Modal
       opened={opened}
@@ -57,25 +26,16 @@ export function UpdateApiKeyModal({
       size="md"
       closeButtonProps={{ "aria-label": t("Close") }}
     >
-      <form onSubmit={form.onSubmit((values) => handleSubmit(values))}>
-        <Stack gap="md">
-          <TextInput
-            label={t("Name")}
-            placeholder={t("Enter a descriptive token name")}
-            required
-            {...form.getInputProps("name")}
-          />
-
-          <Group justify="flex-end" mt="md">
-            <Button variant="default" onClick={onClose}>
-              {t("Cancel")}
-            </Button>
-            <Button type="submit" loading={updateApiKeyMutation.isPending}>
-              {t("Update")}
-            </Button>
-          </Group>
-        </Stack>
-      </form>
+      <RenameCredentialForm
+        opened={opened}
+        currentName={apiKey?.name}
+        placeholder={t("Enter a descriptive token name")}
+        loading={updateApiKeyMutation.isPending}
+        onClose={onClose}
+        onSubmit={(name) =>
+          updateApiKeyMutation.mutateAsync({ apiKeyId: apiKey.id, name })
+        }
+      />
     </Modal>
   );
 }

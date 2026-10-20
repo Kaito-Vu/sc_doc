@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Popover, InputBase, Input } from "@mantine/core";
-import { IconX, IconChevronDown } from "@tabler/icons-react";
+import { IconChevronDown } from "@tabler/icons-react";
 import clsx from "clsx";
 import {
   usePersonSearch,
@@ -12,6 +12,7 @@ import {
 } from "@/ee/base/reference/reference-store";
 import { useListKeyboardNav } from "@/ee/base/hooks/use-list-keyboard-nav";
 import { CustomAvatar } from "@/components/ui/custom-avatar";
+import { PersonTag } from "@/ee/base/components/cells/person-tag";
 import cellClasses from "@/ee/base/styles/cells.module.css";
 import { useTranslation } from "react-i18next";
 
@@ -172,31 +173,14 @@ export function FilterPersonInput({
       <Popover.Dropdown p={0}>
         <div className={cellClasses.personTagArea}>
           {multiple &&
-            ids.map((id) => {
-              const user = store.users[id];
-              const name = user?.name ?? id.substring(0, 8);
-              return (
-                <span key={id} className={cellClasses.personTag}>
-                  <CustomAvatar
-                    avatarUrl={user?.avatarUrl ?? ""}
-                    name={name}
-                    size={18}
-                    radius="xl"
-                  />
-                  <span className={cellClasses.personTagName}>{name}</span>
-                  <button
-                    type="button"
-                    className={cellClasses.personTagRemove}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleRemove(id);
-                    }}
-                  >
-                    <IconX size={10} />
-                  </button>
-                </span>
-              );
-            })}
+            ids.map((id) => (
+              <PersonTag
+                key={id}
+                id={id}
+                user={store.users[id]}
+                onRemove={handleRemove}
+              />
+            ))}
           <input
             ref={searchRef}
             className={cellClasses.personTagInput}

@@ -38,6 +38,16 @@ export default function WorkspaceStatistics() {
     return null;
   }
 
+  const count = (n?: number) => n ?? (isLoading ? "…" : 0);
+  const cards = [
+    { label: t("Total pages"), value: count(stats?.totalPages), icon: IconFiles },
+    { label: t("Total users"), value: count(stats?.totalUsers), icon: IconUsers },
+    { label: t("Active users"), value: count(stats?.totalActiveUsers), icon: IconUserCheck },
+    { label: t("Total spaces"), value: count(stats?.totalSpaces), icon: IconSpaces },
+    { label: t("Storage used"), value: formatBytes(stats?.storageUsedBytes ?? 0), icon: IconDatabase },
+    { label: t("Never logged in"), value: count(stats?.usersNeverLoggedIn), icon: IconUserOff },
+  ];
+
   return (
     <>
       <Helmet>
@@ -48,48 +58,11 @@ export default function WorkspaceStatistics() {
       <SettingsTitle title={t("Statistics")} />
 
       <Grid mt="md">
-        <Grid.Col span={{ base: 12, sm: 6, md: 4 }}>
-          <StatCard
-            label={t("Total pages")}
-            value={stats?.totalPages ?? (isLoading ? "…" : 0)}
-            icon={IconFiles}
-          />
-        </Grid.Col>
-        <Grid.Col span={{ base: 12, sm: 6, md: 4 }}>
-          <StatCard
-            label={t("Total users")}
-            value={stats?.totalUsers ?? (isLoading ? "…" : 0)}
-            icon={IconUsers}
-          />
-        </Grid.Col>
-        <Grid.Col span={{ base: 12, sm: 6, md: 4 }}>
-          <StatCard
-            label={t("Active users")}
-            value={stats?.totalActiveUsers ?? (isLoading ? "…" : 0)}
-            icon={IconUserCheck}
-          />
-        </Grid.Col>
-        <Grid.Col span={{ base: 12, sm: 6, md: 4 }}>
-          <StatCard
-            label={t("Total spaces")}
-            value={stats?.totalSpaces ?? (isLoading ? "…" : 0)}
-            icon={IconSpaces}
-          />
-        </Grid.Col>
-        <Grid.Col span={{ base: 12, sm: 6, md: 4 }}>
-          <StatCard
-            label={t("Storage used")}
-            value={formatBytes(stats?.storageUsedBytes ?? 0)}
-            icon={IconDatabase}
-          />
-        </Grid.Col>
-        <Grid.Col span={{ base: 12, sm: 6, md: 4 }}>
-          <StatCard
-            label={t("Never logged in")}
-            value={stats?.usersNeverLoggedIn ?? (isLoading ? "…" : 0)}
-            icon={IconUserOff}
-          />
-        </Grid.Col>
+        {cards.map((card) => (
+          <Grid.Col key={card.label} span={{ base: 12, sm: 6, md: 4 }}>
+            <StatCard {...card} />
+          </Grid.Col>
+        ))}
       </Grid>
 
       {stats?.usersByRole && (

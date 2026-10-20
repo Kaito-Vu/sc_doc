@@ -35,10 +35,25 @@ import { getApiErrorMessage } from "@/lib/api-error";
 import { useHydrateReferences } from "@/ee/base/reference/reference-store";
 import { markRequestIdOutbound } from "@/ee/base/hooks/use-base-socket";
 import { v7 as uuid7 } from "uuid";
+import {
+  RowsData,
+  RowsSnapshots,
+  appendRow,
+  hasKanbanView,
+  mapRow,
+  patchRowsCache,
+  patchSingleRow,
+  removeRows,
+  removeSingleRows,
+  rollbackRows,
+  updateRows,
+} from "@/ee/base/queries/base-row-cache";
 
-type RowCacheContext = {
-  snapshots: [readonly unknown[], InfiniteData<IBaseRowsPage> | undefined][];
-};
+type RowCacheContext = { snapshots: RowsSnapshots };
+
+function showError(error: unknown, fallback: string) {
+  notifications.show({ message: getApiErrorMessage(error, fallback), color: "red" });
+}
 
 // An empty group filter is the draft-layer's "no predicates" marker (see use-view-draft.ts).
 // Strip it at the query boundary to keep request payloads clean and cache keys stable.
@@ -129,36 +144,15 @@ export function useCreateRowMutation() {
   return useMutation<IBaseRow, Error, CreateRowInput>({
     mutationFn: (data) => createRow({ ...data, requestId: newRequestId() }),
     onSuccess: (newRow) => {
-      queryClient.setQueriesData<InfiniteData<IBaseRowsPage>>(
-        { queryKey: ["base-rows", newRow.pageId] },
-        (old) => {
-          if (!old) return old;
-          const lastPageIndex = old.pages.length - 1;
-          return {
-            ...old,
-            pages: old.pages.map((page, index) => {
-              if (index === lastPageIndex) {
-                return { ...page, items: [...page.items, newRow] };
-              }
-              return page;
-            }),
-          };
-        },
-      );
-      const base = queryClient.getQueryData<IBase>(["bases", newRow.pageId]);
-      if ((base?.views ?? []).some((v) => v.type === "kanban")) {
+      updateRows(queryClient, newRow.pageId, appendRow(newRow));
+      if (hasKanbanView(queryClient, newRow.pageId)) {
         queryClient.invalidateQueries({
           queryKey: ["base-rows", newRow.pageId],
           refetchType: "none",
         });
       }
     },
-    onError: (error) => {
-      notifications.show({
-        message: getApiErrorMessage(error, t("Failed to create row")),
-        color: "red",
-      });
-    },
+    onError: (error) => showError(error, t("Failed to create row")),
   });
 }
 
@@ -183,87 +177,38 @@ export function useUpdateRowMutation() {
   return useMutation<IBaseRow, Error, UpdateRowInput, RowCacheContext>({
     mutationFn: (data) => updateRow({ ...data, requestId: newRequestId() }),
     onMutate: async (variables) => {
-      await queryClient.cancelQueries({
-        queryKey: ["base-rows", variables.pageId],
-      });
-
-      const snapshots = queryClient.getQueriesData<
-        InfiniteData<IBaseRowsPage>
-      >({ queryKey: ["base-rows", variables.pageId] });
-
-      queryClient.setQueriesData<InfiniteData<IBaseRowsPage>>(
-        { queryKey: ["base-rows", variables.pageId] },
-        (old) => {
-          if (!old) return old;
-          return {
-            ...old,
-            pages: old.pages.map((page) => ({
-              ...page,
-              items: page.items.map((row) =>
-                row.id === variables.rowId
-                  ? {
-                      ...row,
-                      cells: { ...row.cells, ...variables.cells },
-                      ...(variables.position !== undefined && {
-                        position: variables.position,
-                      }),
-                    }
-                  : row,
-              ),
-            })),
-          };
-        },
+      const snapshots = await patchRowsCache(
+        queryClient,
+        variables.pageId,
+        mapRow(variables.rowId, (row) => ({
+          ...row,
+          cells: { ...row.cells, ...variables.cells },
+          ...(variables.position !== undefined && {
+            position: variables.position,
+          }),
+        })),
       );
-
-      queryClient.setQueryData<IBaseRow>(
-        ["base-row", variables.pageId, variables.rowId],
-        (old) =>
-          old
-            ? { ...old, cells: { ...old.cells, ...variables.cells } }
-            : old,
-      );
-
+      patchSingleRow(queryClient, variables.pageId, variables.rowId, (old) => ({
+        ...old,
+        cells: { ...old.cells, ...variables.cells },
+      }));
       return { snapshots };
     },
     onError: (error, variables, context) => {
-      if (context?.snapshots) {
-        for (const [key, data] of context.snapshots) {
-          queryClient.setQueryData(key, data);
-        }
-      }
+      rollbackRows(queryClient, context?.snapshots);
       queryClient.invalidateQueries({
         queryKey: ["base-row", variables.pageId, variables.rowId],
       });
-      notifications.show({
-        message: getApiErrorMessage(error, t("Failed to update row")),
-        color: "red",
-      });
+      showError(error, t("Failed to update row"));
     },
     onSuccess: (updatedRow, variables) => {
-      queryClient.setQueriesData<InfiniteData<IBaseRowsPage>>(
-        { queryKey: ["base-rows", updatedRow.pageId] },
-        (old) => {
-          if (!old) return old;
-          return {
-            ...old,
-            pages: old.pages.map((page) => ({
-              ...page,
-              items: page.items.map((row) =>
-                row.id === updatedRow.id
-                  ? { ...row, ...updatedRow, cells: { ...row.cells, ...updatedRow.cells } }
-                  : row,
-              ),
-            })),
-          };
-        },
-      );
-      queryClient.setQueryData<IBaseRow>(
-        ["base-row", updatedRow.pageId, updatedRow.id],
-        (old) =>
-          old
-            ? { ...old, ...updatedRow, cells: { ...old.cells, ...updatedRow.cells } }
-            : old,
-      );
+      const merge = (row: IBaseRow): IBaseRow => ({
+        ...row,
+        ...updatedRow,
+        cells: { ...row.cells, ...updatedRow.cells },
+      });
+      updateRows(queryClient, updatedRow.pageId, mapRow(updatedRow.id, merge));
+      patchSingleRow(queryClient, updatedRow.pageId, updatedRow.id, merge);
 
       const base = queryClient.getQueryData<IBase>(["bases", variables.pageId]);
       const kanbanGroupByIds = new Set(
@@ -284,42 +229,20 @@ export function useDeleteRowMutation() {
   const { t } = useTranslation();
   return useMutation<void, Error, DeleteRowInput, RowCacheContext>({
     mutationFn: (data) => deleteRow({ ...data, requestId: newRequestId() }),
-    onMutate: async (variables) => {
-      await queryClient.cancelQueries({
-        queryKey: ["base-rows", variables.pageId],
-      });
-
-      const snapshots = queryClient.getQueriesData<
-        InfiniteData<IBaseRowsPage>
-      >({ queryKey: ["base-rows", variables.pageId] });
-
-      queryClient.setQueriesData<InfiniteData<IBaseRowsPage>>(
-        { queryKey: ["base-rows", variables.pageId] },
-        (old) => {
-          if (!old) return old;
-          return {
-            ...old,
-            pages: old.pages.map((page) => ({
-              ...page,
-              items: page.items.filter((row) => row.id !== variables.rowId),
-            })),
-          };
-        },
-      );
-
-      return { snapshots };
+    onMutate: async (variables) => ({
+      snapshots: await patchRowsCache(
+        queryClient,
+        variables.pageId,
+        removeRows([variables.rowId]),
+      ),
+    }),
+    onError: (error, _, context) => {
+      rollbackRows(queryClient, context?.snapshots);
+      showError(error, t("Failed to delete row"));
     },
-    onError: (error, variables, context) => {
-      if (context?.snapshots) {
-        for (const [key, data] of context.snapshots) {
-          queryClient.setQueryData(key, data);
-        }
-      }
-      notifications.show({
-        message: getApiErrorMessage(error, t("Failed to delete row")),
-        color: "red",
-      });
-    },
+    // Consistency fix: drop the deep-link single-row entry once the delete is confirmed.
+    onSuccess: (_, variables) =>
+      removeSingleRows(queryClient, variables.pageId, [variables.rowId]),
   });
 }
 
@@ -327,92 +250,45 @@ export function useDeleteRowsMutation() {
   const { t } = useTranslation();
   return useMutation<void, Error, DeleteRowsInput, RowCacheContext>({
     mutationFn: (data) => deleteRows({ ...data, requestId: newRequestId() }),
-    onMutate: async (variables) => {
-      await queryClient.cancelQueries({
-        queryKey: ["base-rows", variables.pageId],
-      });
-
-      const snapshots = queryClient.getQueriesData<
-        InfiniteData<IBaseRowsPage>
-      >({ queryKey: ["base-rows", variables.pageId] });
-
-      const removeSet = new Set(variables.rowIds);
-      queryClient.setQueriesData<InfiniteData<IBaseRowsPage>>(
-        { queryKey: ["base-rows", variables.pageId] },
-        (old) => {
-          if (!old) return old;
-          return {
-            ...old,
-            pages: old.pages.map((page) => ({
-              ...page,
-              items: page.items.filter((row) => !removeSet.has(row.id)),
-            })),
-          };
-        },
-      );
-
-      return { snapshots };
+    onMutate: async (variables) => ({
+      snapshots: await patchRowsCache(
+        queryClient,
+        variables.pageId,
+        removeRows(variables.rowIds),
+      ),
+    }),
+    onError: (error, _, context) => {
+      rollbackRows(queryClient, context?.snapshots);
+      showError(error, t("Failed to delete rows"));
     },
-    onError: (error, __, context) => {
-      if (context?.snapshots) {
-        for (const [key, data] of context.snapshots) {
-          queryClient.setQueryData(key, data);
-        }
-      }
-      notifications.show({
-        message: getApiErrorMessage(error, t("Failed to delete rows")),
-        color: "red",
-      });
-    },
+    onSuccess: (_, variables) =>
+      removeSingleRows(queryClient, variables.pageId, variables.rowIds),
   });
 }
-
-
-
 
 export function useReorderRowMutation() {
   const { t } = useTranslation();
   return useMutation<void, Error, ReorderRowInput, RowCacheContext>({
     mutationFn: (data) => reorderRow({ ...data, requestId: newRequestId() }),
     onMutate: async (variables) => {
-      await queryClient.cancelQueries({
-        queryKey: ["base-rows", variables.pageId],
+      const withPosition = (row: IBaseRow): IBaseRow => ({
+        ...row,
+        position: variables.position,
       });
-
-      const snapshots = queryClient.getQueriesData<
-        InfiniteData<IBaseRowsPage>
-      >({ queryKey: ["base-rows", variables.pageId] });
-
-      queryClient.setQueriesData<InfiniteData<IBaseRowsPage>>(
-        { queryKey: ["base-rows", variables.pageId] },
-        (old) => {
-          if (!old) return old;
-          return {
-            ...old,
-            pages: old.pages.map((page) => ({
-              ...page,
-              items: page.items.map((row) =>
-                row.id === variables.rowId
-                  ? { ...row, position: variables.position }
-                  : row,
-              ),
-            })),
-          };
-        },
+      const snapshots = await patchRowsCache(
+        queryClient,
+        variables.pageId,
+        mapRow(variables.rowId, withPosition),
       );
-
+      patchSingleRow(queryClient, variables.pageId, variables.rowId, withPosition);
       return { snapshots };
     },
     onError: (error, variables, context) => {
-      if (context?.snapshots) {
-        for (const [key, data] of context.snapshots) {
-          queryClient.setQueryData(key, data);
-        }
-      }
-      notifications.show({
-        message: getApiErrorMessage(error, t("Failed to reorder row")),
-        color: "red",
+      rollbackRows(queryClient, context?.snapshots);
+      queryClient.invalidateQueries({
+        queryKey: ["base-row", variables.pageId, variables.rowId],
       });
+      showError(error, t("Failed to reorder row"));
     },
   });
 }
@@ -459,16 +335,7 @@ export function useKanbanMoveCardMutation() {
       ];
 
       if (columnChanged) {
-        queryClient.setQueryData<InfiniteData<IBaseRowsPage>>(sourceKey, (old) => {
-          if (!old) return old;
-          return {
-            ...old,
-            pages: old.pages.map((page) => ({
-              ...page,
-              items: page.items.filter((r) => r.id !== rowId),
-            })),
-          };
-        });
+        queryClient.setQueryData<RowsData>(sourceKey, removeRows([rowId]));
 
         const movingRow = findRowInInfinite(sourceSnapshot, rowId);
         if (movingRow) {
@@ -477,47 +344,21 @@ export function useKanbanMoveCardMutation() {
             cells: { ...movingRow.cells, [groupByPropertyId]: destChoiceValue },
             position,
           };
-          queryClient.setQueryData<InfiniteData<IBaseRowsPage>>(destKey, (old) => {
-            if (!old) return old;
-            const lastPageIndex = old.pages.length - 1;
-            return {
-              ...old,
-              pages: old.pages.map((page, index) =>
-                index === lastPageIndex
-                  ? { ...page, items: [...page.items, moved] }
-                  : page,
-              ),
-            };
-          });
+          queryClient.setQueryData<RowsData>(destKey, appendRow(moved));
         }
 
       } else {
-        queryClient.setQueryData<InfiniteData<IBaseRowsPage>>(destKey, (old) => {
-          if (!old) return old;
-          return {
-            ...old,
-            pages: old.pages.map((page) => ({
-              ...page,
-              items: page.items.map((r) =>
-                r.id === rowId ? { ...r, position } : r,
-              ),
-            })),
-          };
-        });
+        queryClient.setQueryData<RowsData>(
+          destKey,
+          mapRow(rowId, (r) => ({ ...r, position })),
+        );
       }
 
       return { snapshots };
     },
     onError: (error, __, context) => {
-      if (context?.snapshots) {
-        for (const [key, data] of context.snapshots) {
-          queryClient.setQueryData(key, data);
-        }
-      }
-      notifications.show({
-        message: getApiErrorMessage(error, t("Failed to move card")),
-        color: "red",
-      });
+      rollbackRows(queryClient, context?.snapshots);
+      showError(error, t("Failed to move card"));
     },
   });
 }
@@ -543,29 +384,13 @@ export function useKanbanCreateCardMutation() {
     onSuccess: (newRow, variables) => {
       const { pageId, destColumnFilter } = variables;
       const destKey = baseRowsQueryKey(pageId, destColumnFilter, undefined);
-      queryClient.setQueryData<InfiniteData<IBaseRowsPage>>(destKey, (old) => {
-        if (!old) return old;
-        const lastPageIndex = old.pages.length - 1;
-        return {
-          ...old,
-          pages: old.pages.map((page, index) =>
-            index === lastPageIndex
-              ? { ...page, items: [...page.items, newRow] }
-              : page,
-          ),
-        };
-      });
+      queryClient.setQueryData<RowsData>(destKey, appendRow(newRow));
       queryClient.setQueryData<IBaseRow>(
         ["base-row", newRow.pageId, newRow.id],
         newRow,
       );
     },
-    onError: (error) => {
-      notifications.show({
-        message: getApiErrorMessage(error, t("Failed to add card")),
-        color: "red",
-      });
-    },
+    onError: (error) => showError(error, t("Failed to add card")),
   });
 }
 

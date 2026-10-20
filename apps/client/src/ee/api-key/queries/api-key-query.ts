@@ -17,6 +17,7 @@ import {
 } from "@/ee/api-key";
 import { notifications } from "@mantine/notifications";
 import { useTranslation } from "react-i18next";
+import { notifyError } from "../../lib/notify-error";
 
 export function useGetApiKeysQuery(
   params?: QueryParams,
@@ -49,10 +50,7 @@ export function useRevokeApiKeyMutation() {
           ["api-key-list"].includes(item.queryKey[0] as string),
       });
     },
-    onError: (error) => {
-      const errorMessage = error["response"]?.data?.message;
-      notifications.show({ message: errorMessage, color: "red" });
-    },
+    onError: (error) => notifyError(error, t("Failed to revoke API key")),
   });
 }
 
@@ -73,10 +71,7 @@ export function useCreateApiKeyMutation() {
           ["api-key-list"].includes(item.queryKey[0] as string),
       });
     },
-    onError: (error) => {
-      const errorMessage = error["response"]?.data?.message;
-      notifications.show({ message: errorMessage, color: "red" });
-    },
+    onError: (error) => notifyError(error, t("Failed to create API key")),
   });
 }
 
@@ -93,9 +88,6 @@ export function useUpdateApiKeyMutation() {
           ["api-key-list"].includes(item.queryKey[0] as string),
       });
     },
-    onError: (error) => {
-      const errorMessage = error["response"]?.data?.message;
-      notifications.show({ message: errorMessage, color: "red" });
-    },
+    onError: (error) => notifyError(error, t("Failed to update API key")),
   });
 }

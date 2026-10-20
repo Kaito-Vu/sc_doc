@@ -1,7 +1,6 @@
 import {
   Body,
   Controller,
-  ForbiddenException,
   HttpCode,
   HttpStatus,
   Post,
@@ -14,13 +13,17 @@ import { AuthUser } from '../../common/decorators/auth-user.decorator';
 import { AuthWorkspace } from '../../common/decorators/auth-workspace.decorator';
 import { User, Workspace } from '@docmost/db/types/entity.types';
 import { KyselyDB } from '@docmost/db/types/kysely.types';
-import { UserRole } from '../../common/helpers/types/permission';
+import WorkspaceAbilityFactory from '../../core/casl/abilities/workspace-ability.factory';
+import { assertCanManageWorkspace } from '../common/workspace-admin';
 import { UpdateWorkspaceLocaleDto } from './workspace-locale.dto';
 
 @UseGuards(JwtAuthGuard)
 @Controller('workspace-locale')
 export class WorkspaceLocaleController {
-  constructor(@InjectKysely() private readonly db: KyselyDB) {}
+  constructor(
+    @InjectKysely() private readonly db: KyselyDB,
+    private readonly workspaceAbility: WorkspaceAbilityFactory,
+  ) {}
 
   // Stores defaultLocale / forceLocale in workspaces.settings (jsonb). The
   // client enforces them; no per-user rows are rewritten, so un-forcing
@@ -32,9 +35,7 @@ export class WorkspaceLocaleController {
     @AuthUser() user: User,
     @AuthWorkspace() workspace: Workspace,
   ) {
-    if (user.role !== UserRole.OWNER && user.role !== UserRole.ADMIN) {
-      throw new ForbiddenException();
-    }
+    assertCanManageWorkspace(this.workspaceAbility, user, workspace);
     const patch: Record<string, unknown> = {};
     if (dto.defaultLocale !== undefined) patch.defaultLocale = dto.defaultLocale;
     if (dto.forceLocale !== undefined) patch.forceLocale = dto.forceLocale;

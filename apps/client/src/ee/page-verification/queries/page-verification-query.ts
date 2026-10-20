@@ -32,6 +32,7 @@ import {
 import { notifications } from "@mantine/notifications";
 import { useTranslation } from "react-i18next";
 import { IPagination } from "@/lib/types";
+import { notifyError } from "../../lib/notify-error";
 
 export function usePageVerificationInfoQuery(
   pageId: string | undefined,
@@ -55,13 +56,7 @@ export function useSetupVerificationMutation() {
       });
       notifications.show({ message: t("Verification enabled") });
     },
-    onError: (error) => {
-      const errorMessage = error["response"]?.data?.message;
-      notifications.show({
-        message: errorMessage || t("Failed to enable verification"),
-        color: "red",
-      });
-    },
+    onError: (error) => notifyError(error, t("Failed to enable verification")),
   });
 }
 
@@ -77,13 +72,7 @@ export function useUpdateVerificationMutation() {
       });
       notifications.show({ message: t("Verification updated") });
     },
-    onError: (error) => {
-      const errorMessage = error["response"]?.data?.message;
-      notifications.show({
-        message: errorMessage || t("Failed to update verification"),
-        color: "red",
-      });
-    },
+    onError: (error) => notifyError(error, t("Failed to update verification")),
   });
 }
 
@@ -99,13 +88,7 @@ export function useRemoveVerificationMutation() {
       });
       notifications.show({ message: t("Verification removed") });
     },
-    onError: (error) => {
-      const errorMessage = error["response"]?.data?.message;
-      notifications.show({
-        message: errorMessage || t("Failed to remove verification"),
-        color: "red",
-      });
-    },
+    onError: (error) => notifyError(error, t("Failed to remove verification")),
   });
 }
 
@@ -121,13 +104,7 @@ export function useVerifyPageMutation() {
       });
       notifications.show({ message: t("Page verified") });
     },
-    onError: (error) => {
-      const errorMessage = error["response"]?.data?.message;
-      notifications.show({
-        message: errorMessage || t("Failed to verify page"),
-        color: "red",
-      });
-    },
+    onError: (error) => notifyError(error, t("Failed to verify page")),
   });
 }
 
@@ -143,13 +120,7 @@ export function useSubmitForApprovalMutation() {
       });
       notifications.show({ message: t("Submitted for approval") });
     },
-    onError: (error) => {
-      const errorMessage = error["response"]?.data?.message;
-      notifications.show({
-        message: errorMessage || t("Failed to submit for approval"),
-        color: "red",
-      });
-    },
+    onError: (error) => notifyError(error, t("Failed to submit for approval")),
   });
 }
 
@@ -165,13 +136,7 @@ export function useRejectApprovalMutation() {
       });
       notifications.show({ message: t("Approval rejected") });
     },
-    onError: (error) => {
-      const errorMessage = error["response"]?.data?.message;
-      notifications.show({
-        message: errorMessage || t("Failed to reject approval"),
-        color: "red",
-      });
-    },
+    onError: (error) => notifyError(error, t("Failed to reject approval")),
   });
 }
 
@@ -187,13 +152,7 @@ export function useMarkObsoleteMutation() {
       });
       notifications.show({ message: t("Page marked as obsolete") });
     },
-    onError: (error) => {
-      const errorMessage = error["response"]?.data?.message;
-      notifications.show({
-        message: errorMessage || t("Failed to mark as obsolete"),
-        color: "red",
-      });
-    },
+    onError: (error) => notifyError(error, t("Failed to mark as obsolete")),
   });
 }
 
@@ -232,13 +191,7 @@ export function useSubmitForReviewMutation() {
       queryClient.invalidateQueries({ queryKey: ["review-payload", pageId] });
       notifications.show({ message: t("Submitted for review") });
     },
-    onError: (error) => {
-      const errorMessage = error["response"]?.data?.message;
-      notifications.show({
-        message: errorMessage || t("Failed to submit for review"),
-        color: "red",
-      });
-    },
+    onError: (error) => notifyError(error, t("Failed to submit for review")),
   });
 }
 
@@ -255,13 +208,7 @@ export function useApproveReviewMutation() {
       queryClient.invalidateQueries({ queryKey: ["review-payload", pageId] });
       notifications.show({ message: t("Review approved") });
     },
-    onError: (error) => {
-      const errorMessage = error["response"]?.data?.message;
-      notifications.show({
-        message: errorMessage || t("Failed to approve review"),
-        color: "red",
-      });
-    },
+    onError: (error) => notifyError(error, t("Failed to approve review")),
   });
 }
 
@@ -280,13 +227,7 @@ export function useRejectReviewMutation() {
       });
       notifications.show({ message: t("Page returned to draft") });
     },
-    onError: (error) => {
-      const errorMessage = error["response"]?.data?.message;
-      notifications.show({
-        message: errorMessage || t("Failed to reject review"),
-        color: "red",
-      });
-    },
+    onError: (error) => notifyError(error, t("Failed to reject review")),
   });
 }
 
@@ -303,12 +244,6 @@ export function useRequestClarificationMutation() {
       queryClient.invalidateQueries({ queryKey: ["review-payload", pageId] });
       notifications.show({ message: t("Clarification requested") });
     },
-    onError: (error) => {
-      const errorMessage = error["response"]?.data?.message;
-      notifications.show({
-        message: errorMessage || t("Failed to request clarification"),
-        color: "red",
-      });
-    },
+    onError: (error) => notifyError(error, t("Failed to request clarification")),
   });
 }

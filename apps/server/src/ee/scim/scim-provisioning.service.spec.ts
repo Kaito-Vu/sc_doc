@@ -134,3 +134,25 @@ describe('ScimProvisioningService lifecycle parity with core', () => {
     );
   });
 });
+
+describe('ScimProvisioningService.getUser', () => {
+  const userRepo: any = { findById: jest.fn() };
+  const svc = new ScimProvisioningService(
+    {} as any,
+    userRepo,
+    {} as any,
+    {} as any,
+    {} as any,
+    {} as any,
+  );
+
+  it('404s a deleted user', async () => {
+    userRepo.findById.mockResolvedValue({ id: 'u', deletedAt: new Date() });
+    await expect(svc.getUser('w', 'u')).rejects.toThrow('Not Found');
+  });
+
+  it('returns a deactivated user as active=false', async () => {
+    userRepo.findById.mockResolvedValue({ id: 'u', deactivatedAt: new Date() });
+    expect((await svc.getUser('w', 'u')).active).toBe(false);
+  });
+});

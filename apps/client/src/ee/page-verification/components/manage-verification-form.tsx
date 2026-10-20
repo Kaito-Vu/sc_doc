@@ -18,9 +18,7 @@ import { useCommentsQuery } from "@/features/comment/queries/comment-query";
 import {
   useMarkObsoleteMutation,
   usePageVerificationInfoQuery,
-  useRemoveVerificationMutation,
   useSubmitForReviewMutation,
-  useUpdateVerificationMutation,
   useVerifyPageMutation,
 } from "@/ee/page-verification/queries/page-verification-query";
 import {
@@ -29,6 +27,7 @@ import {
   PeriodUnit,
 } from "@/ee/page-verification/types/page-verification.types";
 import { useTimeAgo } from "@/hooks/use-time-ago";
+import { useVerifierActions } from "@/ee/page-verification/hooks/use-verifier-actions";
 import { VerifierList } from "./verifier-list";
 import {
   ExpirationFields,
@@ -76,8 +75,13 @@ type ManageContentProps = {
 function ExpiringManageContent({ pageId, info, onClose }: ManageContentProps) {
   const { t } = useTranslation();
   const verifyMutation = useVerifyPageMutation();
-  const removeMutation = useRemoveVerificationMutation();
-  const updateMutation = useUpdateVerificationMutation();
+  const {
+    removeMutation,
+    updateMutation,
+    handleRemove,
+    handleRemoveVerifier,
+    handleAddVerifier,
+  } = useVerifierActions(info, pageId, onClose);
   const [confirmed, setConfirmed] = useState(false);
 
   const initialMode: ExpirationMode = (info.mode as ExpirationMode) ?? "period";
@@ -129,20 +133,6 @@ function ExpiringManageContent({ pageId, info, onClose }: ManageContentProps) {
     });
   };
 
-  const handleRemove = () => {
-    modals.openConfirmModal({
-      title: t("Remove verification"),
-      children: (
-        <Text size="sm">
-          {t("Are you sure you want to remove verification from this page?")}
-        </Text>
-      ),
-      labels: { confirm: t("Remove"), cancel: t("Cancel") },
-      confirmProps: { color: "red" },
-      onConfirm: () => removeMutation.mutate(pageId, { onSuccess: onClose }),
-    });
-  };
-
   const handleSaveExpiration = () => {
     if (!canSaveExpiration) return;
     updateMutation.mutate({
@@ -157,21 +147,6 @@ function ExpiringManageContent({ pageId, info, onClose }: ManageContentProps) {
           fixedExpiresAt: new Date(fixedDate).toISOString(),
         }),
     });
-  };
-
-  const handleRemoveVerifier = (userId: string) => {
-    if (!info.verifiers) return;
-    const remaining = info.verifiers
-      .filter((v) => v.id !== userId)
-      .map((v) => v.id);
-    updateMutation.mutate({ pageId, verifierIds: remaining });
-  };
-
-  const handleAddVerifier = (userId: string) => {
-    if (!info.verifiers) return;
-    if (info.verifiers.some((v) => v.id === userId)) return;
-    const verifierIds = [...info.verifiers.map((v) => v.id), userId];
-    updateMutation.mutate({ pageId, verifierIds });
   };
 
   const status = info.status;
@@ -330,8 +305,12 @@ function ExpiringManageContent({ pageId, info, onClose }: ManageContentProps) {
 function QmsManageContent({ pageId, info, onClose }: ManageContentProps) {
   const { t } = useTranslation();
   const obsoleteMutation = useMarkObsoleteMutation();
-  const removeMutation = useRemoveVerificationMutation();
-  const updateMutation = useUpdateVerificationMutation();
+  const {
+    removeMutation,
+    handleRemove,
+    handleRemoveVerifier,
+    handleAddVerifier,
+  } = useVerifierActions(info, pageId, onClose);
   const { data: comments } = useCommentsQuery({ pageId });
   const unresolvedCount =
     comments?.items.filter((c) => !c.parentCommentId && !c.resolvedAt)
@@ -374,35 +353,6 @@ function QmsManageContent({ pageId, info, onClose }: ManageContentProps) {
       onConfirm: () =>
         obsoleteMutation.mutate(pageId, { onSuccess: onClose }),
     });
-  };
-
-  const handleRemove = () => {
-    modals.openConfirmModal({
-      title: t("Remove verification"),
-      children: (
-        <Text size="sm">
-          {t("Are you sure you want to remove verification from this page?")}
-        </Text>
-      ),
-      labels: { confirm: t("Remove"), cancel: t("Cancel") },
-      confirmProps: { color: "red" },
-      onConfirm: () => removeMutation.mutate(pageId, { onSuccess: onClose }),
-    });
-  };
-
-  const handleRemoveVerifier = (userId: string) => {
-    if (!info.verifiers) return;
-    const remaining = info.verifiers
-      .filter((v) => v.id !== userId)
-      .map((v) => v.id);
-    updateMutation.mutate({ pageId, verifierIds: remaining });
-  };
-
-  const handleAddVerifier = (userId: string) => {
-    if (!info.verifiers) return;
-    if (info.verifiers.some((v) => v.id === userId)) return;
-    const verifierIds = [...info.verifiers.map((v) => v.id), userId];
-    updateMutation.mutate({ pageId, verifierIds });
   };
 
   const canManageVerifiers =

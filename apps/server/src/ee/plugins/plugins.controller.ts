@@ -15,6 +15,7 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard'
 import { AuthUser } from '../../common/decorators/auth-user.decorator'
 import { AuthWorkspace } from '../../common/decorators/auth-workspace.decorator'
 import { User, Workspace } from '@docmost/db/types/entity.types'
+import { assertCanManageWorkspace } from '../common/workspace-admin'
 import WorkspaceAbilityFactory from '../../core/casl/abilities/workspace-ability.factory'
 import {
   WorkspaceCaslAction,
@@ -103,7 +104,7 @@ export class PluginsController {
     @AuthWorkspace() workspace: Workspace,
     @Param('pluginId') pluginId: string,
   ) {
-    this.assertAdmin(user, workspace)
+    assertCanManageWorkspace(this.workspaceAbility, user, workspace)
     const plugin = this.registry.getPlugin(pluginId)
     if (!plugin) {
       throw new NotFoundException(`Plugin ${pluginId} not found`)
@@ -130,7 +131,7 @@ export class PluginsController {
     @AuthWorkspace() workspace: Workspace,
     @Param('pluginId') pluginId: string,
   ) {
-    this.assertAdmin(user, workspace)
+    assertCanManageWorkspace(this.workspaceAbility, user, workspace)
     const config = await this.configService.getConfig(workspace.id, pluginId)
     return this.redactSecrets(config, this.registry.getPlugin(pluginId)?.configSchema)
   }
@@ -143,7 +144,7 @@ export class PluginsController {
     @Param('pluginId') pluginId: string,
     @Body() body: { config?: Record<string, any>; enabled?: boolean },
   ) {
-    this.assertAdmin(user, workspace)
+    assertCanManageWorkspace(this.workspaceAbility, user, workspace)
     if (!body.config && body.enabled === undefined) {
       throw new BadRequestException('Must provide config or enabled field')
     }
@@ -181,7 +182,7 @@ export class PluginsController {
     @Param('pluginId') pluginId: string,
     @Body() body: { enabled: boolean },
   ) {
-    this.assertAdmin(user, workspace)
+    assertCanManageWorkspace(this.workspaceAbility, user, workspace)
     if (typeof body.enabled !== 'boolean') {
       throw new BadRequestException('enabled field is required')
     }
@@ -201,15 +202,6 @@ export class PluginsController {
 
   // Plugin settings (and their secrets) are workspace-admin only: a member
   // toggling reCAPTCHA off or reading its secret key is a privilege escalation.
-  private assertAdmin(user: User, workspace: Workspace) {
-    const ability = this.workspaceAbility.createForUser(user, workspace)
-    if (
-      ability.cannot(WorkspaceCaslAction.Manage, WorkspaceCaslSubject.Settings)
-    ) {
-      throw new ForbiddenException()
-    }
-  }
-
   private redactSecrets<T extends { config?: Record<string, any> }>(
     data: T,
     configSchema?: Record<string, any>,

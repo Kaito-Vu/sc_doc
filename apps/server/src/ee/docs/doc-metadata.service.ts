@@ -2,7 +2,6 @@ import {
   BadRequestException,
   Inject,
   Injectable,
-  NotFoundException,
 } from '@nestjs/common';
 import { InjectKysely } from 'nestjs-kysely';
 import { KyselyDB } from '@docmost/db/types/kysely.types';
@@ -21,6 +20,8 @@ import {
   ListDocMetadataDto,
   UpdateDocMetadataDto,
 } from './dto/doc-metadata.dto';
+import { loadLivePage } from '../common/load-page';
+import { activeWorkspaceUsers } from '../common/active-user';
 import { User, Workspace } from '@docmost/db/types/entity.types';
 import { AuditEvent, AuditResource } from '../../common/events/audit-events';
 import {
@@ -40,12 +41,8 @@ export class DocMetadataService {
     @InjectKysely() private readonly db: KyselyDB,
   ) {}
 
-  private async getPage(pageId: string, workspaceId: string) {
-    const page = await this.pageRepo.findById(pageId);
-    if (!page || page.deletedAt || page.workspaceId !== workspaceId) {
-      throw new NotFoundException('Page not found');
-    }
-    return page;
+  private getPage(pageId: string, workspaceId: string) {
+    return loadLivePage(this.pageRepo, pageId, workspaceId);
   }
 
   private async canEdit(page, user: User): Promise<boolean> {
@@ -60,12 +57,9 @@ export class DocMetadataService {
   }
 
   private async assertWorkspaceUser(userId: string, workspaceId: string) {
-    const user = await this.db
-      .selectFrom('users')
-      .select('id')
-      .where('id', '=', userId)
-      .where('workspaceId', '=', workspaceId)
-      .where('deletedAt', 'is', null)
+    const user = await activeWorkspaceUsers(this.db, workspaceId)
+      .select('users.id')
+      .where('users.id', '=', userId)
       .executeTakeFirst();
     if (!user) {
       throw new BadRequestException('Invalid user');

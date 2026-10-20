@@ -6,29 +6,12 @@ import {
 } from "@tabler/icons-react";
 import { Link, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { useAtomValue } from "jotai";
-import { currentUserAtom } from "@/features/user/atoms/current-user-atom";
-import { useVerificationListQuery } from "@/ee/page-verification/queries/page-verification-query";
+import { usePendingReviewCount } from "@/ee/page-verification/hooks/use-pending-review-count";
 
 export function SpaceGlobalLinks() {
   const { t } = useTranslation();
   const location = useLocation();
-  const currentUser = useAtomValue(currentUserAtom);
-  const { data } = useVerificationListQuery(
-    {
-      verifierId: currentUser?.user?.id,
-      type: "qms",
-      limit: 50,
-    },
-    !!currentUser?.user?.id,
-  );
-
-  const pending =
-    data?.items.filter(
-      (item) =>
-        item.status === "in_approval" ||
-        item.status === "needs_clarification",
-    ).length ?? 0;
+  const pending = usePendingReviewCount();
 
   const links = [
     { to: "/home", label: t("Home"), icon: IconHome },

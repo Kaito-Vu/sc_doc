@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Popover } from "@mantine/core";
-import { IconX } from "@tabler/icons-react";
 import clsx from "clsx";
 import {
   IBaseProperty,
@@ -11,6 +10,7 @@ import {
   useHydrateUsers,
 } from "@/ee/base/reference/reference-store";
 import { CustomAvatar } from "@/components/ui/custom-avatar";
+import { PersonTag } from "@/ee/base/components/cells/person-tag";
 import { PersonReadList } from "@/ee/base/components/cells/person-read-list";
 import cellClasses from "@/ee/base/styles/cells.module.css";
 import { useListKeyboardNav } from "@/ee/base/hooks/use-list-keyboard-nav";
@@ -153,31 +153,14 @@ export function CellPerson({
         </Popover.Target>
         <Popover.Dropdown p={0}>
           <div className={cellClasses.personTagArea}>
-            {personIds.map((id) => {
-              const member = store.users[id];
-              const name = member?.name ?? id.substring(0, 8);
-              return (
-                <span key={id} className={cellClasses.personTag}>
-                  <CustomAvatar
-                    avatarUrl={member?.avatarUrl ?? ""}
-                    name={name}
-                    size={18}
-                    radius="xl"
-                  />
-                  <span className={cellClasses.personTagName}>{name}</span>
-                  <button
-                    type="button"
-                    className={cellClasses.personTagRemove}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleRemove(id);
-                    }}
-                  >
-                    <IconX size={10} />
-                  </button>
-                </span>
-              );
-            })}
+            {personIds.map((id) => (
+              <PersonTag
+                key={id}
+                id={id}
+                user={store.users[id]}
+                onRemove={handleRemove}
+              />
+            ))}
             <input
               ref={searchRef}
               className={cellClasses.personTagInput}

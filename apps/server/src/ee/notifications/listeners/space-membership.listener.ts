@@ -3,6 +3,7 @@ import { OnEvent } from '@nestjs/event-emitter';
 import { EventName } from '../../../common/events/event.contants';
 import { SpaceMemberRepo } from '@docmost/db/repos/space/space-member.repo';
 import { DomainService } from '../../../integrations/environment/domain.service';
+import { safeHandle, workspaceUrl } from './listener-helpers';
 import { NotificationRecipientsRepo } from '../notification-recipients.repo';
 import { NotificationDispatcher } from '../notification-dispatcher.service';
 import {
@@ -25,7 +26,7 @@ export class SpaceMembershipNotificationListener {
 
   @OnEvent(EventName.SPACE_MEMBER_ADDED)
   async handleMemberAdded(event: SpaceMemberEvent): Promise<void> {
-    await this.safe('space.member_added', () =>
+    await safeHandle(this.logger, 'space.member_added', () =>
       this.handleMemberAddedEvent(event),
     );
   }
@@ -39,7 +40,7 @@ export class SpaceMembershipNotificationListener {
     const space = await this.recipientsRepo.findSpaceContext(event.spaceId);
     if (!space) return;
 
-    const appUrl = await this.getWorkspaceUrl(event.workspaceId);
+    const appUrl = await workspaceUrl(this.recipientsRepo, this.domainService, event.workspaceId);
     const actorName = event.actorId
       ? await this.getActorName(event.actorId)
       : 'Someone';
@@ -71,7 +72,7 @@ export class SpaceMembershipNotificationListener {
 
   @OnEvent(EventName.SPACE_MEMBER_REMOVED)
   async handleMemberRemoved(event: SpaceMemberEvent): Promise<void> {
-    await this.safe('space.member_removed', () =>
+    await safeHandle(this.logger, 'space.member_removed', () =>
       this.handleMemberRemovedEvent(event),
     );
   }
@@ -93,7 +94,7 @@ export class SpaceMembershipNotificationListener {
     const space = await this.recipientsRepo.findSpaceContext(event.spaceId);
     if (!space) return;
 
-    const appUrl = await this.getWorkspaceUrl(event.workspaceId);
+    const appUrl = await workspaceUrl(this.recipientsRepo, this.domainService, event.workspaceId);
     const spaceName = space.name ?? space.slug;
 
     // The removed user no longer has space access. Store the space id in
@@ -140,21 +141,5 @@ export class SpaceMembershipNotificationListener {
     return names.get(actorId) ?? 'Someone';
   }
 
-  private async getWorkspaceUrl(workspaceId: string): Promise<string> {
-    const hostname =
-      await this.recipientsRepo.findWorkspaceHostname(workspaceId);
-    return this.domainService.getUrl(hostname);
-  }
 
-  private async safe(
-    eventName: string,
-    handler: () => Promise<void>,
-  ): Promise<void> {
-    try {
-      await handler();
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Unknown error';
-      this.logger.error(`Failed to process ${eventName} notification: ${message}`);
-    }
-  }
 }

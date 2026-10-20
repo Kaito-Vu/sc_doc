@@ -86,6 +86,28 @@ function statusTone(status: VerificationStatus): string {
   }
 }
 
+const fmtDate = (value: string | Date) => formattedDate(new Date(value));
+
+function StatusRow({
+  icon,
+  label,
+  children,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className={classes.statusRow}>
+      <span className={classes.statusLabel}>
+        {icon}
+        {label}
+      </span>
+      <span className={classes.statusValue}>{children}</span>
+    </div>
+  );
+}
+
 export function DocInfoPanel({ initialTab = "info" }: DocInfoPanelProps) {
   const { t } = useTranslation();
   const { pageSlug } = useParams();
@@ -157,26 +179,16 @@ function LifecycleSection({ page }: { page: IPage }) {
 
   return (
     <>
-      <p className={classes.statusRow}>
-        <span className={classes.statusLabel}>
-          <IconShieldCheck size={13} />
-          {t("Lifecycle")}
-        </span>
+      <StatusRow icon={<IconShieldCheck size={13} />} label={t("Lifecycle")}>
         <Badge size="sm" variant="light" color={statusTone(status)}>
           {status === "none" ? t("Not configured") : getStatusLabel(status, t)}
         </Badge>
-      </p>
+      </StatusRow>
 
       {info?.expiresAt && (
-        <p className={classes.statusRow}>
-          <span className={classes.statusLabel}>
-            <IconClock size={13} />
-            {t("Review due")}
-          </span>
-          <span className={classes.statusValue}>
-            {formattedDate(new Date(info.expiresAt))}
-          </span>
-        </p>
+        <StatusRow icon={<IconClock size={13} />} label={t("Review due")}>
+          {fmtDate(info.expiresAt)}
+        </StatusRow>
       )}
 
       <div className={classes.actions}>
@@ -273,74 +285,36 @@ function MetadataSection({ page }: { page: IPage }) {
 
   return (
     <>
-      <p className={classes.statusRow}>
-        <span className={classes.statusLabel}>
-          <IconUser size={13} />
-          {t("Owner")}
-        </span>
-        <span className={classes.statusValue}>
-          {metadata
+      <StatusRow icon={<IconUser size={13} />} label={t("Owner")}>
+        {metadata
             ? metadata.owner?.name ?? t("Unassigned")
             : page.creator?.name ?? t("Unassigned")}
-        </span>
-      </p>
-      <p className={classes.statusRow}>
-        <span className={classes.statusLabel}>
-          <IconUsers size={13} />
-          {t("Reviewer")}
-        </span>
-        <span className={classes.statusValue}>
-          {metadata?.reviewer?.name ?? t("Unassigned")}
-        </span>
-      </p>
-      <p className={classes.statusRow}>
-        <span className={classes.statusLabel}>
-          <IconTag size={13} />
-          {t("Classification")}
-        </span>
-        <span className={classes.statusValue}>{classificationLabel}</span>
-      </p>
+      </StatusRow>
+      <StatusRow icon={<IconUsers size={13} />} label={t("Reviewer")}>
+        {metadata?.reviewer?.name ?? t("Unassigned")}
+      </StatusRow>
+      <StatusRow icon={<IconTag size={13} />} label={t("Classification")}>
+        {classificationLabel}
+      </StatusRow>
       {metadata?.archivedAt && (
-        <p className={classes.statusRow}>
-          <span className={classes.statusLabel}>
-            <IconArchive size={13} />
-            {t("Archived")}
-          </span>
-          <span className={classes.statusValue}>
-            {formattedDate(new Date(metadata.archivedAt))}
-          </span>
-        </p>
+        <StatusRow icon={<IconArchive size={13} />} label={t("Archived")}>
+          {fmtDate(metadata.archivedAt)}
+        </StatusRow>
       )}
       {metadata?.docType && (
-        <p className={classes.statusRow}>
-          <span className={classes.statusLabel}>
-            <IconFileText size={13} />
-            {t("Document type")}
-          </span>
-          <span className={classes.statusValue}>{metadata.docType}</span>
-        </p>
+        <StatusRow icon={<IconFileText size={13} />} label={t("Document type")}>
+          {metadata.docType}
+        </StatusRow>
       )}
       {metadata?.effectiveAt && (
-        <p className={classes.statusRow}>
-          <span className={classes.statusLabel}>
-            <IconCalendar size={13} />
-            {t("Effective date")}
-          </span>
-          <span className={classes.statusValue}>
-            {formattedDate(new Date(metadata.effectiveAt))}
-          </span>
-        </p>
+        <StatusRow icon={<IconCalendar size={13} />} label={t("Effective date")}>
+          {fmtDate(metadata.effectiveAt)}
+        </StatusRow>
       )}
       {metadata?.reviewDueAt && (
-        <p className={classes.statusRow}>
-          <span className={classes.statusLabel}>
-            <IconClock size={13} />
-            {t("Review due")}
-          </span>
-          <span className={classes.statusValue}>
-            {formattedDate(new Date(metadata.reviewDueAt))}
-          </span>
-        </p>
+        <StatusRow icon={<IconClock size={13} />} label={t("Review due")}>
+          {fmtDate(metadata.reviewDueAt)}
+        </StatusRow>
       )}
 
       {metadata?.canEdit && (
@@ -368,17 +342,11 @@ function MetadataSection({ page }: { page: IPage }) {
 function AccessSection({ page }: { page: IPage }) {
   const { t } = useTranslation();
   return (
-    <p className={classes.statusRow}>
-      <span className={classes.statusLabel}>
-        <IconLock size={13} />
-        {t("Access")}
-      </span>
-      <span className={classes.statusValue}>
-        {page.permissions?.hasRestriction
+    <StatusRow icon={<IconLock size={13} />} label={t("Access")}>
+      {page.permissions?.hasRestriction
           ? t("Restricted")
           : t("Space members")}
-      </span>
-    </p>
+    </StatusRow>
   );
 }
 
@@ -449,41 +417,21 @@ function ActivityPanel({ page }: { page: IPage }) {
         <Text size="xs" fw={600} c="dimmed" tt="uppercase">
           {t("Document activity")}
         </Text>
-        <div className={classes.statusRow}>
-          <span className={classes.statusLabel}>
-            <IconHistory size={13} />
-            {t("Last updated")}
-          </span>
-          <span className={classes.statusValue}>{updatedAgo}</span>
-        </div>
-        <div className={classes.statusRow}>
-          <span className={classes.statusLabel}>
-            <IconShieldCheck size={13} />
-            {t("Review status")}
-          </span>
-          <span className={classes.statusValue}>
-            {status === "none" ? t("Not configured") : getStatusLabel(status, t)}
-          </span>
-        </div>
+        <StatusRow icon={<IconHistory size={13} />} label={t("Last updated")}>
+          {updatedAgo}
+        </StatusRow>
+        <StatusRow icon={<IconShieldCheck size={13} />} label={t("Review status")}>
+          {status === "none" ? t("Not configured") : getStatusLabel(status, t)}
+        </StatusRow>
         {info?.verifiedAt && (
-          <div className={classes.statusRow}>
-            <span className={classes.statusLabel}>
-              <IconCircleCheck size={13} />
-              {t("Approved at")}
-            </span>
-            <span className={classes.statusValue}>
-              {formattedDate(new Date(info.verifiedAt))}
-            </span>
-          </div>
+          <StatusRow icon={<IconCircleCheck size={13} />} label={t("Approved at")}>
+            {fmtDate(info.verifiedAt)}
+          </StatusRow>
         )}
         {info?.verifiedBy && (
-          <div className={classes.statusRow}>
-            <span className={classes.statusLabel}>
-              <IconUsers size={13} />
-              {t("Approved by")}
-            </span>
-            <span className={classes.statusValue}>{info.verifiedBy.name}</span>
-          </div>
+          <StatusRow icon={<IconUsers size={13} />} label={t("Approved by")}>
+            {info.verifiedBy.name}
+          </StatusRow>
         )}
         {info?.rejectionComment && (
           <div className={classes.reviewNote}>

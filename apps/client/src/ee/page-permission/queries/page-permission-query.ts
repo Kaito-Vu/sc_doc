@@ -22,8 +22,8 @@ import {
   updatePagePermissionRole,
 } from "@/ee/page-permission/services/page-permission-service";
 import { IPage } from "@/features/page/types/page.types";
-import { notifications } from "@mantine/notifications";
 import { useTranslation } from "react-i18next";
+import { notifyError } from "../../lib/notify-error";
 
 export function usePageRestrictionInfoQuery(
   pageId: string | undefined,
@@ -82,13 +82,7 @@ export function useRestrictPageMutation() {
     onSuccess: (_, pageId) => {
       updatePageRestrictionCache(queryClient, pageId, true);
     },
-    onError: (error) => {
-      const errorMessage = error["response"]?.data?.message;
-      notifications.show({
-        message: errorMessage || t("Failed to restrict page"),
-        color: "red",
-      });
-    },
+    onError: (error) => notifyError(error, t("Failed to restrict page")),
   });
 }
 
@@ -101,13 +95,7 @@ export function useUnrestrictPageMutation() {
     onSuccess: (_, pageId) => {
       updatePageRestrictionCache(queryClient, pageId, false);
     },
-    onError: (error) => {
-      const errorMessage = error["response"]?.data?.message;
-      notifications.show({
-        message: errorMessage || t("Failed to remove page restriction"),
-        color: "red",
-      });
-    },
+    onError: (error) => notifyError(error, t("Failed to remove page restriction")),
   });
 }
 
@@ -122,13 +110,7 @@ export function useAddPagePermissionMutation() {
         queryKey: ["page-permissions", variables.pageId],
       });
     },
-    onError: (error) => {
-      const errorMessage = error["response"]?.data?.message;
-      notifications.show({
-        message: errorMessage || t("Failed to add permission"),
-        color: "red",
-      });
-    },
+    onError: (error) => notifyError(error, t("Failed to add permission")),
   });
 }
 
@@ -143,13 +125,7 @@ export function useRemovePagePermissionMutation() {
         queryKey: ["page-permissions", variables.pageId],
       });
     },
-    onError: (error) => {
-      const errorMessage = error["response"]?.data?.message;
-      notifications.show({
-        message: errorMessage || t("Failed to remove permission"),
-        color: "red",
-      });
-    },
+    onError: (error) => notifyError(error, t("Failed to remove permission")),
   });
 }
 
@@ -164,12 +140,6 @@ export function useUpdatePagePermissionRoleMutation() {
         queryKey: ["page-permissions", variables.pageId],
       });
     },
-    onError: (error) => {
-      const errorMessage = error["response"]?.data?.message;
-      notifications.show({
-        message: errorMessage || t("Failed to update permission"),
-        color: "red",
-      });
-    },
+    onError: (error) => notifyError(error, t("Failed to update permission")),
   });
 }

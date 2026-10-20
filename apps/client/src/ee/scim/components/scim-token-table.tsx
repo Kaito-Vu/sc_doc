@@ -1,5 +1,5 @@
-import { ActionIcon, Group, Menu, Table, Text } from "@mantine/core";
-import { IconDots, IconEdit, IconTrash } from "@tabler/icons-react";
+import { Group, Table, Text } from "@mantine/core";
+import { CredentialRowMenu } from "@/ee/components/credential-row-menu";
 import { useTranslation } from "react-i18next";
 import { CustomAvatar } from "@/components/ui/custom-avatar.tsx";
 import React from "react";
@@ -92,36 +92,11 @@ export function ScimTokenTable({
                 </Table.Td>
 
                 <Table.Td>
-                  <Menu position="bottom-end" withinPortal>
-                    <Menu.Target>
-                      <ActionIcon
-                        variant="subtle"
-                        color="gray"
-                        aria-label={t("Token actions")}
-                      >
-                        <IconDots size={16} />
-                      </ActionIcon>
-                    </Menu.Target>
-                    <Menu.Dropdown>
-                      {onUpdate && (
-                        <Menu.Item
-                          leftSection={<IconEdit size={16} />}
-                          onClick={() => onUpdate(token)}
-                        >
-                          {t("Rename")}
-                        </Menu.Item>
-                      )}
-                      {onRevoke && (
-                        <Menu.Item
-                          leftSection={<IconTrash size={16} />}
-                          color="red"
-                          onClick={() => onRevoke(token)}
-                        >
-                          {t("Revoke")}
-                        </Menu.Item>
-                      )}
-                    </Menu.Dropdown>
-                  </Menu>
+                  <CredentialRowMenu
+                    ariaLabel={t("Token actions")}
+                    onRename={onUpdate && (() => onUpdate(token))}
+                    onRevoke={onRevoke && (() => onRevoke(token))}
+                  />
                 </Table.Td>
               </Table.Tr>
             ))

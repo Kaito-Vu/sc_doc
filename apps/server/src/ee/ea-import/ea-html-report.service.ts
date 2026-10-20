@@ -25,7 +25,8 @@ import { fileStem, pickPageTitle, pickReportTitle } from './ea-html-report.util'
 import { EaCpuJob, toYdoc } from './ea-cpu.tasks';
 import { runEaCpuJobs } from './ea-cpu.pool';
 import { errorMessage } from './ea-import.util';
-import { EaParseWarning } from './types/ea-import.types';
+import { EaImportResult, EaParseWarning } from './types/ea-import.types';
+import { EMPTY_DOC, INSERT_BATCH } from './ea-constants';
 
 /**
  * Imports an Enterprise Architect **HTML report** (a ZIP of `.htm`/`.html`
@@ -37,24 +38,6 @@ import { EaParseWarning } from './types/ea-import.types';
  * `relativePath`.
  */
 
-/**
- * Structurally identical to `EaImportResult` in `ea-import.service.ts`. It is
- * duplicated here to keep this service self-contained and avoid a circular
- * import between the two services.
- */
-export interface EaHtmlReportResult {
-  pageIds: string[];
-  rootPageIds: string[];
-  pageCount: number;
-  warnings: EaParseWarning[];
-}
-
-const INSERT_BATCH = 20;
-
-const EMPTY_DOC = {
-  type: 'doc',
-  content: [{ type: 'paragraph', content: [] }],
-};
 
 /**
  * Resolve `relativePath` inside `rootDir`, rejecting zip-slip entries that
@@ -94,7 +77,7 @@ export class EaHtmlReportService {
     creatorId: string;
     parentPageId?: string | null;
     onProgress?: (percent: number) => Promise<void>;
-  }): Promise<EaHtmlReportResult> {
+  }): Promise<EaImportResult> {
     const { buffer, fileTask, spaceId, workspaceId, creatorId } = opts;
 
     const archive = opts.archive ?? (await inspectEaArchive(buffer));

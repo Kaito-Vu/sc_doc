@@ -28,8 +28,7 @@ import {
   useUpdateTemplateMutation,
   useGetTemplateByIdQuery,
 } from "../queries/template-query";
-import { useGetSpacesQuery } from "@/features/space/queries/space-query";
-import useUserRole from "@/hooks/use-user-role";
+import { useTemplateScopeOptions } from "@/ee/template/hooks/use-template-scope-options";
 import { useAtomValue } from "jotai";
 import { userAtom } from "@/features/user/atoms/current-user-atom";
 import { FixedToolbar } from "@/features/editor/components/fixed-toolbar/fixed-toolbar";
@@ -47,13 +46,11 @@ import { DocumentTitle } from "@/components/ui/document-title.tsx";
 export default function TemplateEditor() {
   const { t } = useTranslation();
   const { templateId } = useParams<{ templateId: string }>();
-  const { isAdmin: isWorkspaceAdmin } = useUserRole();
   const user = useAtomValue(userAtom);
   const editorToolbarEnabled =
     user?.settings?.preferences?.editorToolbar ?? true;
 
   const { data: existingTemplate } = useGetTemplateByIdQuery(templateId || "");
-  const { data: spaces } = useGetSpacesQuery({ limit: 100 });
   const updateMutation = useUpdateTemplateMutation();
   const updateMutationRef = useRef(updateMutation.mutateAsync);
   updateMutationRef.current = updateMutation.mutateAsync;
@@ -128,22 +125,7 @@ export default function TemplateEditor() {
     }
   }, [existingTemplate, editor]);
 
-  const spaceOptions = [
-    ...(isWorkspaceAdmin
-      ? [
-          { group: t("Workspace"), items: [{ value: "", label: t("Global") }] },
-        ]
-      : []),
-    ...(spaces?.items?.length
-      ? [
-          {
-            group: t("Spaces"),
-            items: spaces.items.map((s) => ({ value: s.id, label: s.name })),
-          },
-        ]
-      : []),
-  ];
-
+  const spaceOptions = useTemplateScopeOptions();
   // Save function
   const save = useCallback(async () => {
     if (!editor || !templateId || !titleRef.current.trim()) return;

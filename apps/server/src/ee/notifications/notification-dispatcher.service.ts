@@ -1,3 +1,4 @@
+import { activeWorkspaceUsers } from '../common/active-user';
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectKysely } from 'nestjs-kysely';
 import { Json } from '@docmost/db/types/db';

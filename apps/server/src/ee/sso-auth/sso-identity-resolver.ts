@@ -6,14 +6,14 @@ import { AuthAccountRepo } from '../sso/auth-account.repo';
 import { SsoUserProvisioningService } from './sso-user-provisioning.service';
 
 /**
- * Identity decisions for directory (LDAP) logins: link lookup -> email match
- * -> provision, then link the authAccount.
+ * Identity decisions shared by OIDC and directory (LDAP) logins: link lookup
+ * -> (optional) email_verified gate -> email match -> provision, then link the
+ * authAccount.
  *
- * Decision (conservative): OIDC's resolveUser is deliberately left untouched
- * (own email_verified handling, no cross-provider check); this resolver
- * mirrors its link/anti-takeover rules and is stricter in one way - an
- * account linked to a DIFFERENT provider is never claimed by email, because
- * a directory `mail` attribute is often user-editable.
+ * All identity paths reject: an account linked to another subject of the same
+ * provider, an account linked to a DIFFERENT provider (never claimed by
+ * email), and deactivated/deleted users (checked before any link is written,
+ * and never re-provisioned over).
  *
  * Legacy LDAP users have no authAccount row: they match by email and get
  * linked on their next login, so they keep working.
@@ -33,10 +33,19 @@ export class SsoIdentityResolver {
       providerUserId: string;
       provider: { id: string; allowSignup: boolean };
       workspaceId: string;
+      /** OIDC: pass the IdP's email_verified; an explicit false blocks email match/provisioning. */
+      emailVerified?: boolean;
     },
     trx: KyselyTransaction,
   ): Promise<User> {
-    const { email, name, providerUserId, provider, workspaceId } = params;
+    const {
+      email,
+      name,
+      providerUserId,
+      provider,
+      workspaceId,
+      emailVerified,
+    } = params;
 
     const linked = await this.authAccountRepo.findByProviderUserId(
       provider.id,
@@ -48,9 +57,14 @@ export class SsoIdentityResolver {
       ? await this.userRepo.findById(linked.userId, workspaceId, { trx })
       : undefined;
 
+    if (!user && emailVerified === false) {
+      throw new UnauthorizedException('SSO email address is not verified');
+    }
+
     if (!user) {
       user = await this.userRepo.findByEmail(email, workspaceId, { trx });
       if (user) {
+        this.assertActive(user);
         const sameProvider = await this.authAccountRepo.findByUserAndProvider(
           user.id,
           provider.id,
@@ -74,6 +88,8 @@ export class SsoIdentityResolver {
       }
     }
 
+    if (user) this.assertActive(user);
+
     if (!user) {
       if (!provider.allowSignup) {
         throw new UnauthorizedException('User not provisioned');
@@ -94,5 +110,11 @@ export class SsoIdentityResolver {
       trx,
     );
     return user;
+  }
+
+  private assertActive(user: User) {
+    if (user.deletedAt || user.deactivatedAt) {
+      throw new UnauthorizedException('User account is disabled');
+    }
   }
 }

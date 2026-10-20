@@ -2,6 +2,7 @@
  * Pure CPU-bound EA import steps, runnable either in a worker thread
  * (`ea-cpu.worker.ts`) or inline (tests / unbundled dev). No Nest / DB use.
  */
+import { EMPTY_DOC } from './ea-constants';
 import { load } from 'cheerio';
 import * as Y from 'yjs';
 import { TiptapTransformer } from '@hocuspocus/transformer';
@@ -35,11 +36,6 @@ export interface EaCpuResult {
   html?: string;
   images?: EaRtfImage[];
 }
-
-const EMPTY_DOC = {
-  type: 'doc',
-  content: [{ type: 'paragraph', content: [] }],
-};
 
 export function toYdoc(content: any): Uint8Array {
   const ydoc = TiptapTransformer.toYdoc(content, 'default', tiptapExtensions);

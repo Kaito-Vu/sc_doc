@@ -18,6 +18,7 @@ import { AttachmentService } from '../../core/attachment/services/attachment.ser
 import { MfaGateService } from '../mfa/services/mfa-gate.service';
 import { OidcProviderStrategyFactory } from './oidc-provider-strategy.factory';
 import { SsoUserProvisioningService } from './sso-user-provisioning.service';
+import { SsoIdentityResolver } from './sso-identity-resolver';
 import { AUDIT_SERVICE } from '../../integrations/audit/audit.service';
 import { encodeOidcState, decodeOidcState } from './oidc-state.util';
 
@@ -61,6 +62,7 @@ describe('OidcAuthService.buildAuthorizationUrl', () => {
       providers: [
         OidcAuthService,
         SsoUserProvisioningService,
+        SsoIdentityResolver,
         { provide: AuthProviderRepo, useValue: authProviderRepo },
         { provide: AuthAccountRepo, useValue: {} },
         { provide: SsoService, useValue: { decryptSecret: (v: string) => v } },
@@ -198,6 +200,7 @@ describe('OidcAuthService.handleCallback', () => {
   let authAccountRepo: {
     findByProviderUserId: jest.Mock;
     findByUserAndProvider: jest.Mock;
+    findByUserId: jest.Mock;
     upsert: jest.Mock;
   };
   let userRepo: {
@@ -229,6 +232,7 @@ describe('OidcAuthService.handleCallback', () => {
     authAccountRepo = {
       findByProviderUserId: jest.fn().mockResolvedValue(undefined),
       findByUserAndProvider: jest.fn().mockResolvedValue(undefined),
+      findByUserId: jest.fn().mockResolvedValue(undefined),
       upsert: jest.fn().mockResolvedValue({}),
     };
     userRepo = {
@@ -257,6 +261,7 @@ describe('OidcAuthService.handleCallback', () => {
       providers: [
         OidcAuthService,
         SsoUserProvisioningService,
+        SsoIdentityResolver,
         { provide: AuthProviderRepo, useValue: authProviderRepo },
         { provide: AuthAccountRepo, useValue: authAccountRepo },
         { provide: SsoService, useValue: { decryptSecret: (v: string) => v } },
@@ -296,6 +301,16 @@ describe('OidcAuthService.handleCallback', () => {
       'test-secret',
     );
   }
+
+  const callback = () =>
+    service.handleCallback({
+      code: 'auth-code',
+      state: 's1',
+      stateCookie: stateCookieFor(),
+      workspaceId: 'ws1',
+      workspace: fakeWorkspace,
+      res: fakeRes,
+    });
 
   it('throws BadRequestException when state does not match the cookie', async () => {
     await expect(
@@ -484,6 +499,48 @@ describe('OidcAuthService.handleCallback', () => {
       }),
     ).rejects.toThrow(UnauthorizedException);
     expect(authAccountRepo.upsert).not.toHaveBeenCalled();
+  });
+
+  it('rejects an email-matched account linked only to a different provider', async () => {
+    authAccountRepo.findByUserId.mockResolvedValue({
+      userId: 'u1',
+      authProviderId: 'other',
+    });
+    (client.authorizationCodeGrant as jest.Mock).mockResolvedValue({
+      claims: () => ({ sub: 'sub-new', email: 'user@example.com' }),
+      access_token: 'access-token',
+    });
+
+    await expect(callback()).rejects.toThrow(
+      'Account is linked to a different SSO provider',
+    );
+    expect(authAccountRepo.upsert).not.toHaveBeenCalled();
+  });
+
+  describe('deactivated / deleted users', () => {
+    const cases: [string, any, boolean][] = [
+      ['deactivated via link', { ...user, deactivatedAt: new Date() }, true],
+      ['deleted via link', { ...user, deletedAt: new Date() }, true],
+      ['deactivated via email', { ...user, deactivatedAt: new Date() }, false],
+      ['deleted via email', { ...user, deletedAt: new Date() }, false],
+    ];
+    it.each(cases)('rejects %s', async (_n, u, viaLink) => {
+      authProviderRepo.findById.mockResolvedValue({ ...provider, allowSignup: true });
+      if (viaLink) {
+        authAccountRepo.findByProviderUserId.mockResolvedValue({ userId: 'u1' });
+        userRepo.findById.mockResolvedValue(u);
+      } else {
+        userRepo.findByEmail.mockResolvedValue(u);
+      }
+      (client.authorizationCodeGrant as jest.Mock).mockResolvedValue({
+        claims: () => ({ sub: 'sub-123', email: 'user@example.com' }),
+        access_token: 'access-token',
+      });
+      await expect(callback()).rejects.toThrow(UnauthorizedException);
+      expect(authAccountRepo.upsert).not.toHaveBeenCalled();
+      expect(userRepo.insertUser).not.toHaveBeenCalled();
+      expect(mfaGateService.checkAndChallenge).not.toHaveBeenCalled();
+    });
   });
 
   it('flags provisioned users as having a generated password', async () => {

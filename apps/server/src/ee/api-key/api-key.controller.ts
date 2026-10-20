@@ -16,6 +16,7 @@ import { ApiKeyIdDto, CreateApiKeyDto, UpdateApiKeyDto } from './dto/api-key.dto
 import { PaginationOptions } from '@docmost/db/pagination/pagination-options';
 import { RequireFeature } from '../common/decorators/require-feature.decorator';
 import { Feature } from '../../common/features';
+import { canManageWorkspace } from '../common/workspace-admin';
 import WorkspaceAbilityFactory from '../../core/casl/abilities/workspace-ability.factory';
 import {
   WorkspaceCaslAction,
@@ -40,7 +41,7 @@ export class ApiKeyController {
     @AuthWorkspace() workspace: Workspace,
   ) {
     const isAdminView = adminView === true;
-    if (isAdminView && !this.isAdmin(user, workspace)) {
+    if (isAdminView && !canManageWorkspace(this.workspaceAbility, user, workspace)) {
       throw new ForbiddenException();
     }
 
@@ -75,7 +76,7 @@ export class ApiKeyController {
       workspace.id,
       user.id,
       body,
-      this.isAdmin(user, workspace),
+      canManageWorkspace(this.workspaceAbility, user, workspace),
     );
   }
 
@@ -91,14 +92,8 @@ export class ApiKeyController {
       workspace.id,
       user.id,
       body.apiKeyId,
-      this.isAdmin(user, workspace),
+      canManageWorkspace(this.workspaceAbility, user, workspace),
     );
     return { success: true };
-  }
-
-  private isAdmin(user: User, workspace: Workspace): boolean {
-    return this.workspaceAbility
-      .createForUser(user, workspace)
-      .can(WorkspaceCaslAction.Manage, WorkspaceCaslSubject.Settings);
   }
 }

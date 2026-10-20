@@ -13,6 +13,15 @@ import { selectedRowIdsAtomFamily } from "@/ee/base/atoms/base-atoms";
 import { formulaRecomputeAtom } from "@/ee/base/atoms/formula-recompute-atom";
 import { IPagination } from "@/lib/types";
 import { invalidateBaseRows } from "@/ee/base/queries/base-row-query";
+import {
+  appendRow,
+  hasKanbanView,
+  mapRow,
+  patchSingleRow,
+  removeRows,
+  removeSingleRows,
+  updateRows,
+} from "@/ee/base/queries/base-row-cache";
 
 type BaseRowCreated = {
   operation: "base:row:created";
@@ -138,6 +147,16 @@ export function markRequestIdOutbound(requestId: string): void {
   }
 }
 
+function pruneSelection(pageId: string, rowIds: string[]) {
+  const store = getDefaultStore();
+  const atom = selectedRowIdsAtomFamily(pageId);
+  const current = store.get(atom);
+  if (!rowIds.some((id) => current.has(id))) return;
+  const next = new Set(current);
+  for (const id of rowIds) next.delete(id);
+  store.set(atom, next);
+}
+
 function createBaseEventHandler(
   pageId: string,
   queryClient: QueryClient,
@@ -153,141 +172,50 @@ function createBaseEventHandler(
       return;
     }
 
+    // Kanban views group server-side, so a local patch can misplace rows: refetch instead.
+    const applyUnlessKanban = (fn: Parameters<typeof updateRows>[2]) =>
+      hasKanbanView(queryClient, pageId)
+        ? invalidateBaseRows(pageId)
+        : updateRows(queryClient, pageId, fn);
+
     switch (event.operation) {
       case "base:row:created": {
         const e = event as BaseRowCreated;
-        const baseForCreate = queryClient.getQueryData<IBase>(["bases", pageId]);
-        const hasKanbanForCreate = (baseForCreate?.views ?? []).some((v) => v.type === "kanban");
-        if (hasKanbanForCreate) {
-          invalidateBaseRows(pageId);
-        } else {
-          queryClient.setQueriesData<InfiniteData<IPagination<IBaseRow>>>(
-            { queryKey: ["base-rows", pageId] },
-            (old) => {
-              if (!old) return old;
-              const lastPageIndex = old.pages.length - 1;
-              return {
-                ...old,
-                pages: old.pages.map((page, index) =>
-                  index === lastPageIndex
-                    ? { ...page, items: [...page.items, e.row] }
-                    : page,
-                ),
-              };
-            },
-          );
-        }
+        applyUnlessKanban(appendRow(e.row));
         break;
       }
       case "base:row:updated": {
         const e = event as BaseRowUpdated;
-        const baseForUpdate = queryClient.getQueryData<IBase>(["bases", pageId]);
-        const hasKanbanForUpdate = (baseForUpdate?.views ?? []).some((v) => v.type === "kanban");
-        if (hasKanbanForUpdate) {
-          invalidateBaseRows(pageId);
-        } else {
-          queryClient.setQueriesData<InfiniteData<IPagination<IBaseRow>>>(
-            { queryKey: ["base-rows", pageId] },
-            (old) =>
-              !old
-                ? old
-                : {
-                    ...old,
-                    pages: old.pages.map((page) => ({
-                      ...page,
-                      items: page.items.map((row) =>
-                        row.id === e.rowId
-                          ? {
-                              ...row,
-                              cells: { ...row.cells, ...e.updatedCells },
-                            }
-                          : row,
-                      ),
-                    })),
-                  },
-          );
-        }
+        applyUnlessKanban(
+          mapRow(e.rowId, (row) => ({
+            ...row,
+            cells: { ...row.cells, ...e.updatedCells },
+          })),
+        );
         break;
       }
       case "base:row:deleted": {
         const e = event as BaseRowDeleted;
-        queryClient.setQueriesData<InfiniteData<IPagination<IBaseRow>>>(
-          { queryKey: ["base-rows", pageId] },
-          (old) =>
-            !old
-              ? old
-              : {
-                  ...old,
-                  pages: old.pages.map((page) => ({
-                    ...page,
-                    items: page.items.filter((row) => row.id !== e.rowId),
-                  })),
-                },
-        );
-        const store = getDefaultStore();
-        const selectedIdsAtom = selectedRowIdsAtomFamily(pageId);
-        const current = store.get(selectedIdsAtom);
-        if (current.has(e.rowId)) {
-          const next = new Set(current);
-          next.delete(e.rowId);
-          store.set(selectedIdsAtom, next);
-        }
+        updateRows(queryClient, pageId, removeRows([e.rowId]));
+        removeSingleRows(queryClient, pageId, [e.rowId]);
+        pruneSelection(pageId, [e.rowId]);
         break;
       }
       case "base:rows:deleted": {
         const e = event as BaseRowsDeleted;
-        const removeSet = new Set(e.rowIds);
-        queryClient.setQueriesData<InfiniteData<IPagination<IBaseRow>>>(
-          { queryKey: ["base-rows", pageId] },
-          (old) => {
-            if (!old) return old;
-            return {
-              ...old,
-              pages: old.pages.map((page) => ({
-                ...page,
-                items: page.items.filter((row) => !removeSet.has(row.id)),
-              })),
-            };
-          },
-        );
-        const store = getDefaultStore();
-        const selectedIdsAtom = selectedRowIdsAtomFamily(pageId);
-        const current = store.get(selectedIdsAtom);
-        if (current.size > 0) {
-          let changed = false;
-          const next = new Set(current);
-          for (const id of e.rowIds) {
-            if (next.delete(id)) changed = true;
-          }
-          if (changed) store.set(selectedIdsAtom, next);
-        }
+        updateRows(queryClient, pageId, removeRows(e.rowIds));
+        removeSingleRows(queryClient, pageId, e.rowIds);
+        pruneSelection(pageId, e.rowIds);
         break;
       }
       case "base:row:reordered": {
         const e = event as BaseRowReordered;
-        const baseForReorder = queryClient.getQueryData<IBase>(["bases", pageId]);
-        const hasKanbanForReorder = (baseForReorder?.views ?? []).some((v) => v.type === "kanban");
-        if (hasKanbanForReorder) {
-          invalidateBaseRows(pageId);
-        } else {
-          queryClient.setQueriesData<InfiniteData<IPagination<IBaseRow>>>(
-            { queryKey: ["base-rows", pageId] },
-            (old) =>
-              !old
-                ? old
-                : {
-                    ...old,
-                    pages: old.pages.map((page) => ({
-                      ...page,
-                      items: page.items.map((row) =>
-                        row.id === e.rowId
-                          ? { ...row, position: e.position }
-                          : row,
-                      ),
-                    })),
-                  },
-          );
-        }
+        const withPosition = (row: IBaseRow): IBaseRow => ({
+          ...row,
+          position: e.position,
+        });
+        applyUnlessKanban(mapRow(e.rowId, withPosition));
+        patchSingleRow(queryClient, pageId, e.rowId, withPosition);
         break;
       }
       case "base:rows:updated": {

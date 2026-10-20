@@ -30,6 +30,7 @@ import {
 import { SpaceTreeNode } from "@/features/page/tree/types.ts";
 import { IPage } from "@/features/page/types/page.types.ts";
 import { useQueryEmit } from "@/features/websocket/use-query-emit.ts";
+import { notifyError } from "../../lib/notify-error";
 
 export function useGetTemplatesQuery(params?: { spaceId?: string }) {
   const { spaceId } = params ?? {};
@@ -150,13 +151,7 @@ export function useDeleteTemplateMutation() {
       );
       notifications.show({ message: t("Template deleted") });
     },
-    onError: (error) => {
-      const errorMessage = error["response"]?.data?.message;
-      notifications.show({
-        message: errorMessage || t("Failed to delete template"),
-        color: "red",
-      });
-    },
+    onError: (error) => notifyError(error, t("Failed to delete template")),
   });
 }
 
@@ -221,12 +216,6 @@ export function useUseTemplateMutation() {
         });
       }, 50);
     },
-    onError: (error) => {
-      const errorMessage = error["response"]?.data?.message;
-      notifications.show({
-        message: errorMessage || t("Failed to create page from template"),
-        color: "red",
-      });
-    },
+    onError: (error) => notifyError(error, t("Failed to create page from template")),
   });
 }

@@ -11,6 +11,7 @@ import {
 import { IOAuthGrant } from "@/ee/oauth/types/oauth.types";
 import { notifications } from "@mantine/notifications";
 import { useTranslation } from "react-i18next";
+import { notifyError } from "../../lib/notify-error";
 
 export function useOAuthGrantsQuery(): UseQueryResult<IOAuthGrant[], Error> {
   return useQuery({
@@ -34,12 +35,6 @@ export function useRevokeOAuthGrantMutation() {
           ["oauth-grants"].includes(item.queryKey[0] as string),
       });
     },
-    onError: (error) => {
-      const errorMessage = error["response"]?.data?.message;
-      notifications.show({
-        message: errorMessage || t("Something went wrong. Please try again."),
-        color: "red",
-      });
-    },
+    onError: (error) => notifyError(error, t("Something went wrong. Please try again.")),
   });
 }

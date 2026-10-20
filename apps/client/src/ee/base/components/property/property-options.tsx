@@ -47,60 +47,36 @@ export function PropertyOptions({
 }: PropertyOptionsProps) {
   const { t } = useTranslation();
 
+  const common = { property, onUpdate, onClose, onDirtyChange, hideButtons };
+
   switch (property.type) {
     case "select":
     case "multiSelect":
-      return (
-        <SelectOptions
-          property={property}
-          onUpdate={onUpdate}
-          onClose={onClose}
-          onDirtyChange={onDirtyChange}
-          hideButtons={hideButtons}
-          dropdownPortalTarget={dropdownPortalTarget}
-        />
-      );
     case "status":
       return (
-        <StatusOptions
-          property={property}
-          onUpdate={onUpdate}
-          onClose={onClose}
-          onDirtyChange={onDirtyChange}
-          hideButtons={hideButtons}
+        <ChoiceOptions
+          {...common}
           dropdownPortalTarget={dropdownPortalTarget}
         />
       );
     case "number":
       return (
         <NumberOptions
-          property={property}
-          onUpdate={onUpdate}
-          onClose={onClose}
-          onDirtyChange={onDirtyChange}
-          hideButtons={hideButtons}
+          {...common}
           dropdownPortalTarget={dropdownPortalTarget}
         />
       );
     case "date":
       return (
         <DateOptions
-          property={property}
-          onUpdate={onUpdate}
-          onClose={onClose}
-          onDirtyChange={onDirtyChange}
-          hideButtons={hideButtons}
+          {...common}
           dropdownPortalTarget={dropdownPortalTarget}
         />
       );
     case "person":
       return (
         <PersonOptions
-          property={property}
-          onUpdate={onUpdate}
-          onClose={onClose}
-          onDirtyChange={onDirtyChange}
-          hideButtons={hideButtons}
+          {...common}
           dropdownPortalTarget={dropdownPortalTarget}
         />
       );
@@ -108,25 +84,9 @@ export function PropertyOptions({
     case "longText":
     case "url":
     case "email":
-      return (
-        <TextDefaultOptions
-          property={property}
-          onUpdate={onUpdate}
-          onClose={onClose}
-          onDirtyChange={onDirtyChange}
-          hideButtons={hideButtons}
-        />
-      );
+      return <TextDefaultOptions {...common} />;
     case "checkbox":
-      return (
-        <CheckboxOptions
-          property={property}
-          onUpdate={onUpdate}
-          onClose={onClose}
-          onDirtyChange={onDirtyChange}
-          hideButtons={hideButtons}
-        />
-      );
+      return <CheckboxOptions {...common} />;
     default:
       return (
         <Text size="xs" c="dimmed">
@@ -242,7 +202,7 @@ function OptionsFooter({
   );
 }
 
-function SelectOptions({
+function ChoiceOptions({
   property,
   onUpdate,
   onClose,
@@ -271,47 +231,10 @@ function SelectOptions({
       onSave={handleSave}
       onClose={onClose}
       onDirtyChange={onDirtyChange}
-      showCategories={false}
+      showCategories={property.type === "status"}
       hideButtons={hideButtons}
       initialDefaultValue={options?.defaultValue ?? null}
       multiDefault={property.type === "multiSelect"}
-      dropdownPortalTarget={dropdownPortalTarget}
-    />
-  );
-}
-
-function StatusOptions({
-  property,
-  onUpdate,
-  onClose,
-  onDirtyChange,
-  hideButtons,
-  dropdownPortalTarget,
-}: OptionEditorProps) {
-  const options = property.typeOptions as SelectTypeOptions | undefined;
-  const choices = useMemo(() => options?.choices ?? [], [options?.choices]);
-
-  const handleSave = useCallback(
-    (newChoices: Choice[], defaultValue: string | string[] | null) => {
-      onUpdate({
-        ...property.typeOptions,
-        choices: newChoices,
-        choiceOrder: newChoices.map((c) => c.id),
-        defaultValue,
-      });
-    },
-    [property.typeOptions, onUpdate],
-  );
-
-  return (
-    <ChoiceEditor
-      initialChoices={choices}
-      onSave={handleSave}
-      onClose={onClose}
-      onDirtyChange={onDirtyChange}
-      showCategories
-      hideButtons={hideButtons}
-      initialDefaultValue={options?.defaultValue ?? null}
       dropdownPortalTarget={dropdownPortalTarget}
     />
   );

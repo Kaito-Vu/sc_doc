@@ -16,7 +16,8 @@ import { useTranslation } from "react-i18next";
 import { useUpdateSsoProviderMutation } from "@/ee/security/queries/security-query.ts";
 import { OpenIdIcon } from "@/components/icons/openid-icon.tsx";
 import { EntraIdIcon } from "@/components/icons/entra-id-icon.tsx";
-import { SsoSwitchRow, copyDirty } from "@/ee/security/components/sso-form-fields.tsx";
+import { copyDirty } from "@/ee/security/components/sso-form-fields.tsx";
+import { SsoCommonFooter } from "@/ee/security/components/sso-common-footer.tsx";
 import i18n from "@/i18n";
 
 type OidcTemplate = "generic" | "azuread";
@@ -205,17 +206,7 @@ export function SsoOIDCForm({ provider, onClose }: Readonly<SsoFormProps>) {
             {...form.getInputProps("oidcClientSecret")}
           />
 
-          <SsoSwitchRow label={t("Group sync")} form={form} field="groupSync" />
-
-          <SsoSwitchRow label={t("Allow signup")} form={form} field="allowSignup" />
-
-          <SsoSwitchRow label={t("Enabled")} form={form} field="isEnabled" />
-
-          <Group mt="md" justify="flex-end">
-            <Button type="submit" disabled={!form.isDirty()}>
-              {t("Save")}
-            </Button>
-          </Group>
+          <SsoCommonFooter form={form} />
         </Stack>
       </form>
     </Box>

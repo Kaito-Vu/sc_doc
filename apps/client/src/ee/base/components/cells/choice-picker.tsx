@@ -12,20 +12,12 @@ import { useUpdatePropertyMutation } from "@/ee/base/queries/base-property-query
 import { generateBaseChoiceId } from "@/ee/base/utils/generate-base-id";
 import { useListKeyboardNav } from "@/ee/base/hooks/use-list-keyboard-nav";
 import cellClasses from "@/ee/base/styles/cells.module.css";
-import i18n from "@/i18n";
+import {
+  CHOICE_COLORS,
+  STATUS_CATEGORY_ORDER,
+  getStatusCategoryLabels,
+} from "@/ee/base/components/cells/choice-constants";
 import { useTranslation } from "react-i18next";
-
-const CHOICE_COLORS = [
-  "gray", "red", "pink", "grape", "violet", "indigo",
-  "blue", "cyan", "teal", "green", "lime", "yellow", "orange",
-];
-
-const STATUS_CATEGORY_LABELS: Record<string, string> = {
-  todo: i18n.t("To Do"),
-  inProgress: i18n.t("In Progress"),
-  complete: i18n.t("Complete"),
-};
-const STATUS_CATEGORY_ORDER = ["todo", "inProgress", "complete"];
 
 type NavItem =
   | { kind: "choice"; choice: Choice }
@@ -87,10 +79,11 @@ export function ChoicePicker({
       const cat = choice.category ?? "todo";
       (byCategory[cat] ??= []).push(choice);
     }
+    const labels = getStatusCategoryLabels(t);
     return STATUS_CATEGORY_ORDER.filter((key) => byCategory[key]?.length).map(
-      (key) => ({ label: STATUS_CATEGORY_LABELS[key] ?? key, choices: byCategory[key] }),
+      (key) => ({ label: labels[key] ?? key, choices: byCategory[key] }),
     );
-  }, [choices, search, grouped, multiple, selectedSet]);
+  }, [choices, search, grouped, multiple, selectedSet, t]);
 
   const flatChoices = useMemo(() => groups.flatMap((g) => g.choices), [groups]);
   const choiceIdxMap = useMemo(() => {
@@ -249,7 +242,7 @@ export function ChoicePicker({
             onMouseEnter={() => setActiveIndex(addOptionIdx)}
             onClick={handleAddOption}
           >
-            <span className={cellClasses.addOptionLabel}>Add option:</span>
+            <span className={cellClasses.addOptionLabel}>{t("Add option")}:</span>
             <span className={cellClasses.badge} style={choiceColor(addOptionColor)}>
               {trimmedSearch}
             </span>

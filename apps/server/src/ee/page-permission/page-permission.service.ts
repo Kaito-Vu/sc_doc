@@ -3,12 +3,13 @@ import {
   ForbiddenException,
   Inject,
   Injectable,
-  NotFoundException,
 } from '@nestjs/common';
 import { InjectKysely } from 'nestjs-kysely';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { PagePermissionRepo } from '@docmost/db/repos/page/page-permission.repo';
+import { activeWorkspaceUsers } from '../common/active-user';
+import { loadLivePage } from '../common/load-page';
 import { PageRepo } from '@docmost/db/repos/page/page.repo';
 import { PageAccessService } from '../../core/page/page-access/page-access.service';
 import SpaceAbilityFactory from '../../core/casl/abilities/space-ability.factory';
@@ -49,12 +50,8 @@ export class PagePermissionService {
     private readonly collabAccess: CollabAccessService,
   ) {}
 
-  private async getPageOrThrow(pageId: string): Promise<Page> {
-    const page = await this.pageRepo.findById(pageId);
-    if (!page || page.deletedAt) {
-      throw new NotFoundException('Page not found');
-    }
-    return page;
+  private getPageOrThrow(pageId: string, workspaceId: string): Promise<Page> {
+    return loadLivePage(this.pageRepo, pageId, workspaceId);
   }
 
   // Space admins (incl. workspace owners/admins) always manage. Otherwise a
@@ -155,12 +152,9 @@ export class PagePermissionService {
     const [users, groups] = await Promise.all([
       userIds.length === 0
         ? []
-        : this.db
-            .selectFrom('users')
+        : activeWorkspaceUsers(this.db, workspaceId)
             .select('users.id')
             .where('users.id', 'in', userIds)
-            .where('users.workspaceId', '=', workspaceId)
-            .where('users.deletedAt', 'is', null)
             .where(({ not, exists, selectFrom }) =>
               not(
                 exists(
@@ -232,7 +226,7 @@ export class PagePermissionService {
   }
 
   async restrictPage(pageId: string, user: User, workspaceId: string) {
-    const page = await this.getPageOrThrow(pageId);
+    const page = await this.getPageOrThrow(pageId, user.workspaceId);
     await this.pageAccessService.validateCanEdit(page, user);
     await this.assertCanManage(user, page);
 
@@ -279,7 +273,7 @@ export class PagePermissionService {
   }
 
   async unrestrictPage(pageId: string, user: User) {
-    const page = await this.getPageOrThrow(pageId);
+    const page = await this.getPageOrThrow(pageId, user.workspaceId);
     await this.assertCanManage(user, page);
 
     const pageAccess = await this.pagePermissionRepo.findPageAccessByPageId(
@@ -310,7 +304,7 @@ export class PagePermissionService {
     user: User,
     workspaceId: string,
   ) {
-    const page = await this.getPageOrThrow(data.pageId);
+    const page = await this.getPageOrThrow(data.pageId, user.workspaceId);
     await this.assertCanManage(user, page);
 
     const pageAccess = await this.getPageAccessOrThrow(
@@ -372,7 +366,7 @@ export class PagePermissionService {
     data: { pageId: string; userIds?: string[]; groupIds?: string[] },
     user: User,
   ) {
-    const page = await this.getPageOrThrow(data.pageId);
+    const page = await this.getPageOrThrow(data.pageId, user.workspaceId);
     await this.assertCanManage(user, page);
 
     const pageAccess = await this.getPageAccessOrThrow(
@@ -428,7 +422,7 @@ export class PagePermissionService {
       throw new BadRequestException('Specify exactly one of userId or groupId');
     }
 
-    const page = await this.getPageOrThrow(data.pageId);
+    const page = await this.getPageOrThrow(data.pageId, user.workspaceId);
     await this.assertCanManage(user, page);
 
     const pageAccess = await this.getPageAccessOrThrow(
@@ -480,7 +474,7 @@ export class PagePermissionService {
     user: User,
     pagination: PaginationOptions,
   ) {
-    const page = await this.getPageOrThrow(pageId);
+    const page = await this.getPageOrThrow(pageId, user.workspaceId);
     await this.pageAccessService.validateCanView(page, user);
 
     const pageAccess = await this.pagePermissionRepo.findPageAccessByPageId(
@@ -500,7 +494,7 @@ export class PagePermissionService {
   }
 
   async getRestrictionInfo(pageId: string, user: User) {
-    const page = await this.getPageOrThrow(pageId);
+    const page = await this.getPageOrThrow(pageId, user.workspaceId);
     await this.pageAccessService.validateCanView(page, user);
 
     const [pageAccess, accessLevel, canManage] = await Promise.all([

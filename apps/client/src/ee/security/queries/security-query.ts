@@ -15,6 +15,8 @@ import {
 import { notifications } from "@mantine/notifications";
 import { IAuthProvider } from "@/ee/security/types/security.types.ts";
 import { IPagination } from "@/lib/types.ts";
+import { useTranslation } from "react-i18next";
+import { notifyError } from "../../lib/notify-error";
 
 export function useGetSsoProviders(): UseQueryResult<IPagination<IAuthProvider>, Error> {
   return useQuery({
@@ -48,6 +50,7 @@ export function useSsoProvider(
 
 export function useCreateSsoProviderMutation() {
   const queryClient = useQueryClient();
+  const { t } = useTranslation();
 
   return useMutation<any, Error, Partial<IAuthProvider>>({
     mutationFn: (data: Partial<IAuthProvider>) => createSsoProvider(data),
@@ -56,15 +59,13 @@ export function useCreateSsoProviderMutation() {
         queryKey: ["sso-providers"],
       });
     },
-    onError: (error) => {
-      const errorMessage = error["response"]?.data?.message;
-      notifications.show({ message: errorMessage, color: "red" });
-    },
+    onError: (error) => notifyError(error, t("Failed to create SSO provider")),
   });
 }
 
 export function useUpdateSsoProviderMutation() {
   const queryClient = useQueryClient();
+  const { t } = useTranslation();
 
   return useMutation<any, Error, Partial<IAuthProvider>>({
     mutationFn: (data: Partial<IAuthProvider>) => updateSsoProvider(data),
@@ -74,15 +75,13 @@ export function useUpdateSsoProviderMutation() {
         queryKey: ["sso-providers"],
       });
     },
-    onError: (error) => {
-      const errorMessage = error["response"]?.data?.message;
-      notifications.show({ message: errorMessage, color: "red" });
-    },
+    onError: (error) => notifyError(error, t("Failed to update SSO provider")),
   });
 }
 
 export function useDeleteSsoProviderMutation() {
   const queryClient = useQueryClient();
+  const { t } = useTranslation();
 
   return useMutation({
     mutationFn: (providerId: string) => deleteSsoProvider({ providerId }),
@@ -93,9 +92,6 @@ export function useDeleteSsoProviderMutation() {
         queryKey: ["sso-providers"],
       });
     },
-    onError: (error) => {
-      const errorMessage = error["response"]?.data?.message;
-      notifications.show({ message: errorMessage, color: "red" });
-    },
+    onError: (error) => notifyError(error, t("Failed to delete SSO provider")),
   });
 }

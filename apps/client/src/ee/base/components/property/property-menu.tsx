@@ -38,6 +38,7 @@ import {
   NON_USER_TARGET_TYPES,
 } from "./conversion-warning";
 import { useTranslation } from "react-i18next";
+import { DiscardConfirmPanel } from "./discard-confirm-panel";
 import {
   isSystemPropertyType,
   propertyTypes,
@@ -436,30 +437,10 @@ export function PropertyMenuContent({
         </Stack>
       )}
       {panel === "confirmDiscard" && (
-        <Stack gap="xs" p="sm">
-          <Text size="sm" fw={600}>
-            {t("Unsaved changes")}
-          </Text>
-          <Text size="xs" c="dimmed">
-            {t("You have unsaved changes. Do you want to discard them?")}
-          </Text>
-          <Group gap="xs" justify="flex-end">
-            <Button
-              variant="default"
-              size="xs"
-              onClick={handleCancelDiscard}
-            >
-              {t("Keep editing")}
-            </Button>
-            <Button
-              color="red"
-              size="xs"
-              onClick={handleConfirmDiscard}
-            >
-              {t("Discard")}
-            </Button>
-          </Group>
-        </Stack>
+        <DiscardConfirmPanel
+          onKeepEditing={handleCancelDiscard}
+          onDiscard={handleConfirmDiscard}
+        />
       )}
     </>
   );

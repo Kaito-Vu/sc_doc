@@ -1,5 +1,7 @@
+import { loadLivePage } from '../common/load-page';
+import { mapLimit } from '../common/map-limit';
 import { createHash } from 'crypto';
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { PageRepo } from '@docmost/db/repos/page/page.repo';
 import { PagePermissionRepo } from '@docmost/db/repos/page/page-permission.repo';
 import { PageAccessService } from '../../core/page/page-access/page-access.service';
@@ -24,15 +26,6 @@ const IMAGE_CONCURRENCY = 4;
 const MERMAID_RE = /\/mermaid\/([0-9a-f]{40})\./;
 const FILE_ID_RE = /\/files\/([0-9a-f-]{36})\//gi;
 
-/** Runs fn over items with at most `limit` in flight. */
-async function pool<T>(items: T[], limit: number, fn: (t: T) => Promise<void>) {
-  let i = 0;
-  await Promise.all(
-    Array.from({ length: Math.min(limit, items.length) }, async () => {
-      while (i < items.length) await fn(items[i++]);
-    }),
-  );
-}
 const swapExt = (src: string, ext: string) =>
   src.replace(/\.[^./?]+$/, '') + '.' + ext;
 
@@ -117,10 +110,9 @@ export class DocxExportService {
     user: User,
     includeContent = false,
   ) {
-    const root = await this.pageRepo.findById(pageId, { includeContent });
-    if (!root || root.deletedAt || root.workspaceId !== user.workspaceId) {
-      throw new NotFoundException('Page not found');
-    }
+    const root = await loadLivePage(this.pageRepo, pageId, user.workspaceId, {
+      includeContent,
+    });
     await this.pageAccessService.validateCanView(root, user);
     return root;
   }
@@ -246,14 +238,14 @@ export class DocxExportService {
       (a) => a.pageId && allowedPageIds.has(a.pageId),
     );
     const out = new Map<string, Buffer>();
-    await pool([...mermaid], IMAGE_CONCURRENCY, async ([hash, code]) => {
+    await mapLimit([...mermaid], IMAGE_CONCURRENCY, async ([hash, code]) => {
       try {
         out.set(hash, await this.rasterizer.mermaidToPng(code));
       } catch (err) {
         this.logger.warn(`docx export: mermaid diagram skipped: ${err}`);
       }
     });
-    await pool(atts, IMAGE_CONCURRENCY, async (att) => {
+    await mapLimit(atts, IMAGE_CONCURRENCY, async (att) => {
       try {
         const buf = await this.storageService.read(att.filePath);
         out.set(

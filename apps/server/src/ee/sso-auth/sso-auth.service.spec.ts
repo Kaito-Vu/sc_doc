@@ -220,4 +220,27 @@ describe('SsoAuthService.ldapLogin', () => {
     await service.ldapLogin('p-ldap', creds, workspace, res);
     expect(mfa.checkAndChallenge).toHaveBeenCalled();
   });
+
+  describe('deactivated / deleted users', () => {
+    const cases: [string, any, boolean][] = [
+      ['deactivated via link', { id: 'u1', deactivatedAt: new Date() }, true],
+      ['deleted via link', { id: 'u1', deletedAt: new Date() }, true],
+      ['deactivated via email', { id: 'u1', deactivatedAt: new Date() }, false],
+      ['deleted via email', { id: 'u1', deletedAt: new Date() }, false],
+    ];
+    it.each(cases)('rejects %s', async (_n, u, viaLink) => {
+      if (viaLink) {
+        authAccountRepo.findByProviderUserId.mockResolvedValue({ userId: 'u1' });
+        userRepo.findById.mockResolvedValue(u);
+      } else {
+        userRepo.findByEmail.mockResolvedValue(u);
+      }
+      await expect(
+        service.ldapLogin('p-ldap', creds, workspace, res),
+      ).rejects.toThrow(UnauthorizedException);
+      expect(authAccountRepo.upsert).not.toHaveBeenCalled();
+      expect(userRepo.insertUser).not.toHaveBeenCalled();
+      expect(mfa.checkAndChallenge).not.toHaveBeenCalled();
+    });
+  });
 });

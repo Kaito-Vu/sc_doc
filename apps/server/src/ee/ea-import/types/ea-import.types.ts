@@ -89,3 +89,10 @@ export interface EaParseResult {
   roots: EaPackageNode[];
   warnings: EaParseWarning[];
 }
+
+export interface EaImportResult {
+  pageIds: string[];
+  rootPageIds: string[];
+  pageCount: number;
+  warnings: EaParseWarning[];
+}

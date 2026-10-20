@@ -1,3 +1,4 @@
+import { loadLivePage } from '../common/load-page';
 import {
   BadRequestException,
   ForbiddenException,
@@ -122,10 +123,9 @@ export class BaseService {
   }
 
   private async getBasePageOrThrow(pageId: string, workspaceId: string) {
-    const page = await this.pageRepo.findById(pageId);
-    if (!page || page.deletedAt || page.workspaceId !== workspaceId) {
-      throw new NotFoundException('Base not found');
-    }
+    const page = await loadLivePage(this.pageRepo, pageId, workspaceId, {
+      notFoundMessage: 'Base not found',
+    });
     if (!page.isBase) {
       throw new BadRequestException('Page is not a base');
     }
@@ -277,13 +277,13 @@ export class BaseService {
   ) {
     if (data.pageId) {
       // Nested under a page: same rule as core page create (edit on parent).
-      const parent = await this.pageRepo.findById(data.pageId);
-      if (
-        !parent ||
-        parent.deletedAt ||
-        parent.spaceId !== data.spaceId ||
-        parent.workspaceId !== workspaceId
-      ) {
+      const parent = await loadLivePage(
+        this.pageRepo,
+        data.pageId,
+        workspaceId,
+        { notFoundMessage: 'Parent page not found' },
+      );
+      if (parent.spaceId !== data.spaceId) {
         throw new NotFoundException('Parent page not found');
       }
       await this.pageAccessService.validateCanEdit(parent, user);
@@ -350,10 +350,7 @@ export class BaseService {
     workspaceId: string,
     template?: string,
   ) {
-    const page = await this.pageRepo.findById(pageId);
-    if (!page || page.deletedAt || page.workspaceId !== workspaceId) {
-      throw new NotFoundException('Page not found');
-    }
+    const page = await loadLivePage(this.pageRepo, pageId, workspaceId);
     await this.pageAccessService.validateCanEdit(page, user);
     if (page.isBase) {
       return this.buildBaseDto(page);

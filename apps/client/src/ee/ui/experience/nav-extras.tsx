@@ -1,31 +1,14 @@
 import { Badge } from "@mantine/core";
 import { IconClipboardCheck, IconLibrary } from "@tabler/icons-react";
-import { useAtomValue } from "jotai";
 import { Link, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import classes from "@/components/layouts/global/global-sidebar.module.css";
-import { currentUserAtom } from "@/features/user/atoms/current-user-atom";
-import { useVerificationListQuery } from "@/ee/page-verification/queries/page-verification-query";
+import { usePendingReviewCount } from "@/ee/page-verification/hooks/use-pending-review-count";
 
 export function NavExtras() {
   const { t } = useTranslation();
   const location = useLocation();
-  const currentUser = useAtomValue(currentUserAtom);
-  const { data } = useVerificationListQuery(
-    {
-      verifierId: currentUser?.user?.id,
-      type: "qms",
-      limit: 50,
-    },
-    !!currentUser?.user?.id,
-  );
-
-  const pending =
-    data?.items.filter(
-      (item) =>
-        item.status === "in_approval" ||
-        item.status === "needs_clarification",
-    ).length ?? 0;
+  const pending = usePendingReviewCount();
 
   return (
     <div className={classes.section}>

@@ -114,7 +114,8 @@ export class ScimProvisioningService {
     const user = await this.userRepo.findById(userId, workspaceId, {
       includeScimExternalId: true,
     });
-    if (!user) throw new NotFoundException();
+    // Deleted users are invisible, as in listUsers/replaceUser/deleteUser.
+    if (!user || user.deletedAt) throw new NotFoundException();
     return this.mapUser(user);
   }
 

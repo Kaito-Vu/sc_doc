@@ -11,6 +11,7 @@ import { AuthProviderRepo } from './auth-provider.repo';
 import { PaginationOptions } from '@docmost/db/pagination/pagination-options';
 import { User } from '@docmost/db/types/entity.types';
 import { KyselyDB } from '@docmost/db/types/kysely.types';
+import { assertCanManageWorkspace } from '../common/workspace-admin';
 import WorkspaceAbilityFactory from '../../core/casl/abilities/workspace-ability.factory';
 import {
   WorkspaceCaslAction,
@@ -62,15 +63,6 @@ export class SsoService {
       )
       .orderBy('name', 'asc')
       .execute();
-  }
-
-  private assertAdmin(user: User, workspace: Workspace) {
-    const ability = this.workspaceAbility.createForUser(user, workspace);
-    if (
-      ability.cannot(WorkspaceCaslAction.Manage, WorkspaceCaslSubject.Settings)
-    ) {
-      throw new ForbiddenException();
-    }
   }
 
   private getSecretEncryptionKey(): Buffer {
@@ -147,7 +139,7 @@ export class SsoService {
     workspace: Workspace,
     pagination: PaginationOptions,
   ) {
-    this.assertAdmin(user, workspace);
+    assertCanManageWorkspace(this.workspaceAbility, user, workspace);
     const result = await this.authProviderRepo.listPaginated(
       workspaceId,
       pagination,
@@ -164,7 +156,7 @@ export class SsoService {
     user: User,
     workspace: Workspace,
   ) {
-    this.assertAdmin(user, workspace);
+    assertCanManageWorkspace(this.workspaceAbility, user, workspace);
     const provider = await this.authProviderRepo.findById(
       providerId,
       workspaceId,
@@ -176,7 +168,7 @@ export class SsoService {
   }
 
   async create(workspaceId: string, user: User, workspace: Workspace, data: any) {
-    this.assertAdmin(user, workspace);
+    assertCanManageWorkspace(this.workspaceAbility, user, workspace);
     if (!PROVIDER_TYPES.includes(data.type)) {
       throw new BadRequestException('Invalid SSO provider type');
     }
@@ -233,7 +225,7 @@ export class SsoService {
     workspace: Workspace,
     data: any,
   ) {
-    this.assertAdmin(user, workspace);
+    assertCanManageWorkspace(this.workspaceAbility, user, workspace);
     const providerId = data.providerId ?? data.id;
     const existing = await this.authProviderRepo.findById(
       providerId,
@@ -299,7 +291,7 @@ export class SsoService {
     user: User,
     workspace: Workspace,
   ) {
-    this.assertAdmin(user, workspace);
+    assertCanManageWorkspace(this.workspaceAbility, user, workspace);
     const existing = await this.authProviderRepo.findById(
       providerId,
       workspaceId,

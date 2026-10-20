@@ -17,7 +17,8 @@ import { IAuthProvider } from "@/ee/security/types/security.types.ts";
 import CopyTextButton from "@/components/common/copy.tsx";
 import { useTranslation } from "react-i18next";
 import { useUpdateSsoProviderMutation } from "@/ee/security/queries/security-query.ts";
-import { SsoSwitchRow, copyDirty } from "@/ee/security/components/sso-form-fields.tsx";
+import { copyDirty } from "@/ee/security/components/sso-form-fields.tsx";
+import { SsoCommonFooter } from "@/ee/security/components/sso-common-footer.tsx";
 import i18n from "@/i18n";
 
 const ssoSchema = z.object({
@@ -111,17 +112,7 @@ export function SsoSamlForm({ provider, onClose }: Readonly<SsoFormProps>) {
             {...form.getInputProps("samlCertificate")}
           />
 
-          <SsoSwitchRow label={t("Group sync")} form={form} field="groupSync" />
-
-          <SsoSwitchRow label={t("Allow signup")} form={form} field="allowSignup" />
-
-          <SsoSwitchRow label={t("Enabled")} form={form} field="isEnabled" />
-
-          <Group mt="md" justify="flex-end">
-            <Button type="submit" disabled={!form.isDirty()}>
-              {t("Save")}
-            </Button>
-          </Group>
+          <SsoCommonFooter form={form} />
         </Stack>
       </form>
     </Box>

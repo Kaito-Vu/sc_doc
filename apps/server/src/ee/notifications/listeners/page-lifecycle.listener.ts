@@ -3,6 +3,7 @@ import { OnEvent } from '@nestjs/event-emitter';
 import { EventName } from '../../../common/events/event.contants';
 import { getPageTitle } from '../../../common/helpers';
 import { DomainService } from '../../../integrations/environment/domain.service';
+import { safeHandle, workspaceUrl } from './listener-helpers';
 import { NotificationRecipientsRepo } from '../notification-recipients.repo';
 import { NotificationRecipientResolver } from '../notification-recipient.resolver';
 import { NotificationDispatcher } from '../notification-dispatcher.service';
@@ -33,35 +34,35 @@ export class PageLifecycleNotificationListener {
 
   @OnEvent(EventName.PAGE_CREATED)
   async handlePageCreated(event: PageIdsEvent): Promise<void> {
-    await this.safe('page.created', () =>
+    await safeHandle(this.logger, 'page.created', () =>
       this.handleLifecycleEvent(event, EeNotificationType.PAGE_CREATED),
     );
   }
 
   @OnEvent(EventName.PAGE_SOFT_DELETED)
   async handlePageTrashed(event: PageIdsEvent): Promise<void> {
-    await this.safe('page.trashed', () =>
+    await safeHandle(this.logger, 'page.trashed', () =>
       this.handleLifecycleEvent(event, EeNotificationType.PAGE_TRASHED),
     );
   }
 
   @OnEvent(EventName.PAGE_RESTORED)
   async handlePageRestored(event: PageIdsEvent): Promise<void> {
-    await this.safe('page.restored', () =>
+    await safeHandle(this.logger, 'page.restored', () =>
       this.handleLifecycleEvent(event, EeNotificationType.PAGE_RESTORED),
     );
   }
 
   @OnEvent(EventName.PAGE_MOVED_TO_SPACE)
   async handlePageMoved(event: PageMovedEvent): Promise<void> {
-    await this.safe('page.moved', () => this.handlePageMovedEvent(event));
+    await safeHandle(this.logger, 'page.moved', () => this.handlePageMovedEvent(event));
   }
 
   private async handlePageMovedEvent(event: PageMovedEvent): Promise<void> {
     const contexts = await this.loadRootContexts(event.pageIds, 'move');
     if (contexts.length === 0) return;
 
-    const appUrl = await this.getWorkspaceUrl(event.workspaceId);
+    const appUrl = await workspaceUrl(this.recipientsRepo, this.domainService, event.workspaceId);
     const actorNames = await this.recipientsRepo.findUserNames(
       event.actorId ? [event.actorId] : [],
     );
@@ -88,7 +89,7 @@ export class PageLifecycleNotificationListener {
     const contexts = await this.loadRootContexts(event.pageIds, type);
     if (contexts.length === 0) return;
 
-    const appUrl = await this.getWorkspaceUrl(event.workspaceId);
+    const appUrl = await workspaceUrl(this.recipientsRepo, this.domainService, event.workspaceId);
     const actorIds = contexts
       .map((context) => this.getActorId(context, type))
       .filter((id): id is string => !!id);
@@ -234,21 +235,5 @@ export class PageLifecycleNotificationListener {
     return `${appUrl}/s/${context.spaceSlug}/p/${context.slugId}`;
   }
 
-  private async getWorkspaceUrl(workspaceId: string): Promise<string> {
-    const hostname =
-      await this.recipientsRepo.findWorkspaceHostname(workspaceId);
-    return this.domainService.getUrl(hostname);
-  }
 
-  private async safe(
-    eventName: string,
-    handler: () => Promise<void>,
-  ): Promise<void> {
-    try {
-      await handler();
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Unknown error';
-      this.logger.error(`Failed to process ${eventName} notification: ${message}`);
-    }
-  }
 }

@@ -10,8 +10,7 @@ import {
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { useCreateTemplateMutation } from "../queries/template-query";
-import { useGetSpacesQuery } from "@/features/space/queries/space-query";
-import useUserRole from "@/hooks/use-user-role";
+import { useTemplateScopeOptions } from "@/ee/template/hooks/use-template-scope-options";
 
 type CreateTemplateModalProps = {
   opened: boolean;
@@ -24,29 +23,12 @@ export default function CreateTemplateModal({
 }: CreateTemplateModalProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { isAdmin: isWorkspaceAdmin } = useUserRole();
   const createMutation = useCreateTemplateMutation();
-  const { data: spaces } = useGetSpacesQuery({ limit: 100 });
 
   const [title, setTitle] = useState("");
   const [spaceId, setSpaceId] = useState<string | null>(null);
 
-  const scopeOptions = [
-    ...(isWorkspaceAdmin
-      ? [
-          { group: t("Workspace"), items: [{ value: "", label: t("Global") }] },
-        ]
-      : []),
-    ...(spaces?.items?.length
-      ? [
-          {
-            group: t("Spaces"),
-            items: spaces.items.map((s) => ({ value: s.id, label: s.name })),
-          },
-        ]
-      : []),
-  ];
-
+  const scopeOptions = useTemplateScopeOptions();
   const handleCreate = async () => {
     if (!title.trim()) return;
 

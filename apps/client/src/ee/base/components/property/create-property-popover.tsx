@@ -12,6 +12,7 @@ import {
 } from "@mantine/core";
 import { IconPlus, IconChevronRight } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
+import { DiscardConfirmPanel } from "./discard-confirm-panel";
 import {
   BasePropertyType,
   IBaseProperty,
@@ -384,30 +385,10 @@ export function CreatePropertyPopover({ pageId, properties, onPropertyCreated, r
             </Stack>
           )}
           {panel === "confirmDiscard" && (
-            <Stack gap="xs" p="sm">
-              <Text size="sm" fw={600}>
-                {t("Unsaved changes")}
-              </Text>
-              <Text size="xs" c="dimmed">
-                {t("You have unsaved changes. Do you want to discard them?")}
-              </Text>
-              <Group gap="xs" justify="flex-end">
-                <Button
-                  variant="default"
-                  size="xs"
-                  onClick={handleCancelDiscard}
-                >
-                  {t("Keep editing")}
-                </Button>
-                <Button
-                  color="red"
-                  size="xs"
-                  onClick={handleConfirmDiscard}
-                >
-                  {t("Discard")}
-                </Button>
-              </Group>
-            </Stack>
+            <DiscardConfirmPanel
+              onKeepEditing={handleCancelDiscard}
+              onDiscard={handleConfirmDiscard}
+            />
           )}
           </div>
         </Popover.Dropdown>

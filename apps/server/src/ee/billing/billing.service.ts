@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { BillingRepo } from './billing.repo';
 import { User } from '@docmost/db/types/entity.types';
+import { assertCanManageWorkspace } from '../common/workspace-admin';
 import WorkspaceAbilityFactory from '../../core/casl/abilities/workspace-ability.factory';
 import {
   WorkspaceCaslAction,
@@ -18,17 +19,6 @@ export class BillingService {
     private readonly billingRepo: BillingRepo,
     private readonly workspaceAbility: WorkspaceAbilityFactory,
   ) {}
-
-  private assertAdmin(user: User, workspaceId: string) {
-    const ability = this.workspaceAbility.createForUser(user, {
-      id: workspaceId,
-    } as any);
-    if (
-      ability.cannot(WorkspaceCaslAction.Manage, WorkspaceCaslSubject.Settings)
-    ) {
-      throw new ForbiddenException();
-    }
-  }
 
   private mapBilling(row: any) {
     return {
@@ -50,7 +40,7 @@ export class BillingService {
   }
 
   async getInfo(user: User, workspaceId: string) {
-    this.assertAdmin(user, workspaceId);
+    assertCanManageWorkspace(this.workspaceAbility, user, { id: workspaceId });
     const billing = await this.billingRepo.findByWorkspaceId(workspaceId);
     if (!billing) {
       throw new NotFoundException('No active subscription');
@@ -59,7 +49,7 @@ export class BillingService {
   }
 
   async getPlans(user: User, workspaceId: string) {
-    this.assertAdmin(user, workspaceId);
+    assertCanManageWorkspace(this.workspaceAbility, user, { id: workspaceId });
     // Self-hosted: no purchasable plans.
     return [];
   }
@@ -69,14 +59,14 @@ export class BillingService {
     workspaceId: string,
     _data: { priceId: string },
   ) {
-    this.assertAdmin(user, workspaceId);
+    assertCanManageWorkspace(this.workspaceAbility, user, { id: workspaceId });
     throw new BadRequestException(
       'Billing checkout is not available on self-hosted installations',
     );
   }
 
   async portal(user: User, workspaceId: string) {
-    this.assertAdmin(user, workspaceId);
+    assertCanManageWorkspace(this.workspaceAbility, user, { id: workspaceId });
     throw new BadRequestException(
       'Billing portal is not available on self-hosted installations',
     );

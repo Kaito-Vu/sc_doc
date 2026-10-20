@@ -8,7 +8,7 @@ import {
   UpdatableScimToken,
 } from '@docmost/db/types/entity.types';
 import { PaginationOptions } from '@docmost/db/pagination/pagination-options';
-import { executeWithCursorPagination } from '@docmost/db/pagination/cursor-pagination';
+import { paginateByCreatedAt } from '../common/repo-helpers';
 import { ExpressionBuilder } from 'kysely';
 import { DB } from '@docmost/db/types/db';
 import { jsonObjectFrom } from 'kysely/helpers/postgres';
@@ -80,15 +80,7 @@ export class ScimTokenRepo {
       .where('deletedAt', 'is', null)
       .orderBy('createdAt', 'desc');
 
-    return executeWithCursorPagination(query, {
-      perPage: pagination.limit,
-      cursor: pagination.cursor,
-      beforeCursor: pagination.beforeCursor,
-      fields: [{ expression: 'createdAt', direction: 'desc' }],
-      parseCursor: (cursor) => ({
-        createdAt: new Date(cursor.createdAt),
-      }),
-    });
+    return paginateByCreatedAt(query, pagination);
   }
 
   async update(

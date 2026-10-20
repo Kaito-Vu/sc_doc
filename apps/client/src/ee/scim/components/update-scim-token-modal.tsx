@@ -1,16 +1,8 @@
-import { Modal, TextInput, Button, Group, Stack } from "@mantine/core";
-import { useForm } from "@mantine/form";
-import { zod4Resolver } from "mantine-form-zod-resolver";
-import { z } from "zod/v4";
+import { Modal } from "@mantine/core";
 import { useTranslation } from "react-i18next";
-import { useEffect } from "react";
 import { useUpdateScimTokenMutation } from "@/ee/scim/queries/scim-token-query";
 import { IScimToken } from "@/ee/scim/types/scim-token.types";
-
-const formSchema = z.object({
-  name: z.string().min(1, "Name is required"),
-});
-type FormValues = z.infer<typeof formSchema>;
+import { RenameCredentialForm } from "@/ee/components/rename-credential-form";
 
 interface UpdateScimTokenModalProps {
   opened: boolean;
@@ -26,26 +18,6 @@ export function UpdateScimTokenModal({
   const { t } = useTranslation();
   const updateMutation = useUpdateScimTokenMutation();
 
-  const form = useForm<FormValues>({
-    validate: zod4Resolver(formSchema),
-    initialValues: { name: "" },
-  });
-
-  useEffect(() => {
-    if (opened && scimToken) {
-      form.setValues({ name: scimToken.name });
-    }
-  }, [opened, scimToken]);
-
-  const handleSubmit = async (data: FormValues) => {
-    if (!scimToken) return;
-    await updateMutation.mutateAsync({
-      tokenId: scimToken.id,
-      name: data.name,
-    });
-    onClose();
-  };
-
   return (
     <Modal
       opened={opened}
@@ -54,25 +26,17 @@ export function UpdateScimTokenModal({
       size="md"
       closeButtonProps={{ "aria-label": t("Close") }}
     >
-      <form onSubmit={form.onSubmit((values) => handleSubmit(values))}>
-        <Stack gap="md">
-          <TextInput
-            label={t("Name")}
-            placeholder={t("Enter a descriptive name")}
-            required
-            {...form.getInputProps("name")}
-          />
-
-          <Group justify="flex-end" mt="md">
-            <Button variant="default" onClick={onClose}>
-              {t("Cancel")}
-            </Button>
-            <Button type="submit" loading={updateMutation.isPending}>
-              {t("Update")}
-            </Button>
-          </Group>
-        </Stack>
-      </form>
+      <RenameCredentialForm
+        opened={opened}
+        currentName={scimToken?.name}
+        placeholder={t("Enter a descriptive name")}
+        loading={updateMutation.isPending}
+        onClose={onClose}
+        onSubmit={(name) => {
+          if (!scimToken) return;
+          return updateMutation.mutateAsync({ tokenId: scimToken.id, name });
+        }}
+      />
     </Modal>
   );
 }

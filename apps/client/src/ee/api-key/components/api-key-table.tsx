@@ -1,5 +1,5 @@
-import { ActionIcon, Group, Menu, Table, Text } from "@mantine/core";
-import { IconDots, IconEdit, IconTrash } from "@tabler/icons-react";
+import { Group, Table, Text } from "@mantine/core";
+import { CredentialRowMenu } from "@/ee/components/credential-row-menu";
 import { useTranslation } from "react-i18next";
 import { IApiKey } from "@/ee/api-key";
 import { CustomAvatar } from "@/components/ui/custom-avatar.tsx";
@@ -105,36 +105,11 @@ export function ApiKeyTable({
                 </Table.Td>
 
                 <Table.Td>
-                  <Menu position="bottom-end" withinPortal>
-                    <Menu.Target>
-                      <ActionIcon
-                        variant="subtle"
-                        color="gray"
-                        aria-label={t("API key menu")}
-                      >
-                        <IconDots size={16} />
-                      </ActionIcon>
-                    </Menu.Target>
-                    <Menu.Dropdown>
-                      {onUpdate && (
-                        <Menu.Item
-                          leftSection={<IconEdit size={16} />}
-                          onClick={() => onUpdate(apiKey)}
-                        >
-                          {t("Rename")}
-                        </Menu.Item>
-                      )}
-                      {onRevoke && (
-                        <Menu.Item
-                          leftSection={<IconTrash size={16} />}
-                          color="red"
-                          onClick={() => onRevoke(apiKey)}
-                        >
-                          {t("Revoke")}
-                        </Menu.Item>
-                      )}
-                    </Menu.Dropdown>
-                  </Menu>
+                  <CredentialRowMenu
+                    ariaLabel={t("API key menu")}
+                    onRename={onUpdate && (() => onUpdate(apiKey))}
+                    onRevoke={onRevoke && (() => onRevoke(apiKey))}
+                  />
                 </Table.Td>
               </Table.Tr>
             ))

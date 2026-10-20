@@ -23,6 +23,7 @@ import {
 import { IPagination } from "@/lib/types";
 import { notifications } from "@mantine/notifications";
 import { useTranslation } from "react-i18next";
+import { notifyError } from "../../lib/notify-error";
 
 export function useAuditLogsQuery(
   params?: IAuditLogParams,
@@ -73,11 +74,7 @@ export function useExportAuditLogsMutation() {
 
   return useMutation({
     mutationFn: (params: IAuditLogParams) => exportAuditLogs(params),
-    onError: (error) => {
-      const errorMessage =
-        (error as any)?.response?.data?.message ?? t("Export failed");
-      notifications.show({ message: errorMessage, color: "red" });
-    },
+    onError: (error) => notifyError(error, t("Export failed")),
   });
 }
 
@@ -99,9 +96,6 @@ export function useUpdateAuditRetentionMutation() {
       notifications.show({ message: t("Audit retention updated") });
       queryClient.invalidateQueries({ queryKey: ["audit-retention"] });
     },
-    onError: (error) => {
-      const errorMessage = (error as any)["response"]?.data?.message;
-      notifications.show({ message: errorMessage, color: "red" });
-    },
+    onError: (error) => notifyError(error, t("Failed to update audit retention")),
   });
 }

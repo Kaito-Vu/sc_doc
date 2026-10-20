@@ -34,7 +34,7 @@ export function AuditRetentionModal({
   const { data, isLoading } = useAuditRetentionQuery();
   const updateRetention = useUpdateAuditRetentionMutation();
 
-  const currentDays = data?.retentionDays ?? 90;
+  const currentDays = data?.retentionDays ?? MIN_RETENTION_DAYS;
   const parsed = daysToRetention(currentDays);
   const [amount, setAmount] = useState<number | string>(parsed.amount);
   const [unit, setUnit] = useState<RetentionUnit>(parsed.unit);

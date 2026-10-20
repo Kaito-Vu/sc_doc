@@ -6,7 +6,7 @@ import { executeWithCursorPagination } from '@docmost/db/pagination/cursor-pagin
 import { jsonObjectFrom } from 'kysely/helpers/postgres';
 import { sql } from 'kysely';
 import { stringify } from 'csv-stringify/sync';
-import { AuditQueryFilters } from './dto/audit-query.dto';
+import { AuditQueryFilters, MIN_AUDIT_RETENTION_DAYS } from './dto/audit-query.dto';
 
 const EXPORT_ROW_LIMIT = 20000;
 
@@ -580,7 +580,7 @@ export class AuditQueryService {
       .executeTakeFirst();
 
     return {
-      retentionDays: Number(workspace?.auditRetentionDays ?? 90),
+      retentionDays: Number(workspace?.auditRetentionDays ?? MIN_AUDIT_RETENTION_DAYS),
     };
   }
 

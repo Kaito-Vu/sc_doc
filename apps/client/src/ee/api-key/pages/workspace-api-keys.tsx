@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React from "react";
 import { Anchor, Button, Divider, Group, Space, Text } from "@mantine/core";
 import { Trans, useTranslation } from "react-i18next";
 import SettingsTitle from "@/components/settings/settings-title";
@@ -11,6 +11,7 @@ import Paginate from "@/components/common/paginate";
 import { useCursorPaginate } from "@/hooks/use-cursor-paginate";
 import { useGetApiKeysQuery } from "@/ee/api-key/queries/api-key-query.ts";
 import { IApiKey } from "@/ee/api-key";
+import { useCredentialModals } from "@/ee/api-key/hooks/use-credential-modals";
 import useUserRole from '@/hooks/use-user-role.tsx';
 import RestrictApiToAdmins from "@/ee/api-key/components/restrict-api-to-admins";
 import { DocumentTitle } from "@/components/ui/document-title.tsx";
@@ -18,31 +19,13 @@ import { DocumentTitle } from "@/components/ui/document-title.tsx";
 export default function WorkspaceApiKeys() {
   const { t } = useTranslation();
   const { cursor, goNext, goPrev } = useCursorPaginate();
-  const [createModalOpened, setCreateModalOpened] = useState(false);
-  const [createdApiKey, setCreatedApiKey] = useState<IApiKey | null>(null);
-  const [updateModalOpened, setUpdateModalOpened] = useState(false);
-  const [revokeModalOpened, setRevokeModalOpened] = useState(false);
-  const [selectedApiKey, setSelectedApiKey] = useState<IApiKey | null>(null);
+  const modals = useCredentialModals<IApiKey>();
   const { data, isLoading } = useGetApiKeysQuery({ cursor, adminView: true });
   const { isAdmin } = useUserRole();
 
   if (!isAdmin) {
     return null;
   }
-
-  const handleCreateSuccess = (response: IApiKey) => {
-    setCreatedApiKey(response);
-  };
-
-  const handleUpdate = (apiKey: IApiKey) => {
-    setSelectedApiKey(apiKey);
-    setUpdateModalOpened(true);
-  };
-
-  const handleRevoke = (apiKey: IApiKey) => {
-    setSelectedApiKey(apiKey);
-    setRevokeModalOpened(true);
-  };
 
   return (
     <>
@@ -63,7 +46,7 @@ export default function WorkspaceApiKeys() {
       <Divider my="lg" />
 
       <Group justify="flex-end" mb="md">
-        <Button onClick={() => setCreateModalOpened(true)}>
+        <Button onClick={modals.openCreate}>
           {t("Create API Key")}
         </Button>
       </Group>
@@ -72,8 +55,8 @@ export default function WorkspaceApiKeys() {
         apiKeys={data?.items}
         isLoading={isLoading}
         showUserColumn
-        onUpdate={handleUpdate}
-        onRevoke={handleRevoke}
+        onUpdate={modals.openUpdate}
+        onRevoke={modals.openRevoke}
       />
 
       <Space h="md" />
@@ -88,33 +71,27 @@ export default function WorkspaceApiKeys() {
       )}
 
       <CreateApiKeyModal
-        opened={createModalOpened}
-        onClose={() => setCreateModalOpened(false)}
-        onSuccess={handleCreateSuccess}
+        opened={modals.createOpened}
+        onClose={modals.closeCreate}
+        onSuccess={modals.setCreated}
       />
 
       <ApiKeyCreatedModal
-        opened={!!createdApiKey}
-        onClose={() => setCreatedApiKey(null)}
-        apiKey={createdApiKey}
+        opened={!!modals.created}
+        onClose={() => modals.setCreated(null)}
+        apiKey={modals.created}
       />
 
       <UpdateApiKeyModal
-        opened={updateModalOpened}
-        onClose={() => {
-          setUpdateModalOpened(false);
-          setSelectedApiKey(null);
-        }}
-        apiKey={selectedApiKey}
+        opened={modals.updateOpened}
+        onClose={modals.closeUpdate}
+        apiKey={modals.selected}
       />
 
       <RevokeApiKeyModal
-        opened={revokeModalOpened}
-        onClose={() => {
-          setRevokeModalOpened(false);
-          setSelectedApiKey(null);
-        }}
-        apiKey={selectedApiKey}
+        opened={modals.revokeOpened}
+        onClose={modals.closeRevoke}
+        apiKey={modals.selected}
       />
     </>
   );

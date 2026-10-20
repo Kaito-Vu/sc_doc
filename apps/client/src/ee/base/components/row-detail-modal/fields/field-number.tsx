@@ -3,8 +3,8 @@ import { NumberTypeOptions } from "@/ee/base/types/base.types";
 import {
   formatNumber,
   parseNumberDraft,
-  sanitizeNumberInput,
 } from "@/ee/base/components/cells/cell-number";
+import { numberInputProps } from "@/ee/base/utils/number-input";
 import { FieldProps, FieldShell } from "./detail-field";
 import classes from "@/ee/base/styles/row-detail-modal.module.css";
 
@@ -63,23 +63,7 @@ export function FieldNumber({
           setFocused(true);
           onEditingChange?.(true);
         }}
-        onChange={(e) => {
-          const v = e.target.value;
-          if (v === "" || v === "-" || /^-?\d*\.?\d*$/.test(v)) {
-            setDraft(v);
-          }
-        }}
-        onPaste={(e) => {
-          e.preventDefault();
-          const el = e.currentTarget;
-          const start = el.selectionStart ?? draft.length;
-          const end = el.selectionEnd ?? draft.length;
-          setDraft(
-            draft.slice(0, start) +
-              sanitizeNumberInput(e.clipboardData.getData("text")) +
-              draft.slice(end),
-          );
-        }}
+        {...numberInputProps(draft, setDraft)}
         onBlur={commit}
         onKeyDown={(e) => {
           if (e.key === "Enter") {

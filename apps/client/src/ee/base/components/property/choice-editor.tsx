@@ -17,7 +17,7 @@ import {
   IconArrowsSort,
 } from "@tabler/icons-react";
 import classes from "@/ee/base/styles/property.module.css";
-import i18n from "@/i18n";
+import { CHOICE_COLORS, STATUS_CATEGORY_ORDER, getStatusCategoryLabels } from "@/ee/base/components/cells/choice-constants";
 import { combine } from "@atlaskit/pragmatic-drag-and-drop/combine";
 import {
   draggable,
@@ -38,17 +38,6 @@ import { choiceColor } from "@/ee/base/components/cells/choice-color";
 import { useTranslation } from "react-i18next";
 import { generateBaseChoiceId } from "@/ee/base/utils/generate-base-id";
 import { DefaultValuePicker } from "./default-value-picker";
-
-const CHOICE_COLORS = [
-  "gray", "red", "pink", "grape", "violet", "indigo",
-  "blue", "cyan", "teal", "green", "lime", "yellow", "orange",
-];
-
-const STATUS_CATEGORIES = [
-  { value: "todo", label: i18n.t("To Do") },
-  { value: "inProgress", label: i18n.t("In Progress") },
-  { value: "complete", label: i18n.t("Complete") },
-] as const;
 
 // Default choices for a new status property, one per category.
 export function defaultStatusChoices(): Choice[] {
@@ -389,6 +378,8 @@ function StatusChoiceList({
   onCategoryReorder: (category: string, activeId: string, targetId: string, edge: Edge) => void;
   dropdownPortalTarget?: HTMLElement | null;
 }) {
+  const { t } = useTranslation();
+  const labels = getStatusCategoryLabels(t);
   const grouped = useMemo(() => {
     const groups: Record<string, Choice[]> = { todo: [], inProgress: [], complete: [] };
     for (const choice of draft) {
@@ -400,11 +391,11 @@ function StatusChoiceList({
 
   return (
     <Stack gap="sm">
-      {STATUS_CATEGORIES.map(({ value: category, label }) => (
+      {STATUS_CATEGORY_ORDER.map((category) => (
         <CategorySection
           key={category}
           category={category as "todo" | "inProgress" | "complete"}
-          label={label}
+          label={labels[category]}
           choices={grouped[category] ?? []}
           focusChoiceId={focusChoiceId}
           onFocused={onFocused}

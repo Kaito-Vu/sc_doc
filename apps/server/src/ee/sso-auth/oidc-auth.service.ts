@@ -4,13 +4,11 @@ import {
   Injectable,
   Logger,
   NotFoundException,
-  UnauthorizedException,
 } from '@nestjs/common';
 import * as client from 'openid-client';
 import { InjectKysely } from 'nestjs-kysely';
 import { FastifyReply } from 'fastify';
 import { AuthProviderRepo } from '../sso/auth-provider.repo';
-import { AuthAccountRepo } from '../sso/auth-account.repo';
 import { SsoService } from '../sso/sso.service';
 import { UserRepo } from '@docmost/db/repos/user/user.repo';
 import { KyselyDB } from '@docmost/db/types/kysely.types';
@@ -21,7 +19,7 @@ import { AttachmentService } from '../../core/attachment/services/attachment.ser
 import { MfaGateService } from '../mfa/services/mfa-gate.service';
 import { encodeOidcState, decodeOidcState } from './oidc-state.util';
 import { OidcProviderStrategyFactory } from './oidc-provider-strategy.factory';
-import { SsoUserProvisioningService } from './sso-user-provisioning.service';
+import { SsoIdentityResolver } from './sso-identity-resolver';
 
 const DISCOVERY_CACHE_TTL_MS = 10 * 60 * 1000;
 
@@ -39,10 +37,9 @@ export class OidcAuthService {
 
   constructor(
     private readonly authProviderRepo: AuthProviderRepo,
-    private readonly authAccountRepo: AuthAccountRepo,
     private readonly ssoService: SsoService,
     private readonly userRepo: UserRepo,
-    private readonly userProvisioning: SsoUserProvisioningService,
+    private readonly identityResolver: SsoIdentityResolver,
     private readonly environmentService: EnvironmentService,
     private readonly attachmentService: AttachmentService,
     private readonly mfaGateService: MfaGateService,
@@ -325,66 +322,12 @@ export class OidcAuthService {
       avatarImage,
     } = params;
 
-    const user = await executeTx(this.db, async (trx) => {
-      const linkedAccount = await this.authAccountRepo.findByProviderUserId(
-        provider.id,
-        providerUserId,
-        workspaceId,
+    const user = await executeTx(this.db, (trx) =>
+      this.identityResolver.resolve(
+        { email, name, emailVerified, providerUserId, provider, workspaceId },
         trx,
-      );
-
-      let user: User | undefined;
-      if (linkedAccount) {
-        user = await this.userRepo.findById(linkedAccount.userId, workspaceId, {
-          trx,
-        });
-      }
-
-      if (!user && !emailVerified) {
-        throw new UnauthorizedException('SSO email address is not verified');
-      }
-
-      if (!user) {
-        user = await this.userRepo.findByEmail(email, workspaceId, { trx });
-        // An account already linked to another subject of this IdP must not
-        // be re-linked by email: a recycled/reassigned address at the IdP
-        // would otherwise hand the old owner's account to the new holder.
-        if (user) {
-          const existingLink = await this.authAccountRepo.findByUserAndProvider(
-            user.id,
-            provider.id,
-            trx,
-          );
-          if (existingLink && existingLink.providerUserId !== providerUserId) {
-            throw new UnauthorizedException(
-              'Account is linked to a different SSO identity',
-            );
-          }
-        }
-      }
-
-      if (!user) {
-        if (!provider.allowSignup) {
-          throw new UnauthorizedException('User not provisioned');
-        }
-        user = await this.userProvisioning.provision(
-          { email, name, workspaceId },
-          trx,
-        );
-      }
-
-      await this.authAccountRepo.upsert(
-        {
-          userId: user.id,
-          authProviderId: provider.id,
-          providerUserId,
-          workspaceId,
-        },
-        trx,
-      );
-
-      return user;
-    });
+      ),
+    );
 
     if (avatarImage) {
       try {

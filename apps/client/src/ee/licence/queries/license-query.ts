@@ -11,6 +11,8 @@ import {
 } from "@/ee/licence/services/license-service.ts";
 import { ILicenseInfo } from "@/ee/licence/types/license.types.ts";
 import { notifications } from "@mantine/notifications";
+import { useTranslation } from "react-i18next";
+import { notifyError } from "../../lib/notify-error";
 
 export function useLicenseInfo(): UseQueryResult<ILicenseInfo, Error> {
   return useQuery({
@@ -22,6 +24,7 @@ export function useLicenseInfo(): UseQueryResult<ILicenseInfo, Error> {
 
 export function useActivateMutation() {
   const queryClient = useQueryClient();
+  const { t } = useTranslation();
 
   return useMutation<ILicenseInfo, Error, string>({
     mutationFn: (licenseKey) => activateLicense(licenseKey),
@@ -33,10 +36,7 @@ export function useActivateMutation() {
       queryClient.refetchQueries({ queryKey: ["currentUser"] });
       queryClient.refetchQueries({ queryKey: ["entitlements"] });
     },
-    onError: (error) => {
-      const errorMessage = error["response"]?.data?.message;
-      notifications.show({ message: errorMessage, color: "red" });
-    },
+    onError: (error) => notifyError(error, t("Failed to activate license")),
   });
 }
 

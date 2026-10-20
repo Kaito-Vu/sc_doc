@@ -1,9 +1,9 @@
+import { loadLivePage } from '../common/load-page';
 import {
   Body,
   Controller,
   HttpCode,
   HttpStatus,
-  NotFoundException,
   Post,
   UseGuards,
 } from '@nestjs/common';
@@ -54,11 +54,8 @@ export class PdfExportController {
     @AuthUser() user: User,
     @AuthWorkspace() workspace: Workspace,
   ) {
-    const page = await this.pageRepo.findById(body.pageId);
     // Never queue or mint a render token for a page the caller cannot view.
-    if (!page || page.deletedAt || page.workspaceId !== workspace.id) {
-      throw new NotFoundException('Page not found');
-    }
+    const page = await loadLivePage(this.pageRepo, body.pageId, workspace.id);
     await this.pageAccessService.validateCanView(page, user);
     const { fileTaskId } = await this.pdfExportService.queuePageExport(
       page.id,

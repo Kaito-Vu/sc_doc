@@ -7,17 +7,20 @@ export const DOC_CLASSIFICATIONS = [
 
 export type DocClassification = (typeof DOC_CLASSIFICATIONS)[number]["value"];
 
-export type DocMetadataFilter =
-  | "all"
-  | "active"
-  | "missing-owner"
-  | "missing-classification"
-  | "review-overdue"
-  | "archived"
-  | "in-review"
-  | "approved"
-  | "orphan"
-  | "duplicate-titles";
+export const DOC_METADATA_FILTERS = [
+  "all",
+  "active",
+  "missing-owner",
+  "missing-classification",
+  "review-overdue",
+  "archived",
+  "in-review",
+  "approved",
+  "orphan",
+  "duplicate-titles",
+] as const;
+
+export type DocMetadataFilter = (typeof DOC_METADATA_FILTERS)[number];
 
 export type DocUserRef = {
   id: string;

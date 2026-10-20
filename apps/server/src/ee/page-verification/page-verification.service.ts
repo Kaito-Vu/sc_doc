@@ -9,6 +9,7 @@ import {
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { PageVerificationRepo } from './page-verification.repo';
+import { loadLivePage } from '../common/load-page';
 import { PageRepo } from '@docmost/db/repos/page/page.repo';
 import { CommentRepo } from '@docmost/db/repos/comment/comment.repo';
 import { PageHistoryRepo } from '@docmost/db/repos/page/page-history.repo';
@@ -53,16 +54,12 @@ export class PageVerificationService {
     @Inject(AUDIT_SERVICE) private readonly auditService: IAuditService,
   ) {}
 
-  private async getPageOrThrow(pageId: string) {
-    const page = await this.pageRepo.findById(pageId);
-    if (!page || page.deletedAt) {
-      throw new NotFoundException('Page not found');
-    }
-    return page;
+  private getPageOrThrow(pageId: string, workspaceId: string) {
+    return loadLivePage(this.pageRepo, pageId, workspaceId);
   }
 
   private async getViewablePage(pageId: string, user: User) {
-    const page = await this.getPageOrThrow(pageId);
+    const page = await this.getPageOrThrow(pageId, user.workspaceId);
     await this.pageAccessService.validateCanView(page, user);
     return page;
   }
@@ -177,7 +174,7 @@ export class PageVerificationService {
     user: User,
     workspaceId: string,
   ) {
-    const page = await this.getPageOrThrow(data.pageId);
+    const page = await this.getPageOrThrow(data.pageId, user.workspaceId);
     await this.assertCanManage(page, user);
 
     const existing = await this.pageVerificationRepo.findByPageId(page.id);
@@ -251,7 +248,7 @@ export class PageVerificationService {
     },
     user: User,
   ) {
-    const page = await this.getPageOrThrow(data.pageId);
+    const page = await this.getPageOrThrow(data.pageId, user.workspaceId);
     // latest row: older QMS cycles are retained as audit rows (design §3.1)
     const verification = await this.pageVerificationRepo.findLatestByPageId(
       page.id,
@@ -305,7 +302,7 @@ export class PageVerificationService {
   }
 
   async remove(pageId: string, user: User) {
-    const page = await this.getPageOrThrow(pageId);
+    const page = await this.getPageOrThrow(pageId, user.workspaceId);
     await this.assertCanManage(page, user);
     await this.pageVerificationRepo.delete(page.id);
 
@@ -406,7 +403,7 @@ export class PageVerificationService {
   }
 
   async markObsolete(pageId: string, user: User) {
-    const page = await this.getPageOrThrow(pageId);
+    const page = await this.getPageOrThrow(pageId, user.workspaceId);
     // findLatestByPageId, not findByPageId: a page can carry a retained
     // `approved` audit row alongside a newer `draft` row once its content
     // has changed post-approval (design §3.1/§4); "obsolete" must apply to
@@ -489,7 +486,7 @@ export class PageVerificationService {
   }
 
   async submit(pageId: string, user: User) {
-    const page = await this.getPageOrThrow(pageId);
+    const page = await this.getPageOrThrow(pageId, user.workspaceId);
     // findLatestByPageId, not findByPageId: a page can have multiple
     // page_verification rows once a QMS cycle has gone through
     // approve -> content-changed-reset (see design doc §3.1/§4). Using

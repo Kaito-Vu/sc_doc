@@ -1,7 +1,7 @@
+import { loadLivePage } from '../common/load-page';
 import {
   Injectable,
   Logger,
-  NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { InjectKysely } from 'nestjs-kysely';
@@ -43,10 +43,12 @@ export class PdfExportService {
       throw new UnauthorizedException('Invalid render token');
     }
 
-    const page = await this.pageRepo.findById(pageId, { includeContent: true });
-    if (!page || page.deletedAt || page.workspaceId !== payload.workspaceId) {
-      throw new NotFoundException('Page not found');
-    }
+    const page = await loadLivePage(
+      this.pageRepo,
+      pageId,
+      payload.workspaceId,
+      { includeContent: true },
+    );
 
     return {
       pageId: page.id,

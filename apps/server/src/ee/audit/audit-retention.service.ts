@@ -59,7 +59,7 @@ export class AuditRetentionService {
       for (const workspace of workspaces) {
         // Mirrors AuditQueryService.getRetention: unset means the 90-day default.
         const retentionDays = Math.max(
-          Number(workspace.auditRetentionDays ?? 90) || 0,
+          Number(workspace.auditRetentionDays ?? MIN_AUDIT_RETENTION_DAYS) || 0,
           MIN_AUDIT_RETENTION_DAYS,
         );
 

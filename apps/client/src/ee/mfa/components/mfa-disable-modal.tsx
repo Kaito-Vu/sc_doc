@@ -8,14 +8,11 @@ import {
   Alert,
 } from "@mantine/core";
 import { IconShieldOff, IconAlertTriangle } from "@tabler/icons-react";
-import { useForm } from "@mantine/form";
-import { zod4Resolver } from "mantine-form-zod-resolver";
 import { useMutation } from "@tanstack/react-query";
 import { notifications } from "@mantine/notifications";
 import { useTranslation } from "react-i18next";
-import { z } from "zod/v4";
 import { disableMfa } from "@/ee/mfa";
-import useCurrentUser from "@/features/user/hooks/use-current-user";
+import { usePasswordConfirmForm } from "@/ee/mfa/hooks/use-password-confirm-form";
 
 interface MfaDisableModalProps {
   opened: boolean;
@@ -29,23 +26,7 @@ export function MfaDisableModal({
   onComplete,
 }: MfaDisableModalProps) {
   const { t } = useTranslation();
-  const { data: currentUser } = useCurrentUser();
-  const requiresPassword = !currentUser?.user?.hasGeneratedPassword;
-
-  const formSchema = requiresPassword
-    ? z.object({
-        confirmPassword: z.string().min(1, { message: t("Password is required") }),
-      })
-    : z.object({
-        confirmPassword: z.string().optional(),
-      });
-
-  const form = useForm({
-    validate: zod4Resolver(formSchema),
-    initialValues: {
-      confirmPassword: "",
-    },
-  });
+  const { form, requiresPassword } = usePasswordConfirmForm();
 
   const disableMutation = useMutation({
     mutationFn: disableMfa,

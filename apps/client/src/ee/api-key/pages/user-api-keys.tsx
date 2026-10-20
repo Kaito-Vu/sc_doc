@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React from "react";
 import { Anchor, Alert, Button, Group, Space, Tabs, Text } from "@mantine/core";
 import { IconInfoCircle } from "@tabler/icons-react";
 import { Trans, useTranslation } from "react-i18next";
@@ -13,6 +13,7 @@ import Paginate from "@/components/common/paginate";
 import { useCursorPaginate } from "@/hooks/use-cursor-paginate";
 import { useGetApiKeysQuery } from "@/ee/api-key/queries/api-key-query.ts";
 import { IApiKey } from "@/ee/api-key";
+import { useCredentialModals } from "@/ee/api-key/hooks/use-credential-modals";
 import { useAtom } from "jotai";
 import { workspaceAtom } from "@/features/user/atoms/current-user-atom.ts";
 import useUserRole from "@/hooks/use-user-role.tsx";
@@ -23,11 +24,7 @@ import { AuthorizedAppsPanel } from "@/ee/oauth/components/authorized-apps-panel
 export default function UserApiKeys() {
   const { t } = useTranslation();
   const { cursor, goNext, goPrev } = useCursorPaginate();
-  const [createModalOpened, setCreateModalOpened] = useState(false);
-  const [createdApiKey, setCreatedApiKey] = useState<IApiKey | null>(null);
-  const [updateModalOpened, setUpdateModalOpened] = useState(false);
-  const [revokeModalOpened, setRevokeModalOpened] = useState(false);
-  const [selectedApiKey, setSelectedApiKey] = useState<IApiKey | null>(null);
+  const modals = useCredentialModals<IApiKey>();
   const { data, isLoading } = useGetApiKeysQuery({ cursor });
   const [workspace] = useAtom(workspaceAtom);
   const { isAdmin } = useUserRole();
@@ -39,20 +36,6 @@ export default function UserApiKeys() {
   const mcpEnabled = workspace?.settings?.ai?.mcp === true;
   const restrictToAdmins = workspace?.settings?.api?.restrictToAdmins === true;
   const canCreate = !restrictToAdmins || isAdmin;
-
-  const handleCreateSuccess = (response: IApiKey) => {
-    setCreatedApiKey(response);
-  };
-
-  const handleUpdate = (apiKey: IApiKey) => {
-    setSelectedApiKey(apiKey);
-    setUpdateModalOpened(true);
-  };
-
-  const handleRevoke = (apiKey: IApiKey) => {
-    setSelectedApiKey(apiKey);
-    setRevokeModalOpened(true);
-  };
 
   const handleTabChange = (value: string | null) => {
     navigate(
@@ -117,7 +100,7 @@ export default function UserApiKeys() {
 
           {canCreate && (
             <Button
-              onClick={() => setCreateModalOpened(true)}
+              onClick={modals.openCreate}
               style={{ flexShrink: 0 }}
             >
               {t("Create API Key")}
@@ -136,8 +119,8 @@ export default function UserApiKeys() {
         <ApiKeyTable
           apiKeys={data?.items || []}
           isLoading={isLoading}
-          onUpdate={handleUpdate}
-          onRevoke={handleRevoke}
+          onUpdate={modals.openUpdate}
+          onRevoke={modals.openRevoke}
         />
 
         <Space h="md" />
@@ -159,33 +142,27 @@ export default function UserApiKeys() {
       </Tabs>
 
       <CreateApiKeyModal
-        opened={createModalOpened}
-        onClose={() => setCreateModalOpened(false)}
-        onSuccess={handleCreateSuccess}
+        opened={modals.createOpened}
+        onClose={modals.closeCreate}
+        onSuccess={modals.setCreated}
       />
 
       <ApiKeyCreatedModal
-        opened={!!createdApiKey}
-        onClose={() => setCreatedApiKey(null)}
-        apiKey={createdApiKey}
+        opened={!!modals.created}
+        onClose={() => modals.setCreated(null)}
+        apiKey={modals.created}
       />
 
       <UpdateApiKeyModal
-        opened={updateModalOpened}
-        onClose={() => {
-          setUpdateModalOpened(false);
-          setSelectedApiKey(null);
-        }}
-        apiKey={selectedApiKey}
+        opened={modals.updateOpened}
+        onClose={modals.closeUpdate}
+        apiKey={modals.selected}
       />
 
       <RevokeApiKeyModal
-        opened={revokeModalOpened}
-        onClose={() => {
-          setRevokeModalOpened(false);
-          setSelectedApiKey(null);
-        }}
-        apiKey={selectedApiKey}
+        opened={modals.revokeOpened}
+        onClose={modals.closeRevoke}
+        apiKey={modals.selected}
       />
     </>
   );

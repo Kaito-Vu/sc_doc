@@ -6,7 +6,7 @@ import {
   IBaseView,
 } from "@/ee/base/types/base.types";
 
-type BaseTableProps = {
+export type BaseTableProps = {
   base: IBase;
   rows: IBaseRow[];
   effectiveView: IBaseView | undefined;

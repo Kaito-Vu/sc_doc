@@ -19,6 +19,7 @@ import type {
   DocMetadataListParams,
   DocMetadataUpdate,
 } from "./types";
+import { notifyError } from "../lib/notify-error";
 
 const infoKey = (pageId: string) => ["doc-metadata", pageId];
 const listKey = (params: DocMetadataListParams) => ["doc-metadata-list", params];
@@ -46,13 +47,7 @@ export function useUpdateDocMetadataMutation(pageId: string | undefined) {
       queryClient.invalidateQueries({ queryKey: ["doc-metadata-health"] });
       notifications.show({ message: t("Document metadata saved") });
     },
-    onError: (error: any) => {
-      notifications.show({
-        message:
-          error?.response?.data?.message ?? t("Failed to save metadata"),
-        color: "red",
-      });
-    },
+    onError: (error) => notifyError(error, t("Failed to save metadata")),
   });
 }
 

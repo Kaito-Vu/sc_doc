@@ -1,3 +1,5 @@
+import { mapLimit } from '../common/map-limit';
+import { INSERT_BATCH } from './ea-constants';
 import {
   Inject,
   Injectable,
@@ -44,6 +46,7 @@ import {
   EaParseWarning,
   EaParseResult,
   EaRtfImage,
+  EaImportResult,
 } from './types/ea-import.types';
 import {
   buildContainerHtml,
@@ -81,33 +84,9 @@ const EA_SOURCE = 'ea';
 export type EaImportMode = 'replace' | 'keep' | 'merge';
 
 const IMAGE_UPLOAD_CONCURRENCY = 4;
-const INSERT_BATCH = 20;
 /** Parse on a worker thread above this size; smaller files parse faster inline. */
 const PARSE_WORKER_MIN_BYTES = 512 * 1024;
 const MAX_PAGES = 300;
-
-/** Run `fn` over `items` with at most `limit` in flight. */
-async function mapLimit<T>(
-  items: T[],
-  limit: number,
-  fn: (item: T) => Promise<void>,
-): Promise<void> {
-  let next = 0;
-  await Promise.all(
-    Array.from({ length: Math.min(limit, items.length) }, async () => {
-      while (next < items.length) {
-        await fn(items[next++]);
-      }
-    }),
-  );
-}
-
-export interface EaImportResult {
-  pageIds: string[];
-  rootPageIds: string[];
-  pageCount: number;
-  warnings: EaParseWarning[];
-}
 
 export interface EaImportMetadata {
   eaRootId: string;
