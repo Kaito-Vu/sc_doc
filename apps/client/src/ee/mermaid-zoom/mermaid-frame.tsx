@@ -75,6 +75,9 @@ export function MermaidFrame({
   const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     const el = e.currentTarget;
     if (e.button !== 0 || (e.target as Element).closest("[data-mz-toolbar]")) return;
+    // Leave the native resize grip (bottom-right corner) alone.
+    const b = el.getBoundingClientRect();
+    if (e.clientX > b.right - 20 && e.clientY > b.bottom - 20) return;
     const c = view.current;
     if (c.s === 1 && c.tx === 0 && c.ty === 0) return;
     let x = e.clientX, y = e.clientY;
@@ -99,7 +102,7 @@ export function MermaidFrame({
   return (
     <div
       ref={frameRef}
-      style={{ position: "relative", overflow: "hidden" }}
+      style={{ position: "relative", overflow: "hidden", resize: "both", minHeight: 80, minWidth: 120, maxWidth: "100%", margin: "0 auto" }}
       onMouseDown={(e) => e.stopPropagation()}
       onPointerDown={onPointerDown}
       onDoubleClick={reset}

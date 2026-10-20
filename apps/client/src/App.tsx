@@ -1,6 +1,7 @@
 import { Suspense, useEffect } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import DynamicFavicon from "@/features/workspace/components/dynamic-favicon";
+import { ReadingAppearanceRuntime } from "@/ee/ui/reading/reading-appearance-runtime";
 import Layout from "@/components/layouts/global/layout.tsx";
 import { Error404 } from "@/components/ui/error-404.tsx";
 import { isCloud } from "@/lib/config.ts";
@@ -104,6 +105,21 @@ const Integrations = lazyWithPrefetch(
 const Connections = lazyWithPrefetch(
   () => import("@/features/integration/pages/connections.tsx"),
 );
+const ReviewQueuePage = lazyWithPrefetch(() =>
+  import("@/ee/ui/experience/reviews/review-queue-page").then((m) => ({
+    default: m.ReviewQueuePage,
+  })),
+);
+const SearchPage = lazyWithPrefetch(() =>
+  import("@/ee/ui/experience/search/search-page").then((m) => ({
+    default: m.SearchPage,
+  })),
+);
+const DocumentLibraryPage = lazyWithPrefetch(() =>
+  import("@/ee/ui/experience/library/document-library-page").then((m) => ({
+    default: m.DocumentLibraryPage,
+  })),
+);
 
 export default function App() {
   const { t } = useTranslation();
@@ -122,6 +138,7 @@ export default function App() {
   return (
     <Suspense fallback={null}>
       <DynamicFavicon />
+      <ReadingAppearanceRuntime />
       <Routes>
         <Route index element={<Navigate to="/home" />} />
         <Route path={"/login"} element={<LoginPage />} />
@@ -177,6 +194,9 @@ export default function App() {
           <Route path={"/ai/chat/:chatId"} element={<AiChat />} />
           <Route path={"/spaces"} element={<SpacesPage />} />
           <Route path={"/favorites"} element={<FavoritesPage />} />
+          <Route path={"/reviews"} element={<ReviewQueuePage />} />
+          <Route path={"/search"} element={<SearchPage />} />
+          <Route path={"/documents"} element={<DocumentLibraryPage />} />
           <Route path={"/labels/:labelName"} element={<LabelPage />} />
           <Route path={"/templates"} element={<TemplateList />} />
           <Route

@@ -23,12 +23,14 @@ interface SpaceSettingsModalProps {
   spaceId: string;
   opened: boolean;
   onClose: () => void;
+  initialTab?: "general" | "members" | "publish" | "security" | "statistics";
 }
 
 export default function SpaceSettingsModal({
   spaceId,
   opened,
   onClose,
+  initialTab = "members",
 }: SpaceSettingsModalProps) {
   const { t } = useTranslation();
   const { data: space, isLoading } = useSpaceQuery(spaceId);
@@ -67,7 +69,7 @@ export default function SpaceSettingsModal({
           </Modal.Header>
           <Modal.Body>
             <div style={{ height: rem(600) }}>
-              <Tabs color="dark" defaultValue="members">
+              <Tabs color="dark" defaultValue={initialTab}>
                 <Tabs.List>
                   <Tabs.Tab fw={500} value="general">
                     {t("Settings")}

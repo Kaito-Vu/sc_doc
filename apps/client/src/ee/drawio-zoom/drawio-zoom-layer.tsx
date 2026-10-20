@@ -35,8 +35,8 @@ export function DrawioZoomLayer({ editor }: { editor: Editor }) {
     if (!img) return;
     const v = getView(c);
     const wrapper = img.parentElement as HTMLElement;
-    // Clip only while zoomed so resize handles stay reachable at 100%.
-    wrapper.style.overflow = zoomed(v) ? "hidden" : "";
+    // Clip only while zoomed; the small outset keeps the resize handles reachable.
+    wrapper.style.clipPath = zoomed(v) ? "inset(-12px)" : "";
     img.style.transformOrigin = "0 0";
     img.style.transform = zoomed(v)
       ? `translate(${v.tx}px, ${v.ty}px) scale(${v.s})`

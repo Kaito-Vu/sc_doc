@@ -8,8 +8,8 @@ import {
   ActionsSection,
   DangerZoneSection,
   DisplaySection,
+  LockSection,
   PeopleSection,
-  ProtectionSection,
   StatsSection,
 } from './sections';
 
@@ -26,7 +26,7 @@ const DetailInfoPanelComponent: React.FC<DetailInfoPanelProps> = (props) => {
       <PeopleSection {...section} />
       <StatsSection {...section} />
       <DisplaySection {...section} />
-      <ProtectionSection {...section} />
+      <LockSection {...section} />
       <ActionsSection {...section} />
       <DangerZoneSection {...section} />
     </div>

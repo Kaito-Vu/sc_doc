@@ -43,17 +43,6 @@ vi.mock('@/ee/hooks/usePageStats', () => ({
   })),
 }));
 
-vi.mock('@/ee/hooks/usePageSettings', () => ({
-  usePageSettings: vi.fn(() => ({
-    data: {
-      isFullWidth: false,
-      isProtected: false,
-      isArchived: false,
-    },
-    isLoading: false,
-  })),
-}));
-
 const createWrapper = () => {
   const queryClient = new QueryClient();
   return ({ children }: { children: React.ReactNode }) => (
@@ -177,12 +166,6 @@ describe('DetailInfoPanel Sections', () => {
     render(<DetailInfoPanel pageId="page-1" />, { wrapper: createWrapper() });
 
     expect(screen.getByText('Full-width')).toBeInTheDocument();
-  });
-
-  it('ProtectionSection renders protection toggle', () => {
-    render(<DetailInfoPanel pageId="page-1" />, { wrapper: createWrapper() });
-
-    expect(screen.getByText('Protect this page')).toBeInTheDocument();
   });
 });
 

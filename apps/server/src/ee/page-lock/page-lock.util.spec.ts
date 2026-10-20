@@ -5,7 +5,6 @@ const page = (over = {}) => ({
   isLocked: true,
   lockedById: 'a',
   lockedAt: hoursAgo(1),
-  updatedAt: hoursAgo(1),
   ...over,
 });
 
@@ -15,13 +14,13 @@ describe('isPageLockedForUser', () => {
     expect(isPageLockedForUser(page(), 'a')).toBe(false);
   });
 
-  it('lapses 24h after the last update', () => {
-    const old = { lockedAt: hoursAgo(30), updatedAt: hoursAgo(25) };
-    expect(isPageLockedForUser(page(old), 'b')).toBe(false);
-    // a fresh edit by the holder extends the lock
-    expect(
-      isPageLockedForUser(page({ ...old, updatedAt: hoursAgo(2) }), 'b'),
-    ).toBe(true);
+  it('lapses 24h after the lock was taken', () => {
+    expect(isPageLockedForUser(page({ lockedAt: hoursAgo(25) }), 'b')).toBe(
+      false,
+    );
+    expect(isPageLockedForUser(page({ lockedAt: hoursAgo(23) }), 'b')).toBe(
+      true,
+    );
   });
 
   it('ignores unlocked pages', () => {

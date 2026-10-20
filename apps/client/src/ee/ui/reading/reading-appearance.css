@@ -1,0 +1,63 @@
+/*
+ * Reading appearance layer (fork/ee).
+ *
+ * The variables below are updated at runtime by ReadingAppearanceRuntime.
+ * They only paint the document surface; app chrome, sidebars, menus and the
+ * aside panel keep their regular Mantine styling.
+ */
+
+:root {
+  --sc-read-font:
+    "Inter Variable", "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --sc-read-size: 16px;
+  --sc-read-leading: 1.75;
+  --sc-read-tracking: 0em;
+  --sc-read-features: "cv05" 1, "cv08" 1, "zero" 1;
+  --sc-read-bg: var(--mantine-color-body);
+  --sc-read-fg: var(--mantine-color-text);
+  --sc-reading-width: min(1200px, 100% - 10rem);
+}
+
+body[data-sc-reading-surface="on"] #main-content,
+body[data-sc-reading-surface="on"] .editor-container,
+body[data-sc-reading-surface="on"] .page-title {
+  background-color: var(--sc-read-bg);
+  color: var(--sc-read-fg);
+  transition:
+    background-color 160ms var(--sc-ease, ease),
+    color 160ms var(--sc-ease, ease);
+}
+
+body[data-sc-reading-surface="on"] .editor-container .ProseMirror,
+body[data-sc-reading-surface="on"] .page-title .ProseMirror {
+  background-color: transparent !important;
+  color: var(--sc-read-fg) !important;
+  font-family: var(--sc-read-font) !important;
+  font-size: var(--sc-read-size) !important;
+  line-height: var(--sc-read-leading) !important;
+  letter-spacing: var(--sc-read-tracking) !important;
+  font-feature-settings: var(--sc-read-features) !important;
+  font-optical-sizing: auto;
+  text-rendering: optimizeLegibility;
+  transition:
+    background-color 160ms var(--sc-ease, ease),
+    color 160ms var(--sc-ease, ease),
+    font-size 120ms var(--sc-ease, ease),
+    line-height 120ms var(--sc-ease, ease);
+}
+
+@media print {
+  body[data-sc-reading-surface="on"] #main-content,
+  body[data-sc-reading-surface="on"] .editor-container,
+  body[data-sc-reading-surface="on"] .page-title {
+    background-color: transparent;
+    color: inherit;
+  }
+
+  body[data-sc-reading-surface="on"] .editor-container .ProseMirror,
+  body[data-sc-reading-surface="on"] .page-title .ProseMirror {
+    background-color: transparent !important;
+    color: inherit !important;
+    letter-spacing: normal !important;
+  }
+}

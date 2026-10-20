@@ -37,8 +37,4 @@ export class CreatePageDto {
   @IsOptional()
   @IsBoolean()
   isFullWidth?: boolean;
-
-  @IsOptional()
-  @IsBoolean()
-  isProtected?: boolean;
 }

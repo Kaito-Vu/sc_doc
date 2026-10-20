@@ -4,20 +4,16 @@ import { isPageLockEnabled } from './page-lock.enabled';
 
 export const PAGE_LOCK_TTL_MS = 24 * 60 * 60 * 1000;
 
-// A lock lapses 24h after the page's last update (or the lock itself).
+// A lock lapses 24h after it was taken, regardless of later edits.
 export function isPageLockActive(
-  page: Pick<Page, 'isLocked' | 'lockedAt' | 'updatedAt'>,
+  page: Pick<Page, 'isLocked' | 'lockedAt'>,
 ): boolean {
-  if (!page.isLocked) return false;
-  const last = Math.max(
-    new Date(page.updatedAt).getTime(),
-    page.lockedAt ? new Date(page.lockedAt).getTime() : 0,
-  );
-  return Date.now() - last < PAGE_LOCK_TTL_MS;
+  if (!page.isLocked || !page.lockedAt) return false;
+  return Date.now() - new Date(page.lockedAt).getTime() < PAGE_LOCK_TTL_MS;
 }
 
 export function isPageLockedForUser(
-  page: Pick<Page, 'isLocked' | 'lockedAt' | 'updatedAt' | 'lockedById'>,
+  page: Pick<Page, 'isLocked' | 'lockedAt' | 'lockedById'>,
   userId: string,
 ): boolean {
   return isPageLockActive(page) && page.lockedById !== userId;

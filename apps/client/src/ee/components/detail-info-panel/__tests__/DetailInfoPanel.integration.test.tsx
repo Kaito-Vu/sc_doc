@@ -10,7 +10,6 @@ import { renderWithProviders, mockPageData, mockStatsData } from './test-utils';
 // Mock the hooks
 vi.mock('@/features/page/queries/page-query');
 vi.mock('@/ee/hooks/usePageStats');
-vi.mock('@/ee/hooks/usePageSettings');
 vi.mock('@tanstack/react-query');
 
 describe('DetailInfoPanel Integration Tests', () => {

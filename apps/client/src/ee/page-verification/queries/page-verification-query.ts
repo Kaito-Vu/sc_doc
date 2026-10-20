@@ -199,11 +199,13 @@ export function useMarkObsoleteMutation() {
 
 export function useVerificationListQuery(
   params?: IVerificationListParams,
+  enabled = true,
 ): UseQueryResult<IPagination<IVerificationListItem>, Error> {
   return useQuery({
     queryKey: ["verification-list", params],
     queryFn: () => getVerificationList(params),
     placeholderData: keepPreviousData,
+    enabled,
   });
 }
 

@@ -27,6 +27,7 @@ import { PdfExportModule } from './pdf-export/pdf-export.module';
 import { McpModule } from './mcp/mcp.module';
 import { PluginsModule } from './plugins/plugins.module';
 import { WorkspaceLocaleModule } from './workspace-locale/workspace-locale.module';
+import { DocMetadataModule } from './docs/doc-metadata.module';
 import { ClientLogModule } from './logging/client-log.module';
 import { PlatformModule } from './platform/platform.module';
 import { FeatureGateGuard } from './common/guards/feature-gate.guard';
@@ -63,6 +64,7 @@ import { FeatureGateGuard } from './common/guards/feature-gate.guard';
     McpModule,
     PluginsModule,
     WorkspaceLocaleModule,
+    DocMetadataModule,
   ],
   providers: [FeatureGateGuard],
   exports: [

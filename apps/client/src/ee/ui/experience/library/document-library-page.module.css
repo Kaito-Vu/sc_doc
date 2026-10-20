@@ -1,0 +1,70 @@
+.healthGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+}
+
+.healthCard {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px;
+  border: 1px solid light-dark(rgb(15 23 42 / 8%), rgb(255 255 255 / 10%));
+  border-radius: 12px;
+  background: light-dark(var(--mantine-color-white), var(--mantine-color-dark-7));
+  text-align: left;
+  cursor: pointer;
+}
+
+.healthCard:hover {
+  border-color: light-dark(var(--mantine-color-gray-4), var(--mantine-color-dark-4));
+}
+
+.healthCard[data-active] {
+  border-color: var(--mantine-primary-color-filled);
+  box-shadow: 0 0 0 1px var(--mantine-primary-color-filled);
+}
+
+.healthValue {
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.healthLabel {
+  font-size: 11px;
+  color: var(--mantine-color-dimmed);
+  line-height: 1.25;
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.docTitle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: inherit;
+  text-decoration: none;
+  font-weight: 550;
+}
+
+.docTitle:hover {
+  text-decoration: underline;
+}
+
+@media (max-width: 62em) {
+  .healthGrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 48em) {
+  .healthGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

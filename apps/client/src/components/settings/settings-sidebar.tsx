@@ -317,7 +317,7 @@ export default function SettingsSidebar() {
   });
 
   return (
-    <div className={classes.navbar}>
+    <div className={classes.navbar} data-sc-sidebar="settings">
       <Group className={classes.title} justify="flex-start">
         <ActionIcon
           onClick={() => {
@@ -335,7 +335,9 @@ export default function SettingsSidebar() {
         <Text fw={500}>{t("Settings")}</Text>
       </Group>
 
-      <ScrollArea w="100%">{menuItems}</ScrollArea>
+      <ScrollArea w="100%" style={{ flex: 1, minHeight: 0 }}>
+        <div data-sc-nav>{menuItems}</div>
+      </ScrollArea>
 
       {!isCloud() && <AppVersion />}
 

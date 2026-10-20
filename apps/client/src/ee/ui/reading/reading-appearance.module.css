@@ -1,0 +1,123 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mantine-spacing-lg);
+}
+
+.control {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sliderHeader {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--mantine-spacing-sm);
+}
+
+.sliderValue {
+  font-variant-numeric: tabular-nums;
+  font-size: var(--mantine-font-size-xs);
+  color: var(--mantine-color-dimmed);
+}
+
+.swatchGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.swatchButton {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 4px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  color: inherit;
+}
+
+.swatchButton:focus-visible {
+  outline: 2px solid var(--mantine-primary-color-filled);
+  outline-offset: 2px;
+}
+
+.swatch {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 46px;
+  border-radius: 7px;
+  border: 1px solid light-dark(rgb(15 23 42 / 12%), rgb(255 255 255 / 16%));
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  transition:
+    border-color 120ms var(--sc-ease, ease),
+    box-shadow 120ms var(--sc-ease, ease);
+}
+
+.swatchButton:hover .swatch {
+  border-color: light-dark(rgb(15 23 42 / 28%), rgb(255 255 255 / 32%));
+}
+
+.swatchButton[data-active] .swatch {
+  border-color: var(--mantine-primary-color-filled);
+  box-shadow: 0 0 0 2px var(--mantine-primary-color-filled);
+}
+
+.swatchLabel {
+  font-size: 11px;
+  line-height: 1.2;
+  color: var(--mantine-color-dimmed);
+  padding-inline: 2px;
+}
+
+.preview {
+  border-radius: 10px;
+  border: 1px solid light-dark(rgb(15 23 42 / 10%), rgb(255 255 255 / 14%));
+  padding: 14px 16px;
+  overflow: hidden;
+  transition:
+    background-color 160ms var(--sc-ease, ease),
+    color 160ms var(--sc-ease, ease);
+}
+
+.previewLabel {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.62;
+}
+
+.previewSample {
+  margin: 0;
+  font-size: 1em;
+  line-height: 1.6;
+}
+
+.previewMeta {
+  margin: 8px 0 0;
+  font-size: 0.82em;
+  line-height: 1.5;
+  opacity: 0.76;
+}
+
+.note {
+  font-size: var(--mantine-font-size-xs);
+  color: var(--mantine-color-dimmed);
+  line-height: 1.45;
+}
+
+.footer {
+  display: flex;
+  justify-content: flex-end;
+}

@@ -18,19 +18,15 @@ import { getPageLockInfo, lockPage, unlockPage } from "./page-lock-service";
 
 const LOCK_TTL_MS = 24 * 60 * 60 * 1000;
 
-// Mirrors the server: a lock lapses 24h after the last update.
+// Mirrors the server: a lock lapses 24h after it was taken.
 export function isLockActive(page?: IPage): boolean {
   const expiresAt = getLockExpiresAt(page);
   return !!expiresAt && Date.now() < expiresAt.getTime();
 }
 
 export function getLockExpiresAt(page?: IPage): Date | null {
-  if (!page?.isLocked) return null;
-  const last = Math.max(
-    new Date(page.updatedAt).getTime(),
-    page.lockedAt ? new Date(page.lockedAt).getTime() : 0,
-  );
-  return new Date(last + LOCK_TTL_MS);
+  if (!page?.isLocked || !page.lockedAt) return null;
+  return new Date(new Date(page.lockedAt).getTime() + LOCK_TTL_MS);
 }
 
 export function usePageLock() {

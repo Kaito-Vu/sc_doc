@@ -4,7 +4,6 @@ import {
   Menu,
   Text,
   Tooltip,
-  UnstyledButton,
 } from "@mantine/core";
 import {
   IconArrowDown,
@@ -12,8 +11,6 @@ import {
   IconEye,
   IconEyeOff,
   IconFileExport,
-  IconHome,
-  IconSearch,
   IconSettings,
   IconStar,
   IconStarFilled,
@@ -29,12 +26,12 @@ import classes from "./space-sidebar.module.css";
 import React from "react";
 import { useAtom } from "jotai";
 import { useTreeMutation } from "@/features/page/tree/hooks/use-tree-mutation.ts";
-import { Link, useLocation, useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import clsx from "clsx";
 import { useDisclosure } from "@mantine/hooks";
 import SpaceSettingsModal from "@/features/space/components/settings-modal.tsx";
 import { useGetSpaceBySlugQuery } from "@/features/space/queries/space-query.ts";
-import { getSpaceUrl, isBetaPublicSpaces } from "@/lib/config.ts";
+import { isBetaPublicSpaces } from "@/lib/config.ts";
 import SpaceTree from "@/features/page/tree/components/space-tree.tsx";
 import { useSpaceAbility } from "@/features/space/permissions/use-space-ability.ts";
 import {
@@ -45,7 +42,6 @@ import PageImportModal from "@/features/page/components/page-import-modal.tsx";
 import { ImportSubPageHost } from "@/ee/import-subpage/use-import-sub-page.tsx";
 import { useSpaceShortcuts } from "@/ee/shortcuts/shortcuts.tsx";
 import { useTranslation } from "react-i18next";
-import { SwitchSpace } from "./switch-space";
 import ExportModal from "@/components/common/export-modal";
 import {
   useFavoriteIds,
@@ -54,8 +50,8 @@ import {
 } from "@/features/favorite/queries/favorite-query";
 import { mobileSidebarAtom } from "@/components/layouts/global/hooks/atoms/sidebar-atom.ts";
 import { useToggleSidebar } from "@/components/layouts/global/hooks/hooks/use-toggle-sidebar.ts";
-import { searchSpotlight } from "@/features/search/constants";
 import CreatePageMenu from "@/ee/template/components/create-page-menu";
+import { SpaceSidebarTop } from "@/ee/ui/sidebar/space-sidebar-top";
 const TemplatePickerModal = React.lazy(
   () => import("@/ee/template/components/template-picker-modal"),
 );
@@ -66,7 +62,6 @@ import { ErrorBoundary } from "react-error-boundary";
 
 export function SpaceSidebar() {
   const { t } = useTranslation();
-  const location = useLocation();
   const [opened, { open: openSettings, close: closeSettings }] =
     useDisclosure(false);
   const [mobileSidebarOpened] = useAtom(mobileSidebarAtom);
@@ -93,100 +88,42 @@ export function SpaceSidebar() {
 
   return (
     <>
-      <div className={classes.navbar}>
-        <div
-          className={classes.section}
-          style={{
-            border: "none",
-            marginTop: 2,
-            marginBottom: 3,
+      <div className={classes.navbar} data-sc-sidebar="space">
+        <SpaceSidebarTop
+          space={{
+            id: space.id,
+            name: space.name,
+            slug: space.slug,
+            logo: space.logo,
+            isPublished: isBetaPublicSpaces() && space.isPublished,
           }}
+          canManagePages={spaceAbility.can(
+            SpaceCaslAction.Manage,
+            SpaceCaslSubject.Page,
+          )}
+          onCreatePage={() => {
+            handleCreatePage();
+            if (mobileSidebarOpened) {
+              toggleMobileSidebar();
+            }
+          }}
+          onOpenSettings={openSettings}
+          onNavigate={() => {
+            if (mobileSidebarOpened) {
+              toggleMobileSidebar();
+            }
+          }}
+        />
+
+        <div
+          className={clsx(classes.section, classes.sectionPages)}
+          data-sc-section
         >
           <Group
-            gap={4}
-            wrap="nowrap"
+            className={classes.pagesHeader}
             justify="space-between"
-            style={{ width: "100%" }}
+            data-sc-pages-header
           >
-            <SwitchSpace
-              spaceName={space?.name}
-              spaceSlug={space?.slug}
-              spaceIcon={space?.logo}
-              isPublished={isBetaPublicSpaces() && space?.isPublished}
-            />
-          </Group>
-        </div>
-
-        <div className={classes.section}>
-          <div className={classes.menuItems}>
-            <UnstyledButton
-              component={Link}
-              to={getSpaceUrl(spaceSlug)}
-              className={clsx(
-                classes.menu,
-                location.pathname.toLowerCase() === getSpaceUrl(spaceSlug)
-                  ? classes.activeButton
-                  : "",
-              )}
-            >
-              <div className={classes.menuItemInner}>
-                <IconHome
-                  size={18}
-                  className={classes.menuItemIcon}
-                  stroke={2}
-                />
-                <span>{t("Overview")}</span>
-              </div>
-            </UnstyledButton>
-
-            <UnstyledButton
-              className={classes.menu}
-              onClick={searchSpotlight.open}
-            >
-              <div className={classes.menuItemInner}>
-                <IconSearch
-                  size={18}
-                  className={classes.menuItemIcon}
-                  stroke={2}
-                />
-                <span>{t("Search")}</span>
-              </div>
-            </UnstyledButton>
-
-            <UnstyledButton className={classes.menu} onClick={openSettings}>
-              <div className={classes.menuItemInner}>
-                <IconSettings
-                  size={18}
-                  className={classes.menuItemIcon}
-                  stroke={2}
-                />
-                <span>{t("Space settings")}</span>
-              </div>
-            </UnstyledButton>
-
-            {spaceAbility.can(
-              SpaceCaslAction.Manage,
-              SpaceCaslSubject.Page,
-            ) && (
-              <CreatePageMenu
-                spaceId={space.id}
-                trigger="menuItem"
-                className={classes.menu}
-                innerClassName={classes.menuItemInner}
-                iconClassName={classes.menuItemIcon}
-                onCreateBlank={() => {
-                  handleCreatePage();
-                  if (mobileSidebarOpened) {
-                    toggleMobileSidebar();
-                  }
-                }}
-              />
-            )}
-          </div>
-        </div>
-
-        <div className={clsx(classes.section, classes.sectionPages)}>
-          <Group className={classes.pagesHeader} justify="space-between">
             <Text size="xs" fw={500} c="dimmed">
               {t("Pages")}
             </Text>

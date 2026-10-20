@@ -247,10 +247,6 @@ export class PageService {
       updateData.isFullWidth = updatePageDto.isFullWidth;
     }
 
-    if (updatePageDto.isProtected !== undefined) {
-      updateData.isProtected = updatePageDto.isProtected;
-    }
-
     await this.pageRepo.updatePage(updateData, page.id);
 
     this.generalQueue

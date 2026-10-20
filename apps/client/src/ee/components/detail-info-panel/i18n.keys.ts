@@ -37,12 +37,6 @@ export const DETAIL_INFO_PANEL_I18N_KEYS = {
   'detail_panel.full_width_desc': 'Content spans full width when enabled',
   'detail_panel.toggle_full_width': 'Toggle full-width mode',
 
-  // Protection section
-  'detail_panel.protection': 'PROTECTION',
-  'detail_panel.protect_page': 'Protect this page',
-  'detail_panel.protect_page_desc': 'Only editors can modify this page',
-  'detail_panel.toggle_protection': 'Toggle page protection',
-
   // Actions section
   'detail_panel.actions': 'ACTIONS',
   'detail_panel.move': 'Move',

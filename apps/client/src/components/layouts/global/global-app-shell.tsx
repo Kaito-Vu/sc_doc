@@ -21,7 +21,7 @@ import Aside from "@/components/layouts/global/aside.tsx";
 import classes from "./app-shell.module.css";
 import { useTrialEndAction } from "@/ee/hooks/use-trial-end-action.tsx";
 import { useToggleSidebar } from "@/components/layouts/global/hooks/hooks/use-toggle-sidebar.ts";
-import GlobalSidebar from "@/components/layouts/global/global-sidebar.tsx";
+import { GlobalSidebarV2 } from "@/ee/ui/sidebar/global-sidebar-v2";
 import { ASIDE_PANEL_ID } from "@/hooks/use-toggle-aside.tsx";
 import { MAIN_CONTENT_ID, SkipToMain } from "@/components/ui/skip-to-main.tsx";
 
@@ -92,7 +92,7 @@ export default function GlobalAppShell({
       <AppShell
       header={{ height: 45 }}
       navbar={{
-        width: isSpaceRoute ? sidebarWidth : 300,
+        width: isSpaceRoute ? sidebarWidth : 284,
         breakpoint: "sm",
         collapsed: {
           mobile: !mobileOpened,
@@ -135,7 +135,7 @@ export default function GlobalAppShell({
             <AiChatSidebar />
           </React.Suspense>
         )}
-        {showGlobalSidebar && <GlobalSidebar />}
+        {showGlobalSidebar && <GlobalSidebarV2 />}
       </AppShell.Navbar>
       <AppShell.Main id={MAIN_CONTENT_ID} tabIndex={-1}>
         {isSettingsRoute ? (

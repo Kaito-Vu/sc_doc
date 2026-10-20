@@ -7,7 +7,7 @@ import { useTranslation } from "react-i18next";
 import { useAtomValue } from "jotai";
 import { pageEditorAtom } from "@/features/editor/atoms/editor-atoms.ts";
 import { ASIDE_PANEL_ID } from "@/hooks/use-toggle-aside.tsx";
-import { DetailInfoPanel } from "@/ee/components/detail-info-panel";
+import { DocInfoPanel } from "@/ee/ui/doc-info/doc-info-panel";
 import { lazyWithPrefetch } from "@/lib/lazy-prefetch.ts";
 
 const CommentListWithTabs = lazy(
@@ -21,11 +21,7 @@ const TableOfContents = lazy(() =>
 const AsideChatPanel = lazyWithPrefetch(
   () => import("@/ee/ai-chat/components/aside-chat-panel"),
 );
-const PageDetailsAside = lazy(() =>
-  import("@/features/page-details/components/page-details-aside.tsx").then(
-    (m) => ({ default: m.PageDetailsAside }),
-  ),
-);
+
 
 export default function Aside() {
   const [{ tab, isAsideOpen }, setAsideState] = useAtom(asideStateAtom);
@@ -55,12 +51,9 @@ export default function Aside() {
       title = "AI Chat";
       break;
     case "details":
-      component = <PageDetailsAside />;
-      title = "Details";
-      break;
     case "detail-info":
-      component = <DetailInfoPanel />;
-      title = "Detail Info";
+      component = <DocInfoPanel initialTab="info" />;
+      title = "Document info";
       break;
     default:
       component = null;

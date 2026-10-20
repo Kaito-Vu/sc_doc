@@ -1,0 +1,147 @@
+/*
+ * Sidebar v2 surface overrides for the core space/settings sidebars.
+ * The global sidebar is a full EE component; this file only aligns the
+ * remaining sidebars with the same spacing, row height and active state.
+ */
+
+div[data-sc-sidebar="space"],
+div[data-sc-sidebar="settings"] {
+  background: light-dark(
+    var(--mantine-color-gray-0),
+    var(--mantine-color-dark-8)
+  );
+  border-right: 1px solid
+    light-dark(rgb(15 23 42 / 6%), rgb(255 255 255 / 8%));
+}
+
+div[data-sc-sidebar="space"] {
+  padding: 10px 10px 8px;
+}
+
+div[data-sc-sidebar="settings"] {
+  padding: 10px 10px 8px;
+}
+
+div[data-sc-sidebar="space"] [data-sc-section] {
+  margin-left: 0;
+  margin-right: 0;
+  margin-bottom: 0;
+  border-bottom: 0;
+}
+
+div[data-sc-sidebar="space"] [data-sc-pages-header] {
+  margin: 0 0 2px;
+  padding: 0 8px 6px;
+}
+
+div[data-sc-sidebar="space"] [data-sc-pages-header] p {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: light-dark(var(--mantine-color-gray-5), var(--mantine-color-dark-3));
+}
+
+div[data-sc-sidebar="space"] [role="treeitem"] {
+  min-height: 30px;
+  border-radius: 7px;
+  padding-inline: 6px;
+  font-size: 13px;
+  color: light-dark(var(--mantine-color-gray-7), var(--mantine-color-dark-1));
+  transition:
+    background-color var(--sc-duration-fast, 120ms) var(--sc-ease, ease),
+    color var(--sc-duration-fast, 120ms) var(--sc-ease, ease);
+}
+
+div[data-sc-sidebar="space"] [role="treeitem"]:hover {
+  background: light-dark(var(--mantine-color-gray-1), var(--mantine-color-dark-6));
+  color: light-dark(var(--mantine-color-black), var(--mantine-color-white));
+}
+
+div[data-sc-sidebar="space"] [role="treeitem"][aria-current="page"],
+div[data-sc-sidebar="space"] [role="treeitem"][aria-selected="true"] {
+  background: light-dark(var(--mantine-color-blue-0), rgb(43 122 241 / 16%));
+  color: light-dark(var(--mantine-color-blue-8), var(--mantine-color-blue-2));
+}
+
+div[data-sc-sidebar="space"] [role="treeitem"] [class*="actions"] {
+  gap: 2px;
+}
+
+div[data-sc-sidebar="settings"] > div:first-child {
+  padding: 2px 4px 10px;
+  border-bottom: 0;
+}
+
+div[data-sc-sidebar="settings"] > div:first-child p {
+  font-size: 13.5px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+div[data-sc-sidebar="settings"] [data-sc-nav] {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-top: 2px;
+}
+
+div[data-sc-sidebar="settings"] [data-sc-nav] > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+div[data-sc-sidebar="settings"] [data-sc-nav] p {
+  margin: 14px 0 4px;
+  padding: 0 8px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: light-dark(var(--mantine-color-gray-5), var(--mantine-color-dark-3));
+}
+
+div[data-sc-sidebar="settings"] [data-sc-nav] a,
+div[data-sc-sidebar="settings"] [data-sc-nav] [data-disabled] {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 34px;
+  padding: 0 9px;
+  border-radius: 8px;
+  color: light-dark(var(--mantine-color-gray-7), var(--mantine-color-dark-1));
+  font-size: 13.5px;
+  font-weight: 520;
+  line-height: 1.2;
+  text-decoration: none;
+  transition:
+    background-color var(--sc-duration-fast, 120ms) var(--sc-ease, ease),
+    color var(--sc-duration-fast, 120ms) var(--sc-ease, ease);
+}
+
+div[data-sc-sidebar="settings"] [data-sc-nav] a:hover {
+  background: light-dark(var(--mantine-color-gray-1), var(--mantine-color-dark-6));
+  color: light-dark(var(--mantine-color-black), var(--mantine-color-white));
+}
+
+div[data-sc-sidebar="settings"] [data-sc-nav] a:focus-visible {
+  outline: 2px solid var(--mantine-primary-color-filled);
+  outline-offset: -2px;
+}
+
+div[data-sc-sidebar="settings"] [data-sc-nav] a[data-active] {
+  background: light-dark(var(--mantine-color-blue-0), rgb(43 122 241 / 16%));
+  color: light-dark(var(--mantine-color-blue-8), var(--mantine-color-blue-2));
+}
+
+div[data-sc-sidebar="settings"] [data-sc-nav] svg {
+  width: 17px;
+  height: 17px;
+  margin-right: 0;
+  color: light-dark(var(--mantine-color-gray-6), var(--mantine-color-dark-2));
+}
+
+div[data-sc-sidebar="settings"] [data-sc-nav] a[data-active] svg {
+  color: light-dark(var(--mantine-color-blue-7), var(--mantine-color-blue-3));
+}

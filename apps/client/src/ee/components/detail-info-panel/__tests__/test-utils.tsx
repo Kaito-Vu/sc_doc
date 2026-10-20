@@ -78,7 +78,6 @@ export const mockPageData = {
     canArchive: true,
   },
   isFullWidth: false,
-  isProtected: false,
   isArchived: false,
 };
 
@@ -93,17 +92,6 @@ export const mockStatsData = {
   creator: mockPageData.creator,
   lastUpdatedBy: mockPageData.lastUpdatedBy,
   contributors: mockPageData.contributors,
-};
-
-/**
- * Mock settings data
- */
-export const mockSettingsData = {
-  isFullWidth: false,
-  isProtected: false,
-  isArchived: false,
-  allowComments: true,
-  allowVersionHistory: true,
 };
 
 /**

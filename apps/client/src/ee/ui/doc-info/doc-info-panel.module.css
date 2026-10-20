@@ -1,0 +1,104 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.tabs {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--mantine-color-body);
+  padding-bottom: 2px;
+}
+
+.panel {
+  padding-top: 12px;
+}
+
+.statusRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 7px 0;
+  border-bottom: 1px solid
+    var(
+      --sc-border-subtle,
+      light-dark(var(--mantine-color-gray-2), var(--mantine-color-dark-5))
+    );
+}
+
+.statusRow:last-child {
+  border-bottom: none;
+}
+
+.statusLabel {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  color: light-dark(var(--mantine-color-gray-7), var(--mantine-color-dark-2));
+}
+
+.statusValue {
+  font-size: 13px;
+  font-weight: 550;
+  color: var(--sc-text-body, var(--mantine-color-text));
+  text-align: right;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.verifierList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.verifier {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.dates {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--mantine-color-dimmed);
+}
+
+.linkRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 7px 4px;
+  border-radius: 6px;
+  color: inherit;
+}
+
+.linkRow:hover {
+  background: light-dark(var(--mantine-color-gray-1), var(--mantine-color-dark-6));
+}
+
+.linkRow:focus-visible {
+  outline: 2px solid var(--mantine-primary-color-filled);
+  outline-offset: 1px;
+}
+
+.reviewNote {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--mantine-color-dimmed);
+  line-height: 1.45;
+}

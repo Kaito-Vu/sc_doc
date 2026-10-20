@@ -34,6 +34,7 @@ import {
 } from "@/features/search/constants.ts";
 import { NotificationPopover } from "@/features/notification/components/notification-popover.tsx";
 import { workspaceAtom } from "@/features/user/atoms/current-user-atom.ts";
+import { GlobalActions } from "@/ee/ui/experience/global-actions";
 
 const links = [
   { link: APP_ROUTE.HOME, label: "Home" },
@@ -118,6 +119,7 @@ export function AppHeader() {
         </div>
 
         <Group px={"xl"} wrap="nowrap">
+          <GlobalActions />
           {aiChatEnabled && (
             <>
               <UnstyledButton

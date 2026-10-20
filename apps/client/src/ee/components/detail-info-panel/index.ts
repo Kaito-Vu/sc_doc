@@ -7,7 +7,6 @@ export type {
   DetailInfoPanelProps,
   Page,
   PageStats,
-  PageSettings,
   UserInfo,
   Contributor,
   Space,

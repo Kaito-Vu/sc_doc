@@ -10,7 +10,7 @@
      * left edge visibly moved page to page instead of sitting still. Force
      * an explicit width so the box is always exactly --container-size wide,
      * regardless of content length. */
-    --container-size: min(1200px, 100% - 10rem) !important;
+    --container-size: var(--sc-reading-width, min(1200px, 100% - 10rem)) !important;
 
     &:not(.fluid) {
         width: var(--container-size) !important;

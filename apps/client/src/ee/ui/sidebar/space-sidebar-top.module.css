@@ -1,0 +1,81 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 2px 0 10px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 2px;
+}
+
+.switcher {
+  flex: 1;
+  min-width: 0;
+}
+
+.switcher :global(.mantine-Button-root) {
+  justify-content: flex-start;
+  gap: 8px;
+  height: 40px;
+  padding: 5px 8px;
+  border-radius: 9px;
+  font-size: 13px;
+}
+
+.switcher :global(.mantine-Button-label) {
+  flex: 1;
+  min-width: 0;
+  justify-content: flex-start;
+  gap: 8px;
+}
+
+.newPage {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 34px;
+  padding: 0 9px;
+  border-radius: 8px;
+  background: light-dark(var(--mantine-color-blue-0), rgb(43 122 241 / 16%));
+  color: light-dark(var(--mantine-color-blue-8), var(--mantine-color-blue-2));
+  font-size: 13px;
+  font-weight: 600;
+  transition: background-color 120ms ease;
+}
+
+.newPage:hover {
+  background: light-dark(var(--mantine-color-blue-1), rgb(43 122 241 / 24%));
+}
+
+.newPage:focus-visible {
+  outline: 2px solid var(--mantine-primary-color-filled);
+  outline-offset: -2px;
+}
+
+.newPageInner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+}
+
+.newPageIcon {
+  margin: 0;
+  color: light-dark(var(--mantine-color-blue-7), var(--mantine-color-blue-3));
+}
+
+.nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pagesDivider {
+  height: 1px;
+  margin: 8px 8px 4px;
+  background: light-dark(rgb(15 23 42 / 6%), rgb(255 255 255 / 8%));
+}

@@ -21,7 +21,6 @@ export type Page = IPage & {
   editCount?: number;
   isArchived?: boolean;
   isFullWidth?: boolean;
-  isProtected?: boolean;
 }
 
 export interface UserInfo {
@@ -61,15 +60,6 @@ export interface PageStats {
   creator: UserInfo;
   lastUpdatedBy: UserInfo;
   contributors: Contributor[];
-}
-
-export interface PageSettings {
-  isFullWidth: boolean;
-  isProtected: boolean;
-  isArchived: boolean;
-  allowComments?: boolean;
-  allowVersionHistory?: boolean;
-  publicLink?: string;
 }
 
 export interface PageHistory {

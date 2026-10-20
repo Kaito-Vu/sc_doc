@@ -6,7 +6,9 @@ import { isCloud } from "@/lib/config.ts";
 import { SearchSpotlight } from "@/features/search/components/search-spotlight.tsx";
 import { EaImportTracker } from "@/ee/ea-import/ea-import-tracker.tsx";
 import { ShortcutsHelp } from "@/ee/shortcuts/shortcuts.tsx";
+import { UiCommands } from "@/ee/ui/experience/ui-commands";
 import "@/ee/styles/sc-tokens.css";
+import "@/ee/ui/sidebar/sidebar-v2.css";
 import React from "react";
 import { useGetSpaceBySlugQuery } from "@/features/space/queries/space-query.ts";
 import { AppErrorBoundary } from "@/components/ui/app-error-boundary.tsx";
@@ -24,6 +26,7 @@ export default function Layout() {
       </GlobalAppShell>
       {isCloud() && <PosthogUser />}
       <EaImportTracker />
+      <UiCommands />
       <ShortcutsHelp />
       <SearchSpotlight spaceId={space?.id} />
     </UserProvider>
