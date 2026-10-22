@@ -5,6 +5,7 @@ import type { Editor } from "@tiptap/react";
 import { useEditorState } from "@tiptap/react";
 import { useTranslation } from "react-i18next";
 import "./table-auto-number.css";
+import "./table-autofit.css";
 
 const FORMATS = [
   { value: "", label: "Off" },

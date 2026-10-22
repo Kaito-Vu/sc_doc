@@ -1,6 +1,6 @@
 import React from 'react';
 import { Avatar } from '@mantine/core';
-import { IconEdit, IconUser, IconUsers } from '@tabler/icons-react';
+import { IconEdit, IconFolder, IconUser, IconUsers } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import StarButton from '@/features/favorite/components/star-button';
 import type { SectionProps } from '../detail-info-panel.types';
@@ -28,6 +28,12 @@ const PeopleSectionComponent: React.FC<SectionProps> = ({ page }) => {
         <div className={classes.ownerInfo}>
           <p className={classes.ownerName}>{page.title ?? '—'}</p>
           <p className={classes.ownerRole}>{contributorLabel}</p>
+          {page.space?.name && (
+            <span className={classes.spaceChip}>
+              <IconFolder size={11} />
+              {page.space.name}
+            </span>
+          )}
         </div>
         <div className={classes.ownerActions}>
           <StarButton type="page" pageId={page.id} name={page.title} size={15} />

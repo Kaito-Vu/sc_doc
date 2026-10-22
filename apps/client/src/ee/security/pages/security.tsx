@@ -19,6 +19,8 @@ import EnforceSso from "@/ee/security/components/enforce-sso.tsx";
 import AllowedDomains from "@/ee/security/components/allowed-domains.tsx";
 import { useTranslation } from "react-i18next";
 import EnforceMfa from "@/ee/security/components/enforce-mfa.tsx";
+import SessionGuardSettings from "@/ee/security/components/session-guard-settings.tsx";
+import IpAllowlistSettings from "@/ee/security/components/ip-allowlist-settings.tsx";
 import DisablePublicSharing from "@/ee/security/components/disable-public-sharing.tsx";
 import TrashRetention from "@/ee/security/components/trash-retention.tsx";
 import RecaptchaSettings from "@/ee/security/components/recaptcha-settings.tsx";
@@ -71,6 +73,9 @@ export default function Security() {
       <EnforceMfa />
 
       <Divider my="lg" />
+
+      <SessionGuardSettings />
+      <IpAllowlistSettings />
 
       <DisablePublicSharing />
       <Divider my="lg" />

@@ -48,6 +48,79 @@
   margin-top: 2px;
 }
 
+/* Hero card */
+.ownerCard {
+  padding: 14px;
+  margin: 12px 0 4px;
+  border: 1px solid var(--sc-border-subtle);
+  border-radius: 12px;
+  background: light-dark(
+    linear-gradient(135deg, var(--mantine-color-blue-0), var(--mantine-color-gray-0)),
+    var(--mantine-color-dark-6)
+  );
+}
+
+.spaceChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 6px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  color: light-dark(var(--mantine-color-blue-7), var(--mantine-color-blue-3));
+  background: light-dark(var(--mantine-color-blue-1), rgba(34, 139, 230, 0.18));
+}
+
+/* Stat tiles */
+.tileGrid,
+.tileGrid2 {
+  display: grid;
+  gap: 8px;
+  margin: 6px 0 8px;
+}
+
+.tileGrid {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.tileGrid2 {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.tile {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: 9px 10px;
+  border: 1px solid var(--sc-border-subtle);
+  border-radius: 10px;
+  background: light-dark(var(--mantine-color-gray-0), var(--mantine-color-dark-6));
+}
+
+.tilePrimary {
+  background: light-dark(var(--mantine-color-blue-0), rgba(34, 139, 230, 0.12));
+}
+
+.tileValue {
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--sc-text-strong);
+  font-variant-numeric: tabular-nums;
+}
+
+.tileLabel {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10.5px;
+  line-height: 1.25;
+  color: light-dark(var(--mantine-color-gray-6), var(--mantine-color-dark-2));
+}
+
 /* Section Label */
 .sectionLabel {
   font-size: 10.5px;

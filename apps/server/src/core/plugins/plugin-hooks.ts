@@ -7,6 +7,7 @@ export enum CoreHooks {
   // Auth events
   BEFORE_LOGIN = 'auth:beforeLogin',
   AFTER_LOGIN = 'auth:afterLogin',
+  AFTER_SESSION_CREATED = 'auth:afterSessionCreated',
   BEFORE_SIGNUP = 'auth:beforeSignup',
   AFTER_SIGNUP = 'auth:afterSignup',
   BEFORE_FORGOT_PASSWORD = 'auth:beforeForgotPassword',

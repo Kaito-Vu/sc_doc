@@ -33,6 +33,7 @@ export function UpdateApiKeyModal({
         loading={updateApiKeyMutation.isPending}
         onClose={onClose}
         onSubmit={(name) =>
+          apiKey &&
           updateApiKeyMutation.mutateAsync({ apiKeyId: apiKey.id, name })
         }
       />

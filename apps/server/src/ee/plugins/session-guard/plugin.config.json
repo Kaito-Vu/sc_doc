@@ -1,0 +1,14 @@
+{
+  "id": "session-guard",
+  "name": "Single-session IP guard",
+  "version": "1.0.0",
+  "description": "Only one active session per user per IP. A new login from another IP notifies both sessions and revokes the older one unless it responds within the grace period.",
+  "author": "Internal",
+  "license": "MIT",
+  "hooks": [
+    "auth:afterSessionCreated"
+  ],
+  "configRequired": false,
+  "configLocation": "security",
+  "configSchemaFile": "./plugin-config.schema.json"
+}

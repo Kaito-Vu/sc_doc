@@ -207,3 +207,22 @@ describe('rtfToHtml \\pict extraction', () => {
     expect(sink).toHaveLength(0);
   });
 });
+
+describe('Word bullet paragraphs', () => {
+  const para = (li: number, fi: number, glyph: string, text: string) =>
+    String.raw`\pard{\pntext\pard\plain ${glyph}\tab}{\*\pn\pnlvlblt\ls1\ilvl0\pnhang}\ls1\ilvl0\fi${fi}\li${li} ${text}\par` +
+    '\n';
+
+  it('nests by indent, drops the glyph, and collapses back up', () => {
+    const rtf =
+      String.raw`{\rtf1\ansi ` +
+      para(0, 360, '-', 'a') +
+      para(1418, -284, 'o', 'b') +
+      para(2138, -360, '+', 'c') +
+      para(1418, -284, 'o', 'd') +
+      '}';
+    expect(rtfToHtml(rtf)).toBe(
+      '<ul><li><p>a</p><ul><li><p>b</p><ul><li><p>c</p></li></ul></li><li><p>d</p></li></ul></li></ul>',
+    );
+  });
+});

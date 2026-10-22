@@ -17,6 +17,12 @@
     padding: 0 !important;
   }
 
+  /* Modal scrolls itself; header pinning is driven by window scroll, so disable it here. */
+  & :global(.tableWrapper.tableHeaderPinned) table tr:first-child {
+    position: static !important;
+    transform: none !important;
+  }
+
   & :global(.history-diff-added) {
     background: light-dark(
       rgba(46, 160, 67, 0.18),
@@ -102,8 +108,10 @@
 }
 
 .sideBySidePane {
-  flex: 1;
+  flex: 1 1 0;
+  width: 0;
   min-width: 0;
+  overflow-x: auto;
 }
 
 .sideBySideHeader {

@@ -134,6 +134,8 @@ export const AuditEvent = {
   DOC_METADATA_UPDATED: 'doc_metadata.updated',
 
   // Sessions
+  SESSION_CONFLICT: 'session.conflict',
+  SESSION_CONFLICT_RESOLVED: 'session.conflict_resolved',
   SESSION_REVOKED: 'session.revoked',
   SESSIONS_REVOKED: 'session.all_revoked',
 

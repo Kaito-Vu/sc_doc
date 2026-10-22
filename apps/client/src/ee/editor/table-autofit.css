@@ -1,0 +1,13 @@
+/* Fit window (default): tables fill the editor/page width; saved column widths
+   act as proportions (table-layout: fixed). Beats the inline px width set by
+   editor-ext's updateColumns. Applies to print/PDF too. */
+.ProseMirror .tableWrapper table {
+  width: 100% !important;
+}
+
+/* Fit content: table shrinks to its content. */
+.ProseMirror .tableWrapper table[data-fit="content"] {
+  width: auto !important;
+  min-width: 0 !important;
+  table-layout: auto;
+}

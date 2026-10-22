@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { Notifications } from "@mantine/notifications";
+import { SessionGuardOverlay } from "@/ee/session-guard/session-guard-overlay";
 import "@/ee/styles/sc-toast.css";
 
 const ROOT = "mantine-Notification-root";
@@ -41,11 +42,14 @@ function useToastTimestamps() {
 export function AppNotifications() {
   useToastTimestamps();
   return (
-    <Notifications
-      position="bottom-center"
-      limit={3}
-      zIndex={10000}
-      autoClose={15000}
-    />
+    <>
+      <Notifications
+        position="bottom-center"
+        limit={3}
+        zIndex={10000}
+        autoClose={15000}
+      />
+      <SessionGuardOverlay />
+    </>
   );
 }

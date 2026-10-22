@@ -1,0 +1,14 @@
+{
+  "id": "ip-allowlist",
+  "name": "IP allowlist",
+  "version": "1.0.0",
+  "description": "Only allow sign-in from approved IP addresses or CIDR ranges.",
+  "author": "Internal",
+  "license": "MIT",
+  "hooks": [
+    "auth:beforeLogin"
+  ],
+  "configRequired": false,
+  "configLocation": "security",
+  "configSchemaFile": "./plugin-config.schema.json"
+}

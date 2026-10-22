@@ -40,7 +40,7 @@ import {
   TEXT_WIDTH,
 } from './utils';
 import { toDocxColor } from './color';
-import { formatAutoNumber } from '../../ee/table-auto-number';
+import { formatAutoNumber, tableWidth } from '../../ee/table-auto-number';
 import { IFootnotes, INumbering, Mutable, SectionConfig, SerializationState } from './types';
 
 // This is duplicated from @curvenote/schema
@@ -385,7 +385,7 @@ export class DocxSerializerState {
         else this.renderContent(cell);
         const tableCellOpts: Mutable<ITableCellOptions> = {
           children: this.children,
-          width: { size: cellWidths[rowIndex][cellIndex], type: WidthType.DXA },
+          width: tableWidth(node, cellWidths[rowIndex][cellIndex]),
         };
         const colspan = cell.attrs.colspan ?? 1;
         const rowspan = cell.attrs.rowspan ?? 1;
@@ -406,7 +406,7 @@ export class DocxSerializerState {
     });
     this.maxImageWidth = MAX_IMAGE_WIDTH;
     const table = new Table({
-      width: { size: TEXT_WIDTH, type: WidthType.DXA },
+      width: tableWidth(node, TEXT_WIDTH),
       columnWidths,
       margins: { left: CELL_MARGIN, right: CELL_MARGIN },
       ...tableOptions,
@@ -837,7 +837,7 @@ export class DocxSerializerStateAsync {
         await this.renderContent(cell); // Ensure order
         const tableCellOpts: Mutable<ITableCellOptions> = {
           children: this.children,
-          width: { size: cellWidths[rowIndex][cellIndex], type: WidthType.DXA },
+          width: tableWidth(node, cellWidths[rowIndex][cellIndex]),
         };
         const colspan = cell.attrs.colspan ?? 1;
         const rowspan = cell.attrs.rowspan ?? 1;
@@ -860,7 +860,7 @@ export class DocxSerializerStateAsync {
 
     this.maxImageWidth = MAX_IMAGE_WIDTH;
     const table = new Table({
-      width: { size: TEXT_WIDTH, type: WidthType.DXA },
+      width: tableWidth(node, TEXT_WIDTH),
       columnWidths,
       margins: { left: CELL_MARGIN, right: CELL_MARGIN },
       ...tableOptions,

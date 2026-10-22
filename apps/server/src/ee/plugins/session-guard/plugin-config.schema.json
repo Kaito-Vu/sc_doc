@@ -1,0 +1,38 @@
+{
+  "type": "object",
+  "title": "Single-session IP guard configuration",
+  "properties": {
+    "graceSeconds": {
+      "type": "number",
+      "title": "Grace period (seconds)",
+      "description": "How long the existing session has to allow or deny a new login from another IP before it is revoked automatically.",
+      "minimum": 5,
+      "maximum": 60,
+      "default": 10
+    },
+    "exemptUserIds": {
+      "type": "array",
+      "title": "Exempt users",
+      "items": { "type": "string", "maxLength": 64 },
+      "maxItems": 200
+    },
+    "exemptGroupIds": {
+      "type": "array",
+      "title": "Exempt groups",
+      "items": { "type": "string", "maxLength": 64 },
+      "maxItems": 50
+    },
+    "exemptRoles": {
+      "type": "array",
+      "title": "Exempt roles",
+      "items": { "type": "string", "enum": ["owner", "admin", "member"] },
+      "maxItems": 3
+    },
+    "trustedIps": {
+      "type": "array",
+      "title": "Trusted IPs / CIDR ranges",
+      "items": { "type": "string", "maxLength": 64, "format": "ipOrCidr" },
+      "maxItems": 100
+    }
+  }
+}

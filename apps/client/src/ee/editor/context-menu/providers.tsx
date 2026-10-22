@@ -1,4 +1,6 @@
 import {
+  IconArrowAutofitContent,
+  IconArrowAutofitWidth,
   IconBoxMargin,
   IconBold,
   IconClipboard,
@@ -24,6 +26,7 @@ import type { Editor } from "@tiptap/react";
 import i18n from "i18next";
 import { isCellSelection, sanitizeUrl } from "@docmost/editor-ext";
 import { canSplitCell, splitCellInto } from "../table-split/split-cell";
+import { setTableFit } from "../table-fit";
 import { showAddCountPopover } from "@/ee/table-size/table-size-popover";
 import { ContextMenuItem, registerContextMenuProvider } from "./registry";
 
@@ -111,6 +114,18 @@ registerContextMenuProvider({
         },
       );
     items.push(
+      {
+        id: "fit-window",
+        label: t("Fit window"),
+        icon: <IconArrowAutofitWidth size={sz} />,
+        onClick: () => setTableFit(e, "window"),
+      },
+      {
+        id: "fit-content",
+        label: t("Fit content"),
+        icon: <IconArrowAutofitContent size={sz} />,
+        onClick: () => setTableFit(e, "content"),
+      },
       {
         id: "toggle-header",
         label: t("Toggle header cell"),

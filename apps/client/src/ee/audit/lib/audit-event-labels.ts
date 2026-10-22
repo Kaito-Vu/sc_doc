@@ -32,6 +32,8 @@ export const auditEventLabels: Record<string, string> = {
   "user.mfa_enabled": "Enabled MFA",
   "user.mfa_disabled": "Disabled MFA",
   "user.mfa_backup_code_generated": "Generated MFA backup codes",
+  "session.conflict": "Sign-in from a second IP detected",
+  "session.conflict_resolved": "Second-IP sign-in resolved",
   "session.revoked": "Revoked session",
   "session.all_revoked": "Revoked all other sessions",
 

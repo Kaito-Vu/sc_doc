@@ -1,0 +1,12 @@
+{
+  "type": "object",
+  "title": "IP allowlist configuration",
+  "properties": {
+    "allowedIps": {
+      "type": "array",
+      "title": "Allowed IPs / CIDR ranges",
+      "items": { "type": "string", "maxLength": 64, "format": "ipOrCidr" },
+      "maxItems": 100
+    }
+  }
+}

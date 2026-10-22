@@ -16,6 +16,8 @@ import {
   AUDIT_SERVICE,
   IAuditService,
 } from '../../integrations/audit/audit.service';
+import { CoreHooks } from '../plugins/plugin-hooks';
+import { runHook } from '../plugins/run-hook';
 
 const MAX_SESSIONS_PER_USER = 25;
 const RETENTION_DAYS = 7;
@@ -60,7 +62,17 @@ export class SessionService {
       expiresAt,
     });
 
-    return this.tokenService.generateAccessToken(user, session.id);
+    const authToken = this.tokenService.generateAccessToken(user, session.id);
+
+    await runHook(CoreHooks.AFTER_SESSION_CREATED, {
+      user,
+      workspaceId: user.workspaceId,
+      session,
+      ipAddress,
+      userAgent,
+    });
+
+    return authToken;
   }
 
   async getActiveSessions(

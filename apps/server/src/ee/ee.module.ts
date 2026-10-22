@@ -26,6 +26,8 @@ import { DocxExportModule } from './docx-export/docx-export.module';
 import { PdfExportModule } from './pdf-export/pdf-export.module';
 import { McpModule } from './mcp/mcp.module';
 import { PluginsModule } from './plugins/plugins.module';
+import { SessionGuardModule } from './plugins/session-guard/session-guard.module';
+import { IpAllowlistModule } from './plugins/ip-allowlist/ip-allowlist.module';
 import { WorkspaceLocaleModule } from './workspace-locale/workspace-locale.module';
 import { DocMetadataModule } from './docs/doc-metadata.module';
 import { ClientLogModule } from './logging/client-log.module';
@@ -64,6 +66,8 @@ import { FeatureGateGuard } from './common/guards/feature-gate.guard';
     PdfExportModule,
     McpModule,
     PluginsModule,
+    SessionGuardModule,
+    IpAllowlistModule,
     WorkspaceLocaleModule,
     DocMetadataModule,
     NotificationsModule,

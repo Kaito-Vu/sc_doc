@@ -158,6 +158,10 @@ export class WsService {
     this.server.in(getUserRoomName(userId)).disconnectSockets(true);
   }
 
+  emitToSession(sessionId: string, event: string, payload: unknown): void {
+    this.server?.to(getSessionRoomName(sessionId)).emit(event, payload);
+  }
+
   disconnectSession(sessionId: string): void {
     this.server.in(getSessionRoomName(sessionId)).disconnectSockets(true);
   }

@@ -632,6 +632,12 @@ function convert(rtf: string): string {
   const colors = parseColorTable(rtf);
 
   let paragraph = newParagraph();
+  /** Word bullet paragraph (`\pnlvlblt`); nesting comes from `\li`/`\fi`, not `\ilvl`. */
+  let listBullet = false;
+  let indentLeft = 0;
+  let indentFirst = 0;
+  /** Bullet positions of the open nesting levels. */
+  let indentStack: number[] = [];
   let table: TableState | null = null;
   let inCell = false;
 
@@ -688,6 +694,20 @@ function convert(rtf: string): string {
     if (!hasContent) {
       return;
     }
+    if (listBullet && !table) {
+      const pos = indentLeft + indentFirst;
+      while (indentStack.length && indentStack[indentStack.length - 1] > pos) {
+        indentStack.pop();
+      }
+      if (indentStack[indentStack.length - 1] !== pos) {
+        indentStack.push(pos);
+      }
+      out.push(
+        `${LI_MARK}${indentStack.length}${LI_MARK}${renderRuns(runs, false)}`,
+      );
+      return;
+    }
+    indentStack = [];
     const heading = /^(\d+(?:\.\d+)*\.?)\s/.exec(plain);
     const bullet = BULLET_RE.exec(plain);
     const rest = bullet ? dropLeadingChars(runs, bullet[0].length) : null;
@@ -761,6 +781,11 @@ function convert(rtf: string): string {
   const handleControlWord = (word: string, param: number | undefined): void => {
     if (pendingIgnorable) {
       pendingIgnorable = false;
+      if (word === 'pn' && rtf.startsWith('\\pnlvlblt', i)) {
+        // The bullet glyph is in the preceding `{\pntext}` group: discard it.
+        listBullet = true;
+        paragraph = newParagraph();
+      }
       startSkip();
       return;
     }
@@ -788,6 +813,17 @@ function convert(rtf: string): string {
         }
         break;
       case 'pard':
+        listBullet = false;
+        indentLeft = 0;
+        indentFirst = 0;
+        resetCharFormat();
+        break;
+      case 'li':
+        indentLeft = param ?? 0;
+        break;
+      case 'fi':
+        indentFirst = param ?? 0;
+        break;
       case 'plain':
         resetCharFormat();
         break;

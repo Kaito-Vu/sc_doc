@@ -1,4 +1,12 @@
 import { Extension } from "@tiptap/core";
+import { WidthType } from "docx";
+import type { Node } from "prosemirror-model";
+
+/** DOCX width for a table or cell: Word auto-sizes when the table is fit-content. */
+export const tableWidth = (table: Node, size: number) =>
+  table.attrs.fit === "content"
+    ? { size: 0, type: WidthType.AUTO }
+    : { size, type: WidthType.DXA };
 
 export const AUTO_NUMBER_FORMATS = [
   "decimal",
@@ -22,6 +30,18 @@ export const TableAutoNumber = Extension.create({
 
   addGlobalAttributes() {
     return [
+      {
+        // Table sizing: null = fit window (fills the page), "content" = fit content.
+        types: ["table"],
+        attributes: {
+          fit: {
+            default: null,
+            parseHTML: (element) => element.getAttribute("data-fit"),
+            renderHTML: (attributes) =>
+              attributes.fit ? { "data-fit": attributes.fit } : {},
+          },
+        },
+      },
       {
         types: ["tableCell"],
         attributes: {

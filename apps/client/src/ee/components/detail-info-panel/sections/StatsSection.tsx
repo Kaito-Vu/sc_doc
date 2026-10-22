@@ -16,14 +16,15 @@ const StatsSectionComponent: React.FC<SectionProps> = ({ page, pageId }) => {
     <>
       <p className={classes.sectionLabel}>{t('Stats')}</p>
 
-      <div className={classes.row}>
-        <span className={classes.rowLabel}><IconEye size={13} />{t('Views')}</span>
-        <span className={classes.rowValue}>{pageStats?.viewCount ?? 0}</span>
-      </div>
-
-      <div className={classes.row}>
-        <span className={classes.rowLabel}><IconEdit size={13} />{t('Edits')}</span>
-        <span className={classes.rowValue}>{pageStats?.editCount ?? 0}</span>
+      <div className={classes.tileGrid2}>
+        <div className={classes.tile}>
+          <span className={classes.tileValue}>{pageStats?.viewCount ?? 0}</span>
+          <span className={classes.tileLabel}><IconEye size={12} />{t('Views')}</span>
+        </div>
+        <div className={classes.tile}>
+          <span className={classes.tileValue}>{pageStats?.editCount ?? 0}</span>
+          <span className={classes.tileLabel}><IconEdit size={12} />{t('Edits')}</span>
+        </div>
       </div>
 
       <div className={classes.row}>

@@ -2,6 +2,7 @@
 
 export { PeopleSection } from './PeopleSection';
 export { StatsSection } from './StatsSection';
+export { ContentStatsSection } from './ContentStatsSection';
 export { DisplaySection } from './DisplaySection';
 export { ActionsSection } from './ActionsSection';
 export { DangerZoneSection } from './DangerZoneSection';

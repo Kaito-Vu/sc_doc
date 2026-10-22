@@ -69,6 +69,8 @@ export function updateColumns(
     nextDOM = after;
   }
 
+  table.dataset.fit = node.attrs.fit ?? '';
+
   const hasUserWidth =
     node.attrs.style &&
     typeof node.attrs.style === 'string' &&

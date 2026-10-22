@@ -11,6 +11,7 @@
   border-bottom: 1px solid
     light-dark(var(--mantine-color-gray-2), var(--mantine-color-dark-4));
   overflow-x: auto;
+  overflow-y: hidden; /* else hover outlines make a vertical scrollbar appear and the buttons jump */
 }
 
 .fixedToolbar::-webkit-scrollbar {

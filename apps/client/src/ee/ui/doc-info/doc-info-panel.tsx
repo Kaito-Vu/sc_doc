@@ -51,7 +51,9 @@ import {
 import { PageVerificationModal } from "@/ee/page-verification/components/page-verification-modal";
 import { getStatusLabel } from "@/ee/page-verification/components/verification-status";
 import type { VerificationStatus } from "@/ee/page-verification/types/page-verification.types";
+import sectionClasses from "@/ee/components/detail-info-panel/DetailInfoPanel.module.css";
 import {
+  ContentStatsSection,
   ActionsSection,
   DangerZoneSection,
   DisplaySection,
@@ -137,9 +139,11 @@ export function DocInfoPanel({ initialTab = "info" }: DocInfoPanelProps) {
         <Tabs.Panel value="info" className={classes.panel}>
           <Stack gap="xs">
             <PeopleSection page={page} pageId={page.id} />
+            <ContentStatsSection />
+            <StatsSection page={page} pageId={page.id} />
+            <p className={sectionClasses.sectionLabel}>{t("Details")}</p>
             <LifecycleSection page={page} />
             <MetadataSection page={page} />
-            <StatsSection page={page} pageId={page.id} />
             <DisplaySection page={page} pageId={page.id} />
             <LockSection page={page} pageId={page.id} />
             <AccessSection page={page} />
