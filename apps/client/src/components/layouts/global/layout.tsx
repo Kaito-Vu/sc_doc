@@ -9,6 +9,7 @@ import { ShortcutsHelp } from "@/ee/shortcuts/shortcuts.tsx";
 import { UiCommands } from "@/ee/ui/experience/ui-commands";
 import "@/ee/styles/sc-tokens.css";
 import "@/ee/ui/sidebar/sidebar-v2.css";
+import "@/ee/ui/settings/settings-v2.css";
 import React from "react";
 import { useGetSpaceBySlugQuery } from "@/features/space/queries/space-query.ts";
 import { AppErrorBoundary } from "@/components/ui/app-error-boundary.tsx";

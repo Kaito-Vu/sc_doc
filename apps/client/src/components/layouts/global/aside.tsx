@@ -85,12 +85,12 @@ export default function Aside() {
               component
             ) : (
               <ScrollArea
-                style={{ height: "85vh" }}
+                style={{ flex: 1, minHeight: 0 }}
                 scrollbarSize={5}
                 type="scroll"
                 offsetScrollbars
               >
-                <div style={{ paddingBottom: "200px" }}>{component}</div>
+                <div style={{ paddingBottom: "16px" }}>{component}</div>
               </ScrollArea>
             )}
           </Suspense>

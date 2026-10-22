@@ -26,6 +26,7 @@ import { useAsideTriggerProps } from "@/hooks/use-toggle-aside.tsx";
 import { DeletedPageBanner } from "@/features/page/trash/components/deleted-page-banner.tsx";
 import { BackToTopFab } from "@/ee/editor/back-to-top/back-to-top-fab";
 import { ReadingAppearanceTrigger } from "@/ee/ui/reading/reading-appearance-trigger";
+import { PageTitleLabels } from "@/ee/ui/page-labels/page-title-labels";
 import { RecentPageTracker } from "@/ee/ui/experience/recent-page-tracker";
 import clsx from "clsx";
 import { currentPageEditModeAtom } from "@/features/editor/atoms/editor-atoms.ts";
@@ -119,6 +120,7 @@ export function FullEditor({
         contributors={contributors}
         readOnly={!editable}
       />
+      <PageTitleLabels pageId={pageId} canEdit={editable} />
       <MemoizedPageEditor
         pageId={pageId}
         editable={editable}

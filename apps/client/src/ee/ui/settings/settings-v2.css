@@ -1,0 +1,283 @@
+/*
+ * Settings v2: modern, colourful restyle of /settings (sidebar + content).
+ * CSS-only on purpose: it hooks into existing data-sc-* attributes and
+ * href selectors, so no core component needs to change.
+ * Content scope: body:has([data-sc-sidebar="settings"]) exists only on /settings routes.
+ */
+
+/* ---------- Sidebar ---------- */
+
+div[data-sc-sidebar="settings"] {
+  background: light-dark(
+    linear-gradient(180deg, #f5f8ff 0%, #fafbff 100%),
+    var(--mantine-color-dark-8)
+  );
+  padding: 14px 12px 10px;
+}
+
+div[data-sc-sidebar="settings"] > div:first-child {
+  padding: 4px 6px 14px;
+  gap: 8px;
+}
+
+div[data-sc-sidebar="settings"] > div:first-child p {
+  font-size: 17px;
+  font-weight: 700;
+  background: linear-gradient(90deg, #2b7af1, #8b5cf6);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+div[data-sc-sidebar="settings"] > div:first-child button {
+  border-radius: 10px;
+  background: light-dark(#fff, var(--mantine-color-dark-6));
+  box-shadow: 0 1px 2px rgb(15 23 42 / 10%);
+  transition: transform var(--sc-duration-fast, 120ms) var(--sc-ease, ease);
+}
+
+div[data-sc-sidebar="settings"] > div:first-child button:hover {
+  transform: translateX(-2px);
+}
+
+div[data-sc-sidebar="settings"] [data-sc-nav] p {
+  margin: 18px 0 6px;
+  font-size: 11px;
+  color: light-dark(#64748b, var(--mantine-color-dark-2));
+}
+
+div[data-sc-sidebar="settings"] [data-sc-nav] a,
+div[data-sc-sidebar="settings"] [data-sc-nav] [data-disabled] {
+  position: relative;
+  min-height: 38px;
+  padding: 0 10px 0 6px;
+  border-radius: 10px;
+  gap: 10px;
+}
+
+div[data-sc-sidebar="settings"] [data-sc-nav] a:hover {
+  background: light-dark(#fff, var(--mantine-color-dark-6));
+  box-shadow: 0 1px 3px rgb(15 23 42 / 8%);
+}
+
+/* icon chip: colour comes from --ic, set per route below */
+div[data-sc-sidebar="settings"] [data-sc-nav] svg {
+  --ic: #2b7af1;
+  box-sizing: content-box;
+  width: 16px;
+  height: 16px;
+  padding: 6px;
+  border-radius: 9px;
+  color: var(--ic);
+  background: color-mix(in srgb, var(--ic) 14%, transparent);
+  transition: transform var(--sc-duration-fast, 120ms) var(--sc-ease, ease);
+}
+
+div[data-sc-sidebar="settings"] [data-sc-nav] a:hover svg {
+  transform: scale(1.08);
+}
+
+div[data-sc-sidebar="settings"] [data-sc-nav] a[data-active] {
+  background: light-dark(#fff, rgb(43 122 241 / 18%));
+  color: light-dark(var(--mantine-color-black), var(--mantine-color-white));
+  font-weight: 650;
+  box-shadow: 0 2px 8px rgb(43 122 241 / 16%);
+}
+
+div[data-sc-sidebar="settings"] [data-sc-nav] a[data-active]::before {
+  content: "";
+  position: absolute;
+  left: -12px;
+  top: 9px;
+  bottom: 9px;
+  width: 4px;
+  border-radius: 0 4px 4px 0;
+  background: linear-gradient(180deg, #2b7af1, #8b5cf6);
+}
+
+div[data-sc-sidebar="settings"] [data-sc-nav] a[data-active] svg {
+  color: #fff;
+  background: var(--ic);
+  box-shadow: 0 2px 6px color-mix(in srgb, var(--ic) 45%, transparent);
+}
+
+div[data-sc-sidebar="settings"] [data-sc-nav] [data-disabled] svg {
+  filter: grayscale(1);
+}
+
+/* per-item colours */
+[data-sc-nav] a[href^="/settings/account/profile"] svg { --ic: #2b7af1; }
+[data-sc-nav] a[href^="/settings/account/preferences"] svg { --ic: #ec4899; }
+[data-sc-nav] a[href^="/settings/account/api-keys"] svg { --ic: #f59e0b; }
+[data-sc-nav] a[href^="/settings/account/connections"] svg { --ic: #06b6d4; }
+[data-sc-nav] a[href="/settings/workspace"] svg { --ic: #6366f1; }
+[data-sc-nav] a[href^="/settings/members"] svg { --ic: #10b981; }
+[data-sc-nav] a[href^="/settings/billing"] svg { --ic: #eab308; }
+[data-sc-nav] a[href^="/settings/security"] svg { --ic: #ef4444; }
+[data-sc-nav] a[href^="/settings/groups"] svg { --ic: #8b5cf6; }
+[data-sc-nav] a[href^="/settings/spaces"] svg { --ic: #0ea5e9; }
+[data-sc-nav] a[href^="/settings/sharing"] svg { --ic: #14b8a6; }
+[data-sc-nav] a[href^="/settings/verifications"] svg { --ic: #22c55e; }
+[data-sc-nav] a[href="/settings/api-keys"] svg { --ic: #f97316; }
+[data-sc-nav] a[href^="/settings/ai"] svg { --ic: #a855f7; }
+[data-sc-nav] a[href^="/settings/audit"] svg { --ic: #64748b; }
+[data-sc-nav] a[href^="/settings/statistics"] svg { --ic: #3b82f6; }
+[data-sc-nav] a[href^="/settings/plugins"] svg { --ic: #d946ef; }
+[data-sc-nav] a[href^="/settings/integrations"] svg { --ic: #0891b2; }
+[data-sc-nav] a[href^="/settings/license"] svg { --ic: #f43f5e; }
+
+/* ---------- Content ---------- */
+
+body:has([data-sc-sidebar="settings"]) #main-content {
+  background:
+    radial-gradient(900px 260px at 85% -80px, rgb(139 92 246 / 10%), transparent 70%),
+    radial-gradient(700px 240px at 10% -60px, rgb(43 122 241 / 10%), transparent 70%),
+    light-dark(#fbfcff, var(--mantine-color-dark-8));
+}
+
+body:has([data-sc-sidebar="settings"]) #main-content > .mantine-Container-root {
+  max-width: 960px;
+  padding-top: 8px;
+}
+
+/* page title: accent bar + gradient underline instead of plain divider */
+body:has([data-sc-sidebar="settings"]) #main-content h1 {
+  position: relative;
+  padding-left: 14px;
+  font-size: 26px;
+  font-weight: 750;
+  letter-spacing: -0.02em;
+  color: var(--sc-text-strong);
+}
+
+body:has([data-sc-sidebar="settings"]) #main-content h1::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 15%;
+  bottom: 15%;
+  width: 5px;
+  border-radius: 4px;
+  background: linear-gradient(180deg, #2b7af1, #8b5cf6);
+}
+
+body:has([data-sc-sidebar="settings"]) #main-content h1 + .mantine-Divider-root {
+  height: 3px;
+  border: 0;
+  border-radius: 3px;
+  margin: 14px 0 26px;
+  background: linear-gradient(90deg, #2b7af1 0%, #8b5cf6 30%, transparent 70%);
+  opacity: 0.55;
+}
+
+/* section dividers become soft spacing */
+body:has([data-sc-sidebar="settings"]) #main-content .mantine-Divider-root[data-orientation="horizontal"]:not(h1 + *) {
+  border-color: light-dark(#e8edf5, var(--mantine-color-dark-5));
+  margin-block: 28px;
+}
+
+body:has([data-sc-sidebar="settings"]) #main-content h2,
+body:has([data-sc-sidebar="settings"]) #main-content h3 {
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--sc-text-strong);
+}
+
+/* inputs, buttons, tables, cards */
+body:has([data-sc-sidebar="settings"]) #main-content .mantine-Input-input,
+body:has([data-sc-sidebar="settings"]) #main-content .mantine-InputWrapper-root input {
+  border-radius: 10px;
+  transition:
+    border-color var(--sc-duration-fast, 120ms) var(--sc-ease, ease),
+    box-shadow var(--sc-duration-fast, 120ms) var(--sc-ease, ease);
+}
+
+body:has([data-sc-sidebar="settings"]) #main-content .mantine-Input-input:focus {
+  box-shadow: 0 0 0 3px rgb(43 122 241 / 18%);
+}
+
+body:has([data-sc-sidebar="settings"]) #main-content .mantine-Button-root {
+  border-radius: 10px;
+  font-weight: 600;
+}
+
+body:has([data-sc-sidebar="settings"]) #main-content .mantine-Button-root[data-variant="filled"]:not([data-disabled]) {
+  background: linear-gradient(135deg, #2b7af1, #6366f1);
+  box-shadow: 0 2px 8px rgb(43 122 241 / 28%);
+}
+
+body:has([data-sc-sidebar="settings"]) #main-content .mantine-Paper-root,
+body:has([data-sc-sidebar="settings"]) #main-content .mantine-Card-root {
+  border-radius: 14px;
+  border-color: light-dark(#e8edf5, var(--mantine-color-dark-5));
+  box-shadow: 0 1px 3px rgb(15 23 42 / 5%);
+}
+
+body:has([data-sc-sidebar="settings"]) #main-content .mantine-Table-table {
+  border-radius: 12px;
+}
+
+body:has([data-sc-sidebar="settings"]) #main-content .mantine-Table-th {
+  font-size: 11.5px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: light-dark(#64748b, var(--mantine-color-dark-2));
+  background: light-dark(#f3f6fc, var(--mantine-color-dark-7));
+}
+
+body:has([data-sc-sidebar="settings"]) #main-content .mantine-Table-tr:hover {
+  background: light-dark(#f5f8ff, var(--mantine-color-dark-6));
+}
+
+body:has([data-sc-sidebar="settings"]) #main-content .mantine-Switch-track {
+  transition: background-color var(--sc-duration-fast, 120ms) var(--sc-ease, ease);
+}
+
+body:has([data-sc-sidebar="settings"]) #main-content .mantine-Tabs-tab[data-active] {
+  color: var(--mantine-color-blue-7);
+  border-color: #2b7af1;
+}
+
+/* ---------- Section cards ----------
+ * Pages separate sections with <Divider/> siblings. On pages that have at
+ * least one section divider (besides the title's), turn each section into a
+ * card and hide the dividers. CSS-only, so page components stay untouched.
+ */
+body:has([data-sc-sidebar="settings"]) #main-content > .mantine-Container-root:has(> .mantine-Divider-root ~ .mantine-Divider-root) {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+body:has([data-sc-sidebar="settings"]) #main-content > .mantine-Container-root:has(> .mantine-Divider-root ~ .mantine-Divider-root) > .mantine-Divider-root ~ .mantine-Divider-root {
+  display: none;
+}
+
+body:has([data-sc-sidebar="settings"]) #main-content > .mantine-Container-root:has(> .mantine-Divider-root ~ .mantine-Divider-root) > :not(h1):not(.mantine-Divider-root) {
+  padding: 20px 22px;
+  border: 1px solid light-dark(#e8edf5, var(--mantine-color-dark-5));
+  border-radius: 16px;
+  background: light-dark(#fff, var(--mantine-color-dark-7));
+  box-shadow: 0 1px 3px rgb(15 23 42 / 5%), 0 8px 24px -12px rgb(43 122 241 / 12%);
+  transition: box-shadow var(--sc-duration-med, 220ms) var(--sc-ease, ease);
+}
+
+body:has([data-sc-sidebar="settings"]) #main-content > .mantine-Container-root:has(> .mantine-Divider-root ~ .mantine-Divider-root) > :not(h1):not(.mantine-Divider-root):hover {
+  box-shadow: 0 1px 3px rgb(15 23 42 / 6%), 0 12px 28px -12px rgb(43 122 241 / 22%);
+}
+
+@media (max-width: 48em) {
+  body:has([data-sc-sidebar="settings"]) #main-content > .mantine-Container-root:has(> .mantine-Divider-root ~ .mantine-Divider-root) > :not(h1):not(.mantine-Divider-root) {
+    padding: 16px;
+  }
+}
+
+@media (max-width: 48em) {
+  div[data-sc-sidebar="settings"] [data-sc-nav] a[data-active]::before {
+    left: -12px;
+  }
+
+  body:has([data-sc-sidebar="settings"]) #main-content h1 {
+    font-size: 22px;
+  }
+}

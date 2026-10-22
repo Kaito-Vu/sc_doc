@@ -100,7 +100,7 @@ export default function SpaceSettingsModal({
 
                 <Tabs.Panel value="general">
                   <ScrollArea h={580} scrollbarSize={5} pr={8}>
-                    <div style={{ paddingBottom: "100px" }}>
+                    <div style={{ paddingBottom: "16px" }}>
                       <SpaceDetails
                         spaceId={space?.id}
                         readOnly={spaceAbility.cannot(
@@ -131,7 +131,7 @@ export default function SpaceSettingsModal({
 
                 <Tabs.Panel value="security">
                   <ScrollArea h={580} scrollbarSize={5} pr={8}>
-                    <div style={{ paddingBottom: "100px" }}>
+                    <div style={{ paddingBottom: "16px" }}>
                       <SpaceSecuritySettings
                         space={space}
                         readOnly={spaceAbility.cannot(
@@ -145,7 +145,7 @@ export default function SpaceSettingsModal({
 
                 <Tabs.Panel value="publish">
                   <ScrollArea h={580} scrollbarSize={5} pr={8}>
-                    <div style={{ paddingBottom: "100px" }}>
+                    <div style={{ paddingBottom: "16px" }}>
                       {canManageSettings && allowPublicSpaces && (
                         <PublishSpaceSettings space={space} />
                       )}
@@ -155,7 +155,7 @@ export default function SpaceSettingsModal({
 
                 <Tabs.Panel value="statistics">
                   <ScrollArea h={580} scrollbarSize={5} pr={8}>
-                    <div style={{ paddingBottom: "100px" }}>
+                    <div style={{ paddingBottom: "16px" }}>
                       <SpaceStatistics spaceId={space?.id} />
                     </div>
                   </ScrollArea>
