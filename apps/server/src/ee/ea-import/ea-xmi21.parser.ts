@@ -200,5 +200,12 @@ export function parseEaXmi21(buffer: Buffer): EaParseResult {
 
   roots.sort((a, b) => a.order - b.order || a.name.localeCompare(b.name));
   splitMultiItems(roots);
+  if (roots.length > 0) {
+    warnings.push({
+      page: '',
+      reason:
+        'XMI 2.1 carries no document (RTF) content: pages hold structure, diagrams and activities only',
+    });
+  }
   return { roots, warnings };
 }

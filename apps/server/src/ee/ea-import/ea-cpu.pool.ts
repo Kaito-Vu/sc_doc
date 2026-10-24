@@ -44,6 +44,8 @@ function rehydrate<T>(value: T): T {
   return value;
 }
 
+const CHUNK_TIMEOUT_MS = 10 * 60 * 1000;
+
 function runChunk(
   jobs: EaCpuJob[],
   onResult: (result: EaCpuResult) => void,
@@ -53,9 +55,15 @@ function runChunk(
     const worker = new Worker(WORKER_FILE);
     workers.add(worker);
     let settled = false;
+    // A worker stuck in a pathological conversion would otherwise hang the import forever.
+    const timer = setTimeout(
+      () => finish(new Error(`EA cpu worker timed out after ${CHUNK_TIMEOUT_MS / 1000}s`)),
+      CHUNK_TIMEOUT_MS,
+    );
     const finish = (error?: Error): void => {
       if (settled) return;
       settled = true;
+      clearTimeout(timer);
       workers.delete(worker);
       void worker.terminate().catch(() => undefined);
       error ? reject(error) : resolve();
@@ -66,8 +74,8 @@ function runChunk(
     });
     worker.on('error', (e) => finish(e instanceof Error ? e : new Error(String(e))));
     worker.on('exit', (code) => {
-      if (!settled && code !== 0) {
-        finish(new Error(`EA cpu worker exited with code ${code}`));
+      if (!settled) {
+        finish(new Error(`EA cpu worker exited with code ${code} before finishing`));
       }
     });
     worker.postMessage(jobs);

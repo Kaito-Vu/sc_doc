@@ -23,7 +23,36 @@ const LOST_AFTER_FAILS = 5;
 // The server commits all pages in one transaction after this point.
 const POINT_OF_NO_RETURN = 92;
 
-type Listener = (task: IFileTask, file?: File) => void;
+const SEEN_KEY = "ea-import-seen";
+
+// Finished tasks are re-listed for a while after a reload; show each outcome once.
+function wasSeen(id: string): boolean {
+  try {
+    return (JSON.parse(localStorage.getItem(SEEN_KEY) ?? "[]") as string[]).includes(id);
+  } catch {
+    return false;
+  }
+}
+
+function markSeen(id: string) {
+  try {
+    const seen = JSON.parse(localStorage.getItem(SEEN_KEY) ?? "[]") as string[];
+    localStorage.setItem(SEEN_KEY, JSON.stringify([...seen, id].slice(-50)));
+  } catch {
+    // storage unavailable: worst case the outcome shows again after a reload
+  }
+}
+
+function formatDuration(ms: number): string {
+  const total = Math.max(0, Math.round(ms / 1000));
+  const m = Math.floor(total / 60);
+  const sec = String(total % 60).padStart(2, "0");
+  return m >= 60
+    ? `${Math.floor(m / 60)}:${String(m % 60).padStart(2, "0")}:${sec}`
+    : `${m}:${sec}`;
+}
+
+type Listener =(task: IFileTask, file?: File) => void;
 const listeners = new Set<Listener>();
 
 /** Hand a freshly uploaded EA import to the tracker (called from the import modal). */
@@ -77,6 +106,17 @@ export function EaImportTracker() {
       },
     });
 
+  // SLA: elapsed time since the task was created and an ETA extrapolated from progress.
+  const sla = (task: IFileTask, progress: number) => {
+    const elapsed = Math.max(0, Date.now() - new Date(task.createdAt).getTime());
+    if (!Number.isFinite(elapsed)) return "";
+    const eta =
+      progress >= 5 && progress < 100
+        ? ` · ${t("about {{time}} left", { time: formatDuration((elapsed / progress) * (100 - progress)) })}`
+        : "";
+    return ` · ${t("Elapsed {{time}}", { time: formatDuration(elapsed) })}${eta}`;
+  };
+
   const renderProgress = (task: IFileTask) => {
     const progress = (task.metadata as any)?.progress as number | undefined;
     lastTask.current.set(task.id, task);
@@ -89,7 +129,7 @@ export function EaImportTracker() {
         ? t("Canceling…")
         : progress === undefined
           ? t("Queued…")
-          : `${progress}%`;
+          : `${progress}%${sla(task, progress)}`;
     const props = {
       id: notifId(task),
       title: t("Importing pages"),
@@ -148,9 +188,23 @@ export function EaImportTracker() {
     setIds((prev) => (prev.includes(task.id) ? prev : [...prev, task.id]));
   };
 
+  const showSkipped = (task: IFileTask) =>
+    notifications.show({
+      id: `${notifId(task)}-skipped`,
+      color: "yellow",
+      title: t("Import skipped"),
+      message: t(
+        "This Enterprise Architect package was already imported into this space.",
+      ),
+      autoClose: false,
+    });
+
   const askDuplicate = (task: IFileTask, file: File) => {
+    let chosen = false;
+    const modalId = `ea-duplicate-${task.id}`;
     const run = (mode: EaImportMode) => {
-      modals.closeAll();
+      chosen = true;
+      modals.close(modalId);
       importEaXml(file, task.spaceId, mode, (task.metadata as any)?.parentPageId)
         .then((next) => {
           files.current.set(next.id, file);
@@ -165,6 +219,11 @@ export function EaImportTracker() {
         );
     };
     modals.open({
+      modalId,
+      // Dismissing (Esc, click away, Skip) must not look like a silent success.
+      onClose: () => {
+        if (!chosen) showSkipped(task);
+      },
       title: t("Package already imported"),
       centered: true,
       children: (
@@ -190,7 +249,7 @@ export function EaImportTracker() {
             <Button variant="default" onClick={() => run("keep")}>
               {t("Keep both")}
             </Button>
-            <Button variant="default" onClick={() => modals.closeAll()}>
+            <Button variant="default" onClick={() => modals.close(modalId)}>
               {t("Skip")}
             </Button>
             <Button color="red" variant="outline" onClick={() => run("replace")}>
@@ -207,10 +266,39 @@ export function EaImportTracker() {
     });
   };
 
+  const showWarnings = (
+    task: IFileTask,
+    warnings: Array<{ page?: string; reason: string }>,
+  ) =>
+    modals.open({
+      title: t("Import warnings"),
+      centered: true,
+      size: "lg",
+      children: (
+        <Stack gap="xs">
+          <Text size="xs" c="dimmed">
+            {task.fileName} · {task.id}
+          </Text>
+          <Stack gap={4} mah={400} style={{ overflowY: "auto" }}>
+            {warnings.map((w, i) => (
+              <Text key={i} size="sm">
+                {w.page ? `${w.page}: ` : ""}
+                {w.reason}
+              </Text>
+            ))}
+          </Stack>
+        </Stack>
+      ),
+    });
+
   const finish = async (task: IFileTask) => {
     const id = notifId(task);
     const done = { id, loading: false, withCloseButton: true };
     const meta = task.metadata as any;
+    const warnings: Array<{ page?: string; reason: string }> =
+      Array.isArray(meta?.warnings) ? meta.warnings : [];
+    const pageCount = Number(meta?.pageCount ?? 0);
+    markSeen(task.id);
 
     if (task.status === "canceled") {
       notifications.update({
@@ -238,27 +326,45 @@ export function EaImportTracker() {
         askDuplicate(task, file);
       } else {
         // The file is gone after a reload; nothing to re-upload.
-        notifications.update({
-          ...done,
-          color: "yellow",
-          title: t("Import skipped"),
-          message: t(
-            "This Enterprise Architect package was already imported into this space.",
-          ),
-          autoClose: false,
-        });
+        notifications.hide(id);
+        showSkipped(task);
       }
     } else {
+      const empty = pageCount === 0;
+      const warned = warnings.length > 0;
+      const summary = meta?.merge
+        ? (t(
+            "{{added}} added, {{filled}} filled, {{kept}} unchanged, {{skipped}} skipped (already had content).",
+            { ...meta.merge },
+          ) as string)
+        : empty
+          ? t("No pages were created.")
+          : t("Your pages were successfully imported.");
       notifications.update({
         ...done,
-        color: "teal",
-        title: t("Import complete"),
-        message: meta?.merge
-          ? t(
-              "{{added}} added, {{filled}} filled, {{kept}} unchanged, {{skipped}} skipped (already had content).",
-              { ...meta.merge },
-            ) as string
-          : t("Your pages were successfully imported."),
+        color: empty || warned ? "yellow" : "teal",
+        title: empty
+          ? t("Import finished without pages")
+          : warned
+            ? t("Import completed with warnings")
+            : t("Import complete"),
+        message: warned ? (
+          <Stack gap={6}>
+            <Text size="sm">{summary}</Text>
+            <Text size="xs" c="dimmed">
+              {t("{{count}} warning(s)", { count: warnings.length })}
+            </Text>
+            <Button
+              size="compact-xs"
+              variant="light"
+              onClick={() => showWarnings(task, warnings)}
+            >
+              {t("View details")}
+            </Button>
+          </Stack>
+        ) : (
+          summary
+        ),
         icon: <IconCheck size={18} />,
         autoClose: false,
       });
@@ -320,12 +426,25 @@ export function EaImportTracker() {
     };
     listeners.add(listener);
     getActiveEaImports()
-      .then((tasks) => tasks.forEach(addTask))
+      .then((tasks) =>
+        tasks.filter((task) => !wasSeen(task.id)).forEach(addTask),
+      )
       .catch(() => undefined);
     return () => {
       listeners.delete(listener);
     };
   }, []);
+
+  // Leaving the tab (refresh/close) while an import runs: ask for confirmation.
+  useEffect(() => {
+    if (ids.length === 0) return;
+    const warn = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [ids.length > 0]);
 
   useEffect(() => {
     if (ids.length === 0) return;

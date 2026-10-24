@@ -87,6 +87,9 @@ const IMAGE_UPLOAD_CONCURRENCY = 4;
 /** Parse on a worker thread above this size; smaller files parse faster inline. */
 const PARSE_WORKER_MIN_BYTES = 512 * 1024;
 const MAX_PAGES = 300;
+const MAX_LOGGED_WARNINGS = 20;
+/** Finished imports stay listed this long so a user who closed the tab still sees the outcome. */
+const RECENT_FINISHED_MS = 10 * 60 * 1000;
 
 export interface EaImportMetadata {
   eaRootId: string;
@@ -310,7 +313,15 @@ export class EaImportService {
       .selectAll()
       .where('source', '=', EA_SOURCE)
       .where('type', '=', FileTaskType.Import)
-      .where('status', '=', FileTaskStatus.Processing)
+      .where((eb) =>
+        eb.or([
+          eb('status', '=', FileTaskStatus.Processing),
+          eb.and([
+            eb('status', 'in', [FileTaskStatus.Success, FileTaskStatus.Failed]),
+            eb('updatedAt', '>', new Date(Date.now() - RECENT_FINISHED_MS)),
+          ]),
+        ]),
+      )
       .where('creatorId', '=', userId)
       .where('workspaceId', '=', workspaceId)
       .orderBy('createdAt', 'asc')
@@ -495,8 +506,8 @@ export class EaImportService {
       : undefined;
 
     if (existingImport && !mode) {
-      this.logger.log(
-        `Skipping EA import: root signature ${eaRootId} already imported in space ${spaceId}`,
+      this.logger.warn(
+        `Skipping EA import ${taskId} (${fileName}): root signature ${eaRootId} already imported in space ${spaceId} by task ${existingImport.id}; no pages created`,
       );
       return this.duplicateResult(parsed.roots, eaRootId, existingImport);
     }
@@ -580,25 +591,47 @@ export class EaImportService {
       });
     }
 
-    await this.auditService.log({
-      event: AuditEvent.PAGE_IMPORTED,
-      resourceType: AuditResource.PAGE,
-      resourceId: spaceId,
-      spaceId,
-      metadata: {
-        source: EA_SOURCE,
-        fileName,
-        pageCount: pageIds.length,
-      },
-    });
+    // Pages are committed: an audit failure must not flip the task to failed.
+    try {
+      await this.auditService.log({
+        event: AuditEvent.PAGE_IMPORTED,
+        resourceType: AuditResource.PAGE,
+        resourceId: spaceId,
+        spaceId,
+        metadata: {
+          source: EA_SOURCE,
+          fileName,
+          pageCount: pageIds.length,
+        },
+      });
+    } catch (error) {
+      this.logger.warn(
+        `EA import ${taskId}: audit log failed: ${errorMessage(error)}`,
+      );
+    }
 
     if (existingImport && mode === 'replace') {
       await this.replaceExistingImport(existingImport, scope, warnings);
     }
 
     this.logger.log(
-      `Imported ${pageIds.length} EA pages, filled ${filledIds.length} (${warnings.length} warnings)`,
+      `Imported ${pageIds.length} EA pages, filled ${filledIds.length} (${warnings.length} warnings) [task ${taskId}, ${fileName}]`,
     );
+    for (const warning of warnings.slice(0, MAX_LOGGED_WARNINGS)) {
+      this.logger.warn(
+        `EA import ${taskId} warning${warning.page ? ` [${warning.page}]` : ''}: ${warning.reason}`,
+      );
+    }
+    if (warnings.length > MAX_LOGGED_WARNINGS) {
+      this.logger.warn(
+        `EA import ${taskId}: ${warnings.length - MAX_LOGGED_WARNINGS} more warnings in file_tasks.metadata`,
+      );
+    }
+    if (pageIds.length + filledIds.length === 0) {
+      this.logger.warn(
+        `EA import ${taskId} (${fileName}) created or filled 0 pages`,
+      );
+    }
 
     return {
       result: {
@@ -1045,7 +1078,7 @@ export class EaImportService {
     if (!eaRootId) {
       return undefined;
     }
-    return this.db
+    const candidates = await this.db
       .selectFrom('fileTasks')
       .select(['id', 'metadata'])
       .where('source', '=', EA_SOURCE)
@@ -1054,8 +1087,36 @@ export class EaImportService {
       .where('workspaceId', '=', workspaceId)
       .where(sql<boolean>`metadata->>'eaRootId' = ${eaRootId}`)
       .orderBy('createdAt', 'desc')
-      .limit(1)
-      .executeTakeFirst();
+      .limit(10)
+      .execute();
+
+    // Only an import whose pages still exist counts: trashed/deleted trees and
+    // runs that created nothing must not block a fresh import.
+    for (const candidate of candidates) {
+      const pageIds = this.metadataStringArray(
+        candidate.metadata,
+        'rootPageIds',
+        'pageIds',
+      );
+      if (pageIds.length === 0) {
+        continue;
+      }
+      const live = await this.db
+        .selectFrom('pages')
+        .select('id')
+        .where('id', 'in', pageIds)
+        .where('spaceId', '=', spaceId)
+        .where('deletedAt', 'is', null)
+        .limit(1)
+        .executeTakeFirst();
+      if (live) {
+        return candidate;
+      }
+      this.logger.warn(
+        `EA import task ${candidate.id} matches root signature ${eaRootId} but its pages were deleted; ignoring it as a duplicate`,
+      );
+    }
+    return undefined;
   }
 
   /** First non-empty string array among the given metadata keys. */

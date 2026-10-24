@@ -585,6 +585,26 @@ function dropLeadingChars(runs: TextRun[], n: number): TextRun[] | null {
 /** Marker for `+`/`++` bullet lines in `out`; grouped into nested lists by `groupBullets`. */
 const LI_MARK = '\u0001';
 
+/** Marker for Word outline-level headings (`\outlinelevelN`); levels are normalised by `resolveOutlineHeadings`. */
+const H_MARK = '\u0002';
+
+/** Word outline numbering baked into the text, e.g. `III.1.1.1.1.<tab>`. */
+const OUTLINE_NUMBER_RE = /^((?:<[^>]+>)*)[IVXLCDM]+\.(?:\d+\.)*\s*/;
+
+/** Turn H_MARK chunks into `<hN>`, with the shallowest outline level in the document as h1. */
+function resolveOutlineHeadings(out: string[]): string[] {
+  const levels = out.map((c) => /^\u0002(\d)\u0002/.exec(c)?.[1]);
+  const min = Math.min(...levels.filter((l) => l).map(Number));
+  return out.map((chunk, idx) => {
+    if (!levels[idx]) {
+      return chunk;
+    }
+    const level = Math.min(Number(levels[idx]) - min + 1, 6);
+    const html = chunk.slice(3).replace(OUTLINE_NUMBER_RE, '$1');
+    return `<h${level}>${html}</h${level}>`;
+  });
+}
+
 function groupBullets(out: string[]): string {
   let html = '';
   let depth = 0;
@@ -638,6 +658,8 @@ function convert(rtf: string): string {
   let indentFirst = 0;
   /** Bullet positions of the open nesting levels. */
   let indentStack: number[] = [];
+  /** `\outlinelevelN` of the current paragraph (0-8 = Word heading), -1 for body text. */
+  let outlineLevel = -1;
   let table: TableState | null = null;
   let inCell = false;
 
@@ -715,6 +737,8 @@ function convert(rtf: string): string {
       out.push(
         `${LI_MARK}${bullet[1].length}${LI_MARK}${renderRuns(rest, false)}`,
       );
+    } else if (outlineLevel >= 0 && outlineLevel <= 8) {
+      out.push(`${H_MARK}${outlineLevel}${H_MARK}${renderRuns(runs, true)}`);
     } else if (allBold && heading) {
       const dots = (heading[1].match(/\./g) ?? []).length;
       const level = Math.min(Math.max(dots, 1), 6);
@@ -813,10 +837,14 @@ function convert(rtf: string): string {
         }
         break;
       case 'pard':
+        outlineLevel = -1;
         listBullet = false;
         indentLeft = 0;
         indentFirst = 0;
         resetCharFormat();
+        break;
+      case 'outlinelevel':
+        outlineLevel = param ?? -1;
         break;
       case 'li':
         indentLeft = param ?? 0;
@@ -1046,5 +1074,5 @@ function convert(rtf: string): string {
 
   closeTable();
   flushParagraph();
-  return groupBullets(out);
+  return groupBullets(resolveOutlineHeadings(out));
 }

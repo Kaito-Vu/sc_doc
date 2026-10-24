@@ -226,3 +226,19 @@ describe('Word bullet paragraphs', () => {
     );
   });
 });
+
+describe('Word outline-level headings', () => {
+  const para = (level: number, num: string, text: string) =>
+    String.raw`\pard{\pntext\pard\plain ${num}\tab}{\*\pn\pnlvlbody\pnstart1}\outlinelevel${level} ${text}\par` +
+    '\n';
+
+  it('maps outline levels to headings and drops the roman numbering', () => {
+    const rtf =
+      String.raw`{\rtf1\ansi ` +
+      para(4, 'III.1.1.1.1.', 'Title') +
+      para(5, 'III.1.1.1.1.1.', 'Sub') +
+      String.raw`\pard body\par` +
+      '}';
+    expect(rtfToHtml(rtf)).toBe('<h1>Title</h1><h2>Sub</h2><p>body</p>');
+  });
+});

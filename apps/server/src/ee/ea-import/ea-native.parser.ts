@@ -386,6 +386,7 @@ function attachDocuments(
     const packageName = segments.length >= 2 ? segments[segments.length - 2] : '';
     index += 1;
     if (!base64) {
+      warnings.push({ page: title, reason: 'Model document has no content' });
       continue;
     }
     const node =

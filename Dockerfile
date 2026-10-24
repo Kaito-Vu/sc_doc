@@ -84,6 +84,8 @@ RUN --mount=type=cache,id=pnpm-store,target=/pnpm-store,sharing=locked,uid=1000,
 FROM gcr.io/distroless/nodejs${NODE_VERSION}-debian13 AS installer
 
 ENV NODE_ENV=production
+# Silence "localStorage is not available" warning (Node web storage probed by deps in EA import workers)
+ENV NODE_OPTIONS=--no-experimental-webstorage
 
 # Deploy marker: BUILD_VERSION=$(git describe --tags --always --dirty) docker compose build
 ARG BUILD_VERSION=dev
