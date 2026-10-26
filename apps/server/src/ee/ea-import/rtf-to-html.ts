@@ -8,6 +8,7 @@
  */
 
 import { EaRtfImage } from './types/ea-import.types';
+import { dibitmapToImage, emfToImage, wmfToImage } from './ea-emf-image';
 import { escapeHtml } from './ea-import.util';
 
 interface TextRun {
@@ -16,6 +17,8 @@ interface TextRun {
   italic: boolean;
   underline: boolean;
   strike: boolean;
+  /** `\sub` / `\super` text position, null = baseline. */
+  script: 'sub' | 'super' | null;
   /** `#rrggbb` from `\cf`, null = automatic. */
   color: string | null;
   /** `#rrggbb` from `\cb`/`\chcbpat`/`\highlight`, null = none. */
@@ -175,6 +178,9 @@ function renderRuns(runs: TextRun[], stripBold: boolean): string {
     if (run.color) {
       piece = `<span style="color: ${run.color}">${piece}</span>`;
     }
+    if (run.script) {
+      piece = run.script === 'sub' ? `<sub>${piece}</sub>` : `<sup>${piece}</sup>`;
+    }
     if (run.strike) {
       piece = `<s>${piece}</s>`;
     }
@@ -201,16 +207,27 @@ const RTF_IMAGE_BLIP_MIME: Record<string, string> = {
 };
 
 /** Blip types the converter deliberately drops (cannot be embedded as-is). */
-const RTF_IMAGE_UNSUPPORTED_BLIPS = new Set<string>([
-  'wmetafile',
+const RTF_IMAGE_UNSUPPORTED_BLIPS = new Set<string>(['macpict', 'wbitmap']);
+
+/** Picture formats that wrap a bitmap and are re-encoded to PNG (see ea-emf-image). */
+const RTF_IMAGE_BITMAP_WRAPPERS = new Set<string>([
   'emfblip',
-  'macpict',
+  'wmetafile',
+  'dibitmap',
 ]);
+
+/** Cap for a raw metafile payload before re-encoding (screenshots are big). */
+const MAX_RTF_METAFILE_BYTES = 48 * 1024 * 1024;
+
+/** Visible stand-in for a picture that could not be imported, so content never vanishes silently. */
+const RTF_IMAGE_MISSING_NOTE = '[Image could not be imported]';
 
 /** Wrapping groups that contain a `\pict` (shape + hidden non-shape variant). */
 const RTF_IMAGE_WRAPPER_DESTINATIONS = new Set<string>([
   'shppict',
   'nonshppict',
+  // OLE object: its result group holds the preview picture.
+  'object',
 ]);
 
 /**
@@ -357,6 +374,7 @@ function extractPictImage(
   closeIndex: number,
 ): EaRtfImage | null {
   let mimeType: string | null = null;
+  let wrapper: string | null = null;
   let hexStart = -1;
   let i = openIndex + 1;
   while (i < closeIndex) {
@@ -366,6 +384,12 @@ function extractPictImage(
       i = next;
       if (word === 'pngblip' || word === 'jpegblip') {
         mimeType = RTF_IMAGE_BLIP_MIME[word];
+        hexStart = i;
+        break;
+      }
+      if (RTF_IMAGE_BITMAP_WRAPPERS.has(word)) {
+        wrapper = word;
+        mimeType = 'image/png';
         hexStart = i;
         break;
       }
@@ -388,11 +412,21 @@ function extractPictImage(
   if (hex.length < 2 || hex.length % 2 !== 0) {
     return null;
   }
-  if (hex.length / 2 > MAX_RTF_IMAGE_BYTES) {
+  if (hex.length / 2 > (wrapper ? MAX_RTF_METAFILE_BYTES : MAX_RTF_IMAGE_BYTES)) {
     return null;
   }
   try {
     const buffer = Buffer.from(hex, 'hex');
+    if (wrapper) {
+      // Screenshots pasted into Word/EA are bitmaps wrapped in EMF/WMF/DIB.
+      const image =
+        wrapper === 'emfblip'
+          ? emfToImage(buffer)
+          : wrapper === 'wmetafile'
+            ? wmfToImage(buffer)
+            : dibitmapToImage(buffer);
+      return image && image.buffer.length <= MAX_RTF_IMAGE_BYTES ? image : null;
+    }
     if (buffer.length === 0 || buffer.length > MAX_RTF_IMAGE_BYTES) {
       return null;
     }
@@ -472,6 +506,8 @@ function stripPictGroups(rtf: string, imageSink?: EaRtfImage[]): string {
           imageSink.push(image);
           out += eaRtfImagePlaceholder(imageIndex);
           imageIndex += 1;
+        } else if (imageSink) {
+          out += RTF_IMAGE_MISSING_NOTE;
         }
         i = end + 1;
         last = i;
@@ -647,6 +683,7 @@ function convert(rtf: string): string {
   let italic = false;
   let underline = false;
   let strike = false;
+  let script: 'sub' | 'super' | null = null;
   let color: string | null = null;
   let background: string | null = null;
   const colors = parseColorTable(rtf);
@@ -679,6 +716,7 @@ function convert(rtf: string): string {
       last.italic === italic &&
       last.underline === underline &&
       last.strike === strike &&
+      last.script === script &&
       last.color === color &&
       last.background === background
     ) {
@@ -690,6 +728,7 @@ function convert(rtf: string): string {
         italic,
         underline,
         strike,
+        script,
         color,
         background,
       });
@@ -703,6 +742,7 @@ function convert(rtf: string): string {
       italic,
       underline,
       strike,
+      script,
       color,
       background,
       raw: true,
@@ -767,6 +807,7 @@ function convert(rtf: string): string {
     italic = false;
     underline = false;
     strike = false;
+    script = null;
     color = null;
     background = null;
   };
@@ -870,6 +911,15 @@ function convert(rtf: string): string {
       case 'strike':
       case 'striked':
         strike = param === undefined ? true : param !== 0;
+        break;
+      case 'super':
+        script = param === 0 ? null : 'super';
+        break;
+      case 'sub':
+        script = param === 0 ? null : 'sub';
+        break;
+      case 'nosupersub':
+        script = null;
         break;
       case 'cf': {
         const value = colors[param ?? 0] ?? null;
