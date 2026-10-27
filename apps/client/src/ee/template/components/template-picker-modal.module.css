@@ -22,7 +22,6 @@
     gap: var(--mantine-spacing-sm);
     padding: 6px var(--mantine-spacing-sm);
     border-radius: var(--mantine-radius-sm);
-    width: 100%;
 
     @mixin hover {
         background-color: light-dark(
@@ -30,6 +29,15 @@
                 var(--mantine-color-dark-6)
         );
     }
+}
+
+.pickButton {
+    display: flex;
+    align-items: center;
+    gap: var(--mantine-spacing-sm);
+    padding: var(--mantine-spacing-xs) var(--mantine-spacing-sm);
+    border-radius: inherit;
+    width: 100%;
 }
 
 .icon {

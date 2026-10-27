@@ -1568,6 +1568,7 @@
   "Verify TLS certificate": "Verify TLS certificate",
   "e.g. Splunk prod": "e.g. Splunk prod",
   "Manage workspace integrations.": "Manage workspace integrations.",
+  "Setup guide": "Setup guide",
   "No integrations available.": "No integrations available.",
   "Install": "Install",
   "Uninstall": "Uninstall",
@@ -2255,5 +2256,6 @@
   "e.g. 203.0.113.5 or 10.0.0.0/8": "e.g. 203.0.113.5 or 10.0.0.0/8",
   "Only allow sign-in from the addresses below. An empty list allows every IP. Make sure your own IP is included before enabling.": "Only allow sign-in from the addresses below. An empty list allows every IP. Make sure your own IP is included before enabling.",
   "Sign-in from a second IP detected": "Sign-in from a second IP detected",
-  "Second-IP sign-in resolved": "Second-IP sign-in resolved"
+  "Second-IP sign-in resolved": "Second-IP sign-in resolved",
+  "Inline base": "Inline base"
 }

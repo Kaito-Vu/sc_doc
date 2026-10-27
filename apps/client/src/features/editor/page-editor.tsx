@@ -87,6 +87,7 @@ import { EditorLinkMenu } from "@/features/editor/components/link/link-menu";
 import { EditorContextMenu } from "@/ee/editor/context-menu/editor-context-menu";
 import ColumnsMenu from "@/features/editor/components/columns/columns-menu.tsx";
 import { IntegrationPasteMenu } from "@/features/editor/components/integration-link/integration-paste-menu.tsx";
+import { BasePasteMenu } from "@/features/editor/components/base-embed/base-paste-menu.tsx";
 import { getInstalledIntegrations } from "@/features/integration/services/integration-service";
 import { TransclusionLookupProvider } from "@/features/editor/components/transclusion/transclusion-lookup-context";
 import { useTranslation } from "react-i18next";
@@ -535,6 +536,7 @@ function CollabPageEditor({
             <DrawioMenu editor={editor} />
             <ColumnsMenu editor={editor} />
             <IntegrationPasteMenu editor={editor} />
+            <BasePasteMenu editor={editor} />
           </div>
         )}
         {editor && !editorIsEditable && (editable || canComment) && (
