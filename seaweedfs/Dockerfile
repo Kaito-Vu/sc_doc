@@ -13,7 +13,9 @@ RUN apk add --no-cache git
 RUN git clone --depth 1 --branch ${SEAWEEDFS_VERSION} https://github.com/seaweedfs/seaweedfs /src
 WORKDIR /src/weed
 # Rebuild `weed` with the latest Go toolchain and bumped x/* modules.
-RUN go get golang.org/x/crypto@latest golang.org/x/image@latest golang.org/x/text@latest golang.org/x/net@latest golang.org/x/sys@latest \
+RUN --mount=type=cache,id=go-mod,target=/go/pkg/mod \
+    --mount=type=cache,id=go-build,target=/root/.cache/go-build \
+    go get golang.org/x/crypto@latest golang.org/x/image@latest golang.org/x/text@latest golang.org/x/net@latest golang.org/x/sys@latest \
  && go mod tidy \
  && go build -ldflags "-s -w -extldflags -static" -o /weed .
 
