@@ -52,7 +52,6 @@ import {
   buildContainerHtml,
   buildDiagramHtml,
   buildFlowHtml,
-  stripEaCodePrefix,
 } from './ea-content.builder';
 import { convertNodeDocuments } from './ea-convert.pool';
 import {
@@ -781,13 +780,9 @@ export class EaImportService {
       await this.checkpoint(taskId, 25 + (35 * built) / work.length);
       built += 1;
       const { node } = page;
-      const stripped =
-        node.parentId === null
-          ? stripEaCodePrefix(node.name)
-          : { title: node.name, code: null as string | null };
-      const title = (stripped.title || node.name || 'Untitled').normalize(
-        'NFC',
-      );
+      // Keep the EA code prefix (e.g. `BT1_SH_43:`) in the title; stripping it
+      // lost the code on every page that isn't an empty container.
+      const title = (node.name || 'Untitled').normalize('NFC');
       page.title = title;
 
       const imageHtmlById = await images.diagramImages(node, page.id, title);
@@ -816,7 +811,7 @@ export class EaImportService {
       } else if (node.diagrams.length > 0) {
         html = buildDiagramHtml(node, imageHtmlById);
       } else {
-        html = buildContainerHtml(node, stripped.code);
+        html = buildContainerHtml(node, null);
       }
       htmlByPage.set(page.id, html);
     });

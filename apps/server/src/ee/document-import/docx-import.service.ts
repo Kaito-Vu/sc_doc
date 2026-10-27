@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import mammoth from 'mammoth';
+import * as mammoth from 'mammoth';
 
 @Injectable()
 export class DocxImportService {

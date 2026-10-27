@@ -3,7 +3,7 @@ import { InjectKysely } from 'nestjs-kysely';
 import { KyselyDB } from '@docmost/db/types/kysely.types';
 import { AttachmentRepo } from '@docmost/db/repos/attachment/attachment.repo';
 import { StorageService } from '../../integrations/storage/storage.service';
-import mammoth from 'mammoth';
+import * as mammoth from 'mammoth';
 
 @Injectable()
 export class AttachmentEeService {
