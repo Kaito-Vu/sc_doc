@@ -35,6 +35,7 @@ export const EditorContextMenu: FC<{ editor: Editor }> = ({ editor }) => {
       position="bottom-start"
       withinPortal
       shadow="md"
+      middlewares={{ flip: true, shift: true, size: true }}
     >
       <Menu.Target>
         <div
@@ -47,21 +48,42 @@ export const EditorContextMenu: FC<{ editor: Editor }> = ({ editor }) => {
           }}
         />
       </Menu.Target>
-      <Menu.Dropdown>
+      <Menu.Dropdown style={{ overflowY: "auto" }}>
         {groups.map((g, i) => (
           <Fragment key={i}>
             {i > 0 && <Menu.Divider />}
-            {g.map((it) => (
-              <Menu.Item
-                key={it.id}
-                leftSection={it.icon}
-                disabled={it.disabled}
-                color={it.danger ? "red" : undefined}
-                onClick={it.onClick}
-              >
-                {it.label}
-              </Menu.Item>
-            ))}
+            {g.map((it) =>
+              it.children ? (
+                <Menu.Sub key={it.id} position="right-start">
+                  <Menu.Sub.Target>
+                    <Menu.Sub.Item leftSection={it.icon}>
+                      {it.label}
+                    </Menu.Sub.Item>
+                  </Menu.Sub.Target>
+                  <Menu.Sub.Dropdown>
+                    {it.children.map((c) => (
+                      <Menu.Item
+                        key={c.id}
+                        leftSection={c.icon}
+                        onClick={c.onClick}
+                      >
+                        {c.label}
+                      </Menu.Item>
+                    ))}
+                  </Menu.Sub.Dropdown>
+                </Menu.Sub>
+              ) : (
+                <Menu.Item
+                  key={it.id}
+                  leftSection={it.icon}
+                  disabled={it.disabled}
+                  color={it.danger ? "red" : undefined}
+                  onClick={it.onClick}
+                >
+                  {it.label}
+                </Menu.Item>
+              ),
+            )}
           </Fragment>
         ))}
       </Menu.Dropdown>

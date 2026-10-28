@@ -6,6 +6,7 @@ import {
   IconClipboard,
   IconColumnInsertLeft,
   IconColumnInsertRight,
+  IconCheck,
   IconColumnRemove,
   IconCopy,
   IconCut,
@@ -14,6 +15,7 @@ import {
   IconLayoutColumns,
   IconLayoutRows,
   IconLinkOff,
+  IconListNumbers,
   IconRowInsertBottom,
   IconRowInsertTop,
   IconRowRemove,
@@ -27,6 +29,8 @@ import i18n from "i18next";
 import { isCellSelection, sanitizeUrl } from "@docmost/editor-ext";
 import { canSplitCell, splitCellInto } from "../table-split/split-cell";
 import { setTableFit } from "../table-fit";
+import { setAutoNumber } from "../table-auto-number-apply";
+import "../table-auto-number.css";
 import { showAddCountPopover } from "@/ee/table-size/table-size-popover";
 import { ContextMenuItem, registerContextMenuProvider } from "./registry";
 
@@ -38,6 +42,15 @@ const nativeCmd = (editor: Editor, cmd: "cut" | "copy") => () => {
   editor.view.focus();
   document.execCommand(cmd);
 };
+
+const AUTO_NUMBER_OPTIONS: [string, string][] = [
+  ["", "Off"],
+  ["decimal", "1, 2, 3"],
+  ["upper-roman", "I, II, III"],
+  ["lower-roman", "i, ii, iii"],
+  ["upper-alpha", "A, B, C"],
+  ["lower-alpha", "a, b, c"],
+];
 
 // Context menu items per context. Add/edit/remove providers freely.
 registerContextMenuProvider({
@@ -131,6 +144,21 @@ registerContextMenuProvider({
         label: t("Toggle header cell"),
         icon: <IconTableRow size={sz} />,
         onClick: run(e, (c) => c.toggleHeaderCell()),
+      },
+      {
+        id: "auto-number",
+        label: t("Auto numbering"),
+        icon: <IconListNumbers size={sz} />,
+        onClick: () => {},
+        children: AUTO_NUMBER_OPTIONS.map(([value, label]) => ({
+          id: `auto-number-${value || "off"}`,
+          label: value ? label : t(label),
+          icon:
+            (e.getAttributes("tableCell").autoNumber || "") === value ? (
+              <IconCheck size={sz} />
+            ) : undefined,
+          onClick: () => setAutoNumber(e, value || null),
+        })),
       },
       {
         id: "row-above",

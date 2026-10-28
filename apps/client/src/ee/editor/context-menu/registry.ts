@@ -8,6 +8,8 @@ export type ContextMenuItem = {
   disabled?: boolean;
   danger?: boolean;
   onClick: () => void;
+  // Renders as a submenu; onClick is ignored.
+  children?: ContextMenuItem[];
 };
 
 export type ContextMenuProvider = {

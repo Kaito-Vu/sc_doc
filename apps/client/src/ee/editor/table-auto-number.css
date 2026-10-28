@@ -7,8 +7,13 @@
   counter-increment: sc-auto-no;
 }
 
+/* Empty cells: undo the placeholder's display:none / float / height:0 / colour. */
 .ProseMirror td[data-auto-number] > :first-child::before {
   content: attr(data-auto-number-prefix) counter(sc-auto-no);
+  display: inline;
+  float: none;
+  height: auto;
+  color: inherit;
 }
 
 .ProseMirror td[data-auto-number="upper-roman"] > :first-child::before {
