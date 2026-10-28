@@ -1,6 +1,7 @@
 import { LineChart } from "@mantine/charts";
 import "@mantine/charts/styles.css";
 import { Paper, Text } from "@mantine/core";
+import { formatNumber } from "@/ee/statistics/lib/format-number";
 import { IWeeklyCount } from "@/ee/statistics/types/statistics.types";
 
 interface TrendChartProps {
@@ -35,6 +36,7 @@ export default function TrendChart({
         dataKey="week"
         series={[{ name: seriesName, color }]}
         curveType="linear"
+        valueFormatter={formatNumber}
         withDots={chartData.length <= 20}
       />
     </Paper>

@@ -1,5 +1,6 @@
 import { Badge, Group, Paper, Text } from "@mantine/core";
 import { useTranslation } from "react-i18next";
+import { formatNumber } from "@/ee/statistics/lib/format-number";
 import { IRoleCount } from "@/ee/statistics/types/statistics.types";
 
 interface UsersByRoleProps {
@@ -29,7 +30,7 @@ export default function UsersByRole({ data }: UsersByRoleProps) {
             <Text size="sm" c="dimmed">
               {getRoleLabel(roleCount.role)}
             </Text>
-            <Badge variant="light">{roleCount.count}</Badge>
+            <Badge variant="light">{formatNumber(roleCount.count)}</Badge>
           </Group>
         ))}
       </Group>

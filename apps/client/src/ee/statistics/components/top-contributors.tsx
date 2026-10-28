@@ -1,6 +1,7 @@
 import { Group, Paper, SegmentedControl, Stack, Text } from "@mantine/core";
 import { useTranslation } from "react-i18next";
 import { CustomAvatar } from "@/components/ui/custom-avatar.tsx";
+import { formatNumber } from "@/ee/statistics/lib/format-number";
 import {
   IContributorStat,
   StatsPeriod,
@@ -64,8 +65,8 @@ export default function TopContributors({
             </Group>
             <Text size="sm" c="dimmed" style={{ whiteSpace: "nowrap" }}>
               {t("{{created}} created · {{edited}} edited", {
-                created: contributor.createdCount,
-                edited: contributor.editCount,
+                created: formatNumber(contributor.createdCount),
+                edited: formatNumber(contributor.editCount),
               })}
             </Text>
           </Group>

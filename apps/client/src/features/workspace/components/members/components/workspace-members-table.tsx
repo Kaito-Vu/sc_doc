@@ -19,6 +19,7 @@ import NoTableResults from "@/components/common/no-table-results.tsx";
 import { usePaginateAndSearch } from "@/hooks/use-paginate-and-search.tsx";
 import MemberActionMenu from "@/features/workspace/components/members/components/members-action-menu.tsx";
 import { MemberProviderFilter } from "@/ee/security/components/member-provider-filter.tsx";
+import { OnlineDot } from "@/ee/presence/online-dot.tsx";
 import { MemberProviderBadge } from "@/ee/security/components/member-provider-badge.tsx";
 
 export default function WorkspaceMembersTable() {
@@ -97,11 +98,13 @@ export default function WorkspaceMembersTable() {
                   <Table.Tr key={index}>
                     <Table.Td>
                       <Group gap="sm" wrap="nowrap">
-                        <CustomAvatar
-                          avatarUrl={user.avatarUrl}
-                          name={user.name}
-                          radius="xl"
-                        />
+                        <OnlineDot userId={user.id}>
+                          <CustomAvatar
+                            avatarUrl={user.avatarUrl}
+                            name={user.name}
+                            radius="xl"
+                          />
+                        </OnlineDot>
                         <div>
                           <Text fz="sm" fw={500} lineClamp={1}>
                             {user.name}

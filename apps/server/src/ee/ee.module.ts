@@ -10,6 +10,7 @@ import { ScimModule } from './scim/scim.module';
 import { PageVerificationModule } from './page-verification/page-verification.module';
 import { PersonalSpaceModule } from './personal-space/personal-space.module';
 import { StatisticsModule } from './statistics/statistics.module';
+import { PresenceModule } from './presence/presence.module';
 import { SsoModule } from './sso/sso.module';
 import { SsoAuthModule } from './sso-auth/sso-auth.module';
 import { AiChatModule } from './ai-chat/ai-chat.module';
@@ -51,6 +52,7 @@ import { FeatureGateGuard } from './common/guards/feature-gate.guard';
     PageVerificationModule,
     PersonalSpaceModule,
     StatisticsModule,
+    PresenceModule,
     SsoModule,
     SsoAuthModule,
     AiChatModule,

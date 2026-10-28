@@ -1,5 +1,6 @@
 import { Group, Paper, Text, ThemeIcon } from "@mantine/core";
 import React from "react";
+import { formatNumber } from "@/ee/statistics/lib/format-number";
 
 interface StatCardProps {
   label: string;
@@ -16,7 +17,7 @@ export default function StatCard({ label, value, icon: IconComp }: StatCardProps
             {label}
           </Text>
           <Text fw={700} size="xl">
-            {value}
+            {typeof value === "number" ? formatNumber(value) : value}
           </Text>
         </div>
         <ThemeIcon variant="light" size={38} radius="md">
