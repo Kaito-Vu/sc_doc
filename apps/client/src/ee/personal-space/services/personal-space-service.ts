@@ -31,6 +31,8 @@ export interface IPersonalQuotaUser {
   used: number;
   limit: number;
   override: number | null;
+  hasSpace: boolean;
+  revoked: boolean;
 }
 
 export interface IPersonalQuotaList {
@@ -49,4 +51,12 @@ export async function setPersonalQuota(data: {
   limit: string | null;
 }): Promise<void> {
   await api.post("/personal-space/quota/set", data);
+}
+
+export async function revokePersonalSpace(userId: string): Promise<void> {
+  await api.post("/personal-space/quota/revoke", { userId });
+}
+
+export async function restorePersonalSpace(userId: string): Promise<void> {
+  await api.post("/personal-space/quota/restore", { userId });
 }

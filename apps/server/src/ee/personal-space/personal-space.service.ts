@@ -7,6 +7,9 @@ import { SpaceRepo } from '@docmost/db/repos/space/space.repo';
 import { SpaceService } from '../../core/space/services/space.service';
 import { WorkspaceRepo } from '@docmost/db/repos/workspace/workspace.repo';
 import { User } from '@docmost/db/types/entity.types';
+import { sql } from 'kysely';
+import { InjectKysely } from 'nestjs-kysely';
+import { KyselyDB } from '@docmost/db/types/kysely.types';
 import slugify from '@sindresorhus/slugify';
 import { AuthAccountRepo } from '../sso/auth-account.repo';
 
@@ -17,6 +20,7 @@ export class PersonalSpaceService {
     private readonly spaceService: SpaceService,
     private readonly workspaceRepo: WorkspaceRepo,
     private readonly authAccountRepo: AuthAccountRepo,
+    @InjectKysely() private readonly db: KyselyDB,
   ) {}
 
   async getInfo(user: User, workspaceId: string) {
@@ -29,6 +33,15 @@ export class PersonalSpaceService {
     const settings = (workspace?.settings ?? {}) as Record<string, any>;
     if (!settings?.spaces?.allowPersonal) {
       throw new ForbiddenException('Personal spaces are not enabled');
+    }
+
+    const row = await this.db
+      .selectFrom('users')
+      .select('settings')
+      .where('id', '=', user.id)
+      .executeTakeFirst();
+    if ((row?.settings as any)?.personalSpaceRevoked) {
+      throw new ForbiddenException('Personal space access was revoked');
     }
 
     const existing = await this.spaceRepo.findPersonalSpace(
@@ -69,5 +82,21 @@ export class PersonalSpaceService {
       undefined,
       { isPersonal: true },
     );
+  }
+
+  // Deletes the user's personal space (pages cascade, attachments are pruned
+  // by the queue job) and blocks re-creation until restored.
+  async revoke(userId: string, workspaceId: string) {
+    const space = await this.spaceRepo.findPersonalSpace(userId, workspaceId);
+    if (space) await this.spaceService.deleteSpace(space.id, workspaceId);
+    await this.setRevoked(userId, workspaceId, true);
+  }
+
+  async setRevoked(userId: string, workspaceId: string, revoked: boolean) {
+    await sql`UPDATE users SET settings = ${
+      revoked
+        ? sql`jsonb_set(coalesce(settings, '{}'::jsonb), '{personalSpaceRevoked}', 'true'::jsonb)`
+        : sql`settings - 'personalSpaceRevoked'`
+    } WHERE id = ${userId} AND workspace_id = ${workspaceId}`.execute(this.db);
   }
 }

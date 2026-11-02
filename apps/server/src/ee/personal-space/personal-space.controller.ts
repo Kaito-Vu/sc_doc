@@ -20,6 +20,11 @@ import { assertCanManageWorkspace } from '../common/workspace-admin';
 import WorkspaceAbilityFactory from '../../core/casl/abilities/workspace-ability.factory';
 import { Feature } from '../../common/features';
 
+class UserIdDto {
+  @IsUUID()
+  userId: string;
+}
+
 class SetQuotaDto {
   // omit userId to set the workspace-wide default
   @IsOptional()
@@ -86,5 +91,29 @@ export class PersonalSpaceController {
       throw new BadRequestException('Invalid limit, e.g. "500mb"');
     }
     await this.quota.setLimit(workspace.id, dto.userId ?? null, n);
+  }
+
+  @HttpCode(HttpStatus.OK)
+  @Post('quota/revoke')
+  @RequireFeature(Feature.PERSONAL_SPACES)
+  async revoke(
+    @Body() dto: UserIdDto,
+    @AuthUser() user: User,
+    @AuthWorkspace() workspace: Workspace,
+  ) {
+    assertCanManageWorkspace(this.workspaceAbility, user, workspace);
+    await this.personalSpaceService.revoke(dto.userId, workspace.id);
+  }
+
+  @HttpCode(HttpStatus.OK)
+  @Post('quota/restore')
+  @RequireFeature(Feature.PERSONAL_SPACES)
+  async restore(
+    @Body() dto: UserIdDto,
+    @AuthUser() user: User,
+    @AuthWorkspace() workspace: Workspace,
+  ) {
+    assertCanManageWorkspace(this.workspaceAbility, user, workspace);
+    await this.personalSpaceService.setRevoked(dto.userId, workspace.id, false);
   }
 }

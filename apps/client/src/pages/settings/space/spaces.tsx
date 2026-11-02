@@ -4,6 +4,7 @@ import useUserRole from "@/hooks/use-user-role.tsx";
 import { Group } from "@mantine/core";
 import CreateSpaceModal from "@/features/space/components/create-space-modal.tsx";
 import { useTranslation } from "react-i18next";
+import PersonalSpaceQuotaAdmin from "@/ee/personal-space/components/personal-space-quota-admin";
 import { DocumentTitle } from "@/components/ui/document-title.tsx";
 
 export default function Spaces() {
@@ -20,6 +21,7 @@ export default function Spaces() {
       </Group>
 
       <SpaceList />
+      <PersonalSpaceQuotaAdmin />
     </>
   );
 }
