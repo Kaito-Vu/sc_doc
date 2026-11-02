@@ -7,6 +7,7 @@ import {
   HttpCode,
   HttpStatus,
   Inject,
+  Optional,
   Logger,
   NotFoundException,
   Param,
@@ -86,6 +87,11 @@ export class AttachmentController {
     private readonly pageAccessService: PageAccessService,
     private readonly domainService: DomainService,
     @Inject(AUDIT_SERVICE) private readonly auditService: IAuditService,
+    @Optional()
+    @Inject('PERSONAL_SPACE_QUOTA')
+    private readonly personalSpaceQuota?: {
+      assertCanUpload(spaceId: string, bytes?: number): Promise<void>;
+    },
   ) {}
 
   @UseGuards(JwtAuthGuard)
@@ -133,6 +139,10 @@ export class AttachmentController {
     await this.pageAccessService.validateCanEdit(page, user);
 
     const spaceId = page.spaceId;
+    await this.personalSpaceQuota?.assertCanUpload(
+      spaceId,
+      Number(req.headers['content-length'] ?? 0),
+    );
 
     const attachmentId = file.fields?.attachmentId?.value;
     if (attachmentId && !isValidUUID(attachmentId)) {

@@ -8,6 +8,8 @@ import { ISpace } from "@/features/space/types/space.types";
 import {
   createPersonalSpace,
   getPersonalSpace,
+  getPersonalSpaceUsage,
+  IPersonalSpaceUsage,
 } from "@/ee/personal-space/services/personal-space-service";
 
 export function usePersonalSpaceQuery(
@@ -30,5 +32,17 @@ export function useCreatePersonalSpaceMutation() {
       queryClient.invalidateQueries({ queryKey: ["personal-space"] });
       queryClient.invalidateQueries({ queryKey: ["spaces"] });
     },
+  });
+}
+
+export function usePersonalSpaceUsageQuery(
+  enabled: boolean,
+): UseQueryResult<IPersonalSpaceUsage | null, Error> {
+  return useQuery({
+    queryKey: ["personal-space-usage"],
+    queryFn: () => getPersonalSpaceUsage(),
+    enabled,
+    staleTime: 30 * 1000,
+    refetchInterval: 60 * 1000,
   });
 }
