@@ -10,9 +10,10 @@ import {
 import { InjectKysely } from 'nestjs-kysely';
 import { KyselyDB } from '@docmost/db/types/kysely.types';
 import {
+  bufferMultipartFile,
   generateSlugId,
   sanitizeFileName,
-  createByteCountingStream,
+  streamMultipartFile,
 } from '../../../common/helpers';
 import { generateJitteredKeyBetween } from 'fractional-indexing-jittered';
 import { TiptapTransformer } from '@hocuspocus/transformer';
@@ -55,7 +56,7 @@ export class ImportService {
     await this.assertValidParent(spaceId, parentPageId);
 
     const file = await filePromise;
-    const fileBuffer = await file.toBuffer();
+    const fileBuffer = await bufferMultipartFile(file);
     const fileExtension = path.extname(file.filename).toLowerCase();
     const fileName = sanitizeFileName(
       path.basename(file.filename, fileExtension),
@@ -352,11 +353,9 @@ export class ImportService {
     const filePath = `${getFileTaskFolderPath(FileTaskType.Import, workspaceId)}/${fileTaskId}/${fileNameWithExt}`;
 
     // upload file
-    const { stream, getBytesRead } = createByteCountingStream(file.file);
-
-    await this.storageService.upload(filePath, stream);
-
-    const fileSize = getBytesRead();
+    const fileSize = await streamMultipartFile(file, (stream) =>
+      this.storageService.upload(filePath, stream),
+    );
 
     const fileTask = await this.db
       .insertInto('fileTasks')

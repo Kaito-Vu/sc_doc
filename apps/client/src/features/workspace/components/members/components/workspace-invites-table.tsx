@@ -1,4 +1,4 @@
-import { Group, Table, Avatar, Text, Alert, Paper } from "@mantine/core";
+import { Group, Table, Avatar, Text, Alert, Paper, Badge } from "@mantine/core";
 import { useWorkspaceInvitationsQuery } from "@/features/workspace/queries/workspace-query.ts";
 import React from "react";
 import { getUserRoleLabel } from "@/features/workspace/types/user-role-data.ts";
@@ -64,9 +64,16 @@ export default function WorkspaceInvitesTable() {
                   </Table.Td>
 
                   <Table.Td>
-                    <Text fz="sm" c="dimmed">
-                      {timeAgo(invitation.createdAt)}
-                    </Text>
+                    <Group gap="xs" wrap="nowrap">
+                      <Text fz="sm" c="dimmed">
+                        {timeAgo(invitation.createdAt)}
+                      </Text>
+                      {new Date(invitation.expiresAt) < new Date() && (
+                        <Badge variant="light" color="orange">
+                          {t("Expired")}
+                        </Badge>
+                      )}
+                    </Group>
                   </Table.Td>
 
                   <Table.Td>
