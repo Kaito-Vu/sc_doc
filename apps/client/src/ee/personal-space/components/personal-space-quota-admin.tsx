@@ -11,7 +11,6 @@ import { notifications } from "@mantine/notifications";
 import { modals } from "@mantine/modals";
 import {
   listPersonalQuotas,
-  restorePersonalSpace,
   revokePersonalSpace,
   setPersonalQuota,
   IPersonalQuotaUser,
@@ -23,8 +22,7 @@ function RevokeButton({ user }: { user: IPersonalQuotaUser }) {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const run = useMutation({
-    mutationFn: () =>
-      user.revoked ? restorePersonalSpace(user.userId) : revokePersonalSpace(user.userId),
+    mutationFn: () => revokePersonalSpace(user.userId),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["personal-space-quotas"] });
       qc.invalidateQueries({ queryKey: ["spaces"] });
@@ -35,13 +33,6 @@ function RevokeButton({ user }: { user: IPersonalQuotaUser }) {
         message: e?.response?.data?.message ?? t("Failed"),
       }),
   });
-  if (user.revoked) {
-    return (
-      <Button size="xs" variant="default" loading={run.isPending} onClick={() => run.mutate()}>
-        {t("Restore access")}
-      </Button>
-    );
-  }
   return (
     <Button
       size="xs"
@@ -53,7 +44,7 @@ function RevokeButton({ user }: { user: IPersonalQuotaUser }) {
           title: t("Revoke personal space"),
           children: (
             <Text size="sm">
-              {t("This permanently deletes {{name}}'s personal space and all its pages and files, and blocks them from creating a new one. This cannot be undone.", { name: user.name })}
+              {t("This permanently deletes {{name}}'s personal space and all its pages and files, This cannot be undone. They can create a new, empty personal space afterwards.", { name: user.name })}
             </Text>
           ),
           labels: { confirm: t("Revoke and delete"), cancel: t("Cancel") },
@@ -153,16 +144,12 @@ export default function PersonalSpaceQuotaAdmin() {
                 <Text size="xs" c="dimmed">{toMb(Math.max(u.limit - u.used, 0))} / {toMb(u.limit)} MB {t("left")}</Text>
               </Table.Td>
               <Table.Td>
-                {u.revoked ? (
-                  <Text size="xs" c="dimmed">{t("Revoked")}</Text>
-                ) : (
                 <LimitEditor
                   key={`${u.userId}-${u.override}`}
                   userId={u.userId}
                   initial={u.override === null ? "" : String(toMb(u.override))}
                   placeholder={t("Default")}
                 />
-                )}
               </Table.Td>
               <Table.Td>
                 <RevokeButton user={u} />

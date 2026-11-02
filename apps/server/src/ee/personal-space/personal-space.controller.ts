@@ -104,16 +104,4 @@ export class PersonalSpaceController {
     assertCanManageWorkspace(this.workspaceAbility, user, workspace);
     await this.personalSpaceService.revoke(dto.userId, workspace.id);
   }
-
-  @HttpCode(HttpStatus.OK)
-  @Post('quota/restore')
-  @RequireFeature(Feature.PERSONAL_SPACES)
-  async restore(
-    @Body() dto: UserIdDto,
-    @AuthUser() user: User,
-    @AuthWorkspace() workspace: Workspace,
-  ) {
-    assertCanManageWorkspace(this.workspaceAbility, user, workspace);
-    await this.personalSpaceService.setRevoked(dto.userId, workspace.id, false);
-  }
 }

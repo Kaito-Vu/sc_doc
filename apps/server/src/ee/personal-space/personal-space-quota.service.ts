@@ -76,19 +76,13 @@ export class PersonalSpaceQuotaService {
       email: string;
       used: string;
       override: string | null;
-      spaceId: string | null;
-      revoked: boolean;
     }>`
-      SELECT u.id AS "userId", u.name, u.email, s.id AS "spaceId",
-             COALESCE(u.settings->>'personalSpaceRevoked' = 'true', false) AS revoked,
+      SELECT u.id AS "userId", u.name, u.email, 
              COALESCE((SELECT SUM(a.file_size) FROM attachments a
                        WHERE a.space_id = s.id AND a.deleted_at IS NULL), 0) AS used,
              u.settings->>'personalQuotaBytes' AS override
-      FROM users u
-      LEFT JOIN spaces s ON s.creator_id = u.id AND s.workspace_id = u.workspace_id
-                        AND s.is_personal AND s.deleted_at IS NULL
-      WHERE u.workspace_id = ${workspaceId} AND u.deleted_at IS NULL
-        AND (s.id IS NOT NULL OR u.settings->>'personalSpaceRevoked' = 'true')
+      FROM spaces s JOIN users u ON u.id = s.creator_id
+      WHERE s.workspace_id = ${workspaceId} AND s.is_personal AND s.deleted_at IS NULL
       ORDER BY u.name`.execute(this.db);
     const def = await this.getWorkspaceDefault(workspaceId);
     return {
@@ -98,8 +92,6 @@ export class PersonalSpaceQuotaService {
         name: r.name,
         email: r.email,
         used: Number(r.used),
-        hasSpace: !!r.spaceId,
-        revoked: r.revoked,
         override: r.override === null ? null : Number(r.override),
         limit: r.override === null ? def : Number(r.override),
       })),
