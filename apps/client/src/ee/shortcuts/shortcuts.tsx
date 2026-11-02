@@ -16,6 +16,7 @@ export function ShortcutsHelp() {
 
   const rows: [string, string][] = [
     [`${platformModifierLabel} + K`, t("Search")],
+    [`${platformModifierLabel} + Shift + P`, t("Command palette")],
     [`${platformModifierLabel} + F`, t("Find in page")],
     ["Alt + N", t("Create page")],
     [`${platformModifierLabel} + /`, t("Keyboard shortcuts")],

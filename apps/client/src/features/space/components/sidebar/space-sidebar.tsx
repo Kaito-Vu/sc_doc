@@ -52,6 +52,7 @@ import { mobileSidebarAtom } from "@/components/layouts/global/hooks/atoms/sideb
 import { useToggleSidebar } from "@/components/layouts/global/hooks/hooks/use-toggle-sidebar.ts";
 import CreatePageMenu from "@/ee/template/components/create-page-menu";
 import { SpaceSidebarTop } from "@/ee/ui/sidebar/space-sidebar-top";
+import { SpaceQuickAccess } from "@/ee/quick-access/space-quick-access";
 const TemplatePickerModal = React.lazy(
   () => import("@/ee/template/components/template-picker-modal"),
 );
@@ -114,6 +115,8 @@ export function SpaceSidebar() {
             }
           }}
         />
+
+        <SpaceQuickAccess spaceId={space.id} spaceSlug={space.slug} />
 
         <div
           className={clsx(classes.section, classes.sectionPages)}

@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { memo, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router";
 import { useTranslation } from "react-i18next";
 import DOMPurify from "dompurify";
@@ -49,7 +49,7 @@ type Props = {
   streamingToolCalls?: AiChatToolCall[];
 };
 
-export default function ChatMessage({
+function ChatMessage({
   message,
   isStreaming,
   streamingContent,
@@ -73,10 +73,22 @@ export default function ChatMessage({
     [navigate],
   );
 
-  if (message.role === "tool") return null;
-
   const isUser = message.role === "user";
   const content = isStreaming ? streamingContent : message.content;
+
+  // Markdown -> HTML -> sanitize is the expensive part; skip it unless the
+  // text changed (history messages re-render on every streamed token).
+  const html = useMemo(
+    () =>
+      !isUser && content
+        ? chatSanitizer.sanitize(markdownToHtml(content) as string, {
+            ADD_ATTR: ["target", "rel"],
+          })
+        : "",
+    [isUser, content],
+  );
+
+  if (message.role === "tool") return null;
   const toolCalls = isStreaming ? streamingToolCalls : message.toolCalls;
 
   if (isUser) {
@@ -135,12 +147,7 @@ export default function ChatMessage({
         {content && (
           <div
             onClick={handleContentClick}
-            dangerouslySetInnerHTML={{
-              __html: chatSanitizer.sanitize(
-                markdownToHtml(content) as string,
-                { ADD_ATTR: ["target", "rel"] },
-              ),
-            }}
+            dangerouslySetInnerHTML={{ __html: html }}
           />
         )}
         {isStreaming && (
@@ -166,3 +173,5 @@ export default function ChatMessage({
     </div>
   );
 }
+
+export default memo(ChatMessage);

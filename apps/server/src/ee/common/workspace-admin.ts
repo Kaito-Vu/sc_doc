@@ -26,3 +26,8 @@ export function assertCanManageWorkspace(
     throw new ForbiddenException();
   }
 }
+
+/** @deprecated Prefer canManageWorkspace — kept for call sites that used the older name. */
+export const isWorkspaceAdmin = canManageWorkspace;
+/** @deprecated Prefer assertCanManageWorkspace — kept for call sites that used the older name. */
+export const assertWorkspaceAdmin = assertCanManageWorkspace;

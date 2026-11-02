@@ -472,6 +472,8 @@ function attachDiagrams(
     const subjectIds: string[] = [];
     const wireframe: EaWireframeShape[] = [];
     let imageId: number | undefined;
+    const placed: Array<{ asset: EaImageAsset; top: number; left: number }> =
+      [];
     for (const entry of objectsByDiagram.get(diagramId) ?? []) {
       const objectId = entry.get('OBJECT_ID');
       if (objectId && !subjectIds.includes(objectId)) {
@@ -494,8 +496,18 @@ function attachDiagrams(
         if (parsed !== undefined && parsed > 0 && imageId === undefined) {
           imageId = parsed;
         }
+        const asset = imagesById.get(match[1]);
+        if (asset && !placed.some((p) => p.asset === asset)) {
+          placed.push({
+            asset,
+            top: parseNumeric(entry.get('RECTTOP') ?? '') ?? 0,
+            left: parseNumeric(entry.get('RECTLEFT') ?? '') ?? 0,
+          });
+        }
       }
     }
+    // EA y grows downward as a negative number: larger Top = higher on screen.
+    placed.sort((a, b) => b.top - a.top || a.left - b.left);
 
     const diagram: EaDiagram = { name, ownerId: node.id, subjectIds };
     if (diagramId) {
@@ -510,6 +522,9 @@ function attachDiagrams(
       if (embedded) {
         diagram.embeddedImage = embedded;
       }
+    }
+    if (placed.length > 0) {
+      diagram.embeddedImages = placed.map((p) => p.asset);
     }
     node.diagrams.push(diagram);
   }

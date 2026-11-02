@@ -45,6 +45,8 @@ export interface EaDiagram {
   embeddedImage?: EaImageAsset;
   /** Extra images (EA `ExtDoc` Artifacts) in the same package, shown after the main image. */
   attachments?: EaImageAsset[];
+  /** Every embedded image on the diagram, in reading order (top→bottom, left→right). */
+  embeddedImages?: EaImageAsset[];
   /** Wireframing controls, converted to draw.io when the diagram has no image. */
   wireframe?: EaWireframeShape[];
   /** Flow drawn on the diagram, rendered as a Mermaid flowchart. */

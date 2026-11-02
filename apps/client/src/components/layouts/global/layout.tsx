@@ -7,6 +7,7 @@ import { SearchSpotlight } from "@/features/search/components/search-spotlight.t
 import { EaImportTracker } from "@/ee/ea-import/ea-import-tracker.tsx";
 import { ShortcutsHelp } from "@/ee/shortcuts/shortcuts.tsx";
 import { UiCommands } from "@/ee/ui/experience/ui-commands";
+import { InspectorStrip } from "@/ee/inspector/inspector-strip.tsx";
 import "@/ee/styles/sc-tokens.css";
 import "@/ee/ui/sidebar/sidebar-v2.css";
 import "@/ee/ui/settings/settings-v2.css";
@@ -29,6 +30,7 @@ export default function Layout() {
       <EaImportTracker />
       <UiCommands />
       <ShortcutsHelp />
+      <InspectorStrip />
       <SearchSpotlight spaceId={space?.id} />
     </UserProvider>
   );

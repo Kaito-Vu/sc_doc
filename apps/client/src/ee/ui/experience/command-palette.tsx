@@ -42,6 +42,7 @@ import {
   quickCreateOpenedAtom,
   recentPagesListAtom,
 } from "./atoms";
+import { isModernUi, setModernUi } from "@/ee/modern-ui";
 
 type CommandItem = {
   id: string;
@@ -153,6 +154,16 @@ export function CommandPalette() {
         section: "Actions",
         icon: <IconSettings size={18} />,
         run: () => navigate("/settings/account/preferences"),
+      },
+      {
+        id: "toggle-modern-ui",
+        label: isModernUi() ? t("Switch to classic UI") : t("Switch to modern UI"),
+        section: "Actions",
+        icon: <IconLayoutGrid size={18} />,
+        run: () => {
+          setModernUi(!isModernUi());
+          window.location.reload();
+        },
       },
     ];
 

@@ -2263,5 +2263,9 @@
   "Uploading import file": "Đang tải tệp nhập lên",
   "Unsupported file type": "Loại tệp không được hỗ trợ",
   "Please don't close this tab.": "Vui lòng không đóng tab này.",
-  "File exceeds the {{limit}} import limit": "Tệp vượt quá giới hạn nhập {{limit}}"
+  "File exceeds the {{limit}} import limit": "Tệp vượt quá giới hạn nhập {{limit}}",
+  "Page panels": "Bảng bên của trang",
+  "Type a command…": "Nhập lệnh…",
+  "Switch to classic UI": "Chuyển sang giao diện cổ điển",
+  "Switch to modern UI": "Chuyển sang giao diện hiện đại"
 }

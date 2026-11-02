@@ -2,7 +2,7 @@ import { Text, Badge, Tooltip, Group } from "@mantine/core";
 import { IconCheck, IconFileDescription } from "@tabler/icons-react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { sanitizeUrl } from "@docmost/editor-ext";
+import { SafeUrlLink } from "@/ee/base/components/cells/safe-url-link";
 import {
   IBaseProperty,
   SelectTypeOptions,
@@ -264,27 +264,16 @@ function CheckboxField({ value }: { value: unknown }) {
 function UrlField({ value }: { value: unknown }) {
   const displayValue = typeof value === "string" ? value : "";
   if (!displayValue) return null;
-  const safeHref = sanitizeUrl(displayValue);
-  if (!safeHref) {
-    return (
-      <Text size="xs" lineClamp={1}>
-        {displayValue}
-      </Text>
-    );
-  }
   return (
-    <Tooltip label={displayValue} multiline withinPortal openDelay={400} maw={420}>
-      <a
-        className={cellClasses.urlLink}
-        href={safeHref}
-        target="_blank"
-        rel="noopener noreferrer"
-        onClick={(e) => e.stopPropagation()}
-        style={{ fontSize: "var(--mantine-font-size-xs)" }}
-      >
-        {displayValue}
-      </a>
-    </Tooltip>
+    <SafeUrlLink
+      value={displayValue}
+      style={{ fontSize: "var(--mantine-font-size-xs)" }}
+      fallback={
+        <Text size="xs" lineClamp={1}>
+          {displayValue}
+        </Text>
+      }
+    />
   );
 }
 

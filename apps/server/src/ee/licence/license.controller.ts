@@ -1,7 +1,7 @@
+import { assertWorkspaceAdmin } from '../common/workspace-admin';
 import {
   Body,
   Controller,
-  ForbiddenException,
   HttpCode,
   HttpStatus,
   Post,
@@ -13,10 +13,6 @@ import { Workspace, User } from '@docmost/db/types/entity.types';
 import { LicenseService } from './license.service';
 import WorkspaceAbilityFactory from '../../core/casl/abilities/workspace-ability.factory';
 import { AuthUser } from '../../common/decorators/auth-user.decorator';
-import {
-  WorkspaceCaslAction,
-  WorkspaceCaslSubject,
-} from '../../core/casl/interfaces/workspace-ability.type';
 import { IsNotEmpty, IsString, MaxLength } from 'class-validator';
 
 class ActivateLicenseDto {
@@ -47,12 +43,7 @@ export class LicenseController {
     @AuthUser() user: User,
     @AuthWorkspace() workspace: Workspace,
   ) {
-    const ability = this.workspaceAbility.createForUser(user, workspace);
-    if (
-      ability.cannot(WorkspaceCaslAction.Manage, WorkspaceCaslSubject.Settings)
-    ) {
-      throw new ForbiddenException();
-    }
+    assertWorkspaceAdmin(this.workspaceAbility, user, workspace);
     return this.licenseService.activateLicense(workspace.id, body.licenseKey);
   }
 
@@ -62,12 +53,7 @@ export class LicenseController {
     @AuthUser() user: User,
     @AuthWorkspace() workspace: Workspace,
   ) {
-    const ability = this.workspaceAbility.createForUser(user, workspace);
-    if (
-      ability.cannot(WorkspaceCaslAction.Manage, WorkspaceCaslSubject.Settings)
-    ) {
-      throw new ForbiddenException();
-    }
+    assertWorkspaceAdmin(this.workspaceAbility, user, workspace);
     await this.licenseService.removeLicense(workspace.id);
     return { success: true };
   }
