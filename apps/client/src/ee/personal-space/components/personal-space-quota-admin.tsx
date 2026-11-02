@@ -78,8 +78,12 @@ export default function PersonalSpaceQuotaAdmin() {
                 <Text size="xs" c="dimmed">{u.email}</Text>
               </Table.Td>
               <Table.Td w={160}>
-                <Progress value={Math.min(100, (u.used / u.limit) * 100)} size="xs" />
-                <Text size="xs" c="dimmed">{toMb(u.used)} / {toMb(u.limit)} MB</Text>
+                <Progress
+                  value={Math.min(100, (u.used / u.limit) * 100)}
+                  size="xs"
+                  color={u.used >= u.limit ? "red" : "blue"}
+                />
+                <Text size="xs" c="dimmed">{toMb(Math.max(u.limit - u.used, 0))} / {toMb(u.limit)} MB {t("left")}</Text>
               </Table.Td>
               <Table.Td>
                 <LimitEditor
