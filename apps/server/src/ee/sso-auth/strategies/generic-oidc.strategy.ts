@@ -20,4 +20,8 @@ export class GenericOidcStrategy implements OidcProviderStrategy {
   async fetchAvatar() {
     return undefined;
   }
+
+  async fetchProfile() {
+    return {};
+  }
 }

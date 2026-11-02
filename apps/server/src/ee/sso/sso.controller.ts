@@ -11,6 +11,7 @@ import { AuthUser } from '../../common/decorators/auth-user.decorator';
 import { AuthWorkspace } from '../../common/decorators/auth-workspace.decorator';
 import { User, Workspace } from '@docmost/db/types/entity.types';
 import { SsoService } from './sso.service';
+import { AuthAccountRepo } from './auth-account.repo';
 import { RequireFeature } from '../common/decorators/require-feature.decorator';
 import { Feature } from '../../common/features';
 import { PaginationOptions } from '@docmost/db/pagination/pagination-options';
@@ -18,7 +19,23 @@ import { PaginationOptions } from '@docmost/db/pagination/pagination-options';
 @UseGuards(JwtAuthGuard)
 @Controller('sso')
 export class SsoController {
-  constructor(private readonly ssoService: SsoService) {}
+  constructor(
+    private readonly ssoService: SsoService,
+    private readonly authAccountRepo: AuthAccountRepo,
+  ) {}
+
+  // Lets the profile page lock fields that are synced from the IdP.
+  // Returns null for local (password) users.
+  @HttpCode(HttpStatus.OK)
+  @Post('my-account')
+  async myAccount(
+    @AuthUser() user: User,
+    @AuthWorkspace() workspace: Workspace,
+  ) {
+    return (
+      (await this.authAccountRepo.findByUserId(user.id, workspace.id)) ?? null
+    );
+  }
 
   @HttpCode(HttpStatus.OK)
   @Post('providers')

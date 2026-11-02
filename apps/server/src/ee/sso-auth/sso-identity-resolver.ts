@@ -5,6 +5,12 @@ import { User } from '@docmost/db/types/entity.types';
 import { AuthAccountRepo } from '../sso/auth-account.repo';
 import { SsoUserProvisioningService } from './sso-user-provisioning.service';
 
+export type SsoProfile = {
+  jobTitle?: string;
+  department?: string;
+  employeeId?: string;
+};
+
 /**
  * Identity decisions shared by OIDC and directory (LDAP) logins: link lookup
  * -> (optional) email_verified gate -> email match -> provision, then link the
@@ -35,6 +41,8 @@ export class SsoIdentityResolver {
       workspaceId: string;
       /** OIDC: pass the IdP's email_verified; an explicit false blocks email match/provisioning. */
       emailVerified?: boolean;
+      /** Profile attributes from the IdP, synced onto the user on every login. */
+      profile?: SsoProfile;
     },
     trx: KyselyTransaction,
   ): Promise<User> {
@@ -45,6 +53,7 @@ export class SsoIdentityResolver {
       provider,
       workspaceId,
       emailVerified,
+      profile,
     } = params;
 
     const linked = await this.authAccountRepo.findByProviderUserId(
@@ -109,7 +118,30 @@ export class SsoIdentityResolver {
       },
       trx,
     );
-    return user;
+    return this.syncProfile(user, name, profile, trx);
+  }
+
+  /** Only overwrites with non-empty values, so a missing claim never blanks a field. */
+  private async syncProfile(
+    user: User,
+    name: string | undefined,
+    profile: SsoProfile | undefined,
+    trx: KyselyTransaction,
+  ): Promise<User> {
+    const patch: Partial<User> = {};
+    const set = (key: keyof SsoProfile | 'name', value?: string) => {
+      const v = value?.trim();
+      if (v && v !== user[key]) (patch as any)[key] = v;
+    };
+    // The OIDC strategy falls back to the email when the IdP has no name claim.
+    if (name !== user.email) set('name', name);
+    set('jobTitle', profile?.jobTitle);
+    set('department', profile?.department);
+    set('employeeId', profile?.employeeId);
+    if (!Object.keys(patch).length) return user;
+
+    await this.userRepo.updateUser(patch, user.id, user.workspaceId, trx);
+    return { ...user, ...patch };
   }
 
   private assertActive(user: User) {

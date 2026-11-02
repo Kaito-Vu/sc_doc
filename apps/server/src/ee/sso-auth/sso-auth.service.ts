@@ -68,7 +68,18 @@ export class SsoAuthService {
 
     const user = await executeTx(this.db, (trx) =>
       this.identityResolver.resolve(
-        { email, name, providerUserId: entry.dn, provider, workspaceId },
+        {
+          email,
+          name,
+          providerUserId: entry.dn,
+          provider,
+          workspaceId,
+          profile: {
+            jobTitle: firstLdapValue(entry.title),
+            department: firstLdapValue(entry.department),
+            employeeId: firstLdapValue(entry.employeeNumber),
+          },
+        },
         trx,
       ),
     );
@@ -102,7 +113,7 @@ export class SsoAuthService {
           provider.ldapUserSearchFilter,
           data.username,
         ),
-        attributes: ['mail', 'cn', 'uid'],
+        attributes: ['mail', 'cn', 'uid', 'title', 'department', 'employeeNumber'],
       });
       // An ambiguous filter must not let the first match win.
       if (searchEntries.length !== 1) {

@@ -1,4 +1,8 @@
 {
+  "Job title": "Chức danh",
+  "Department": "Phòng ban",
+  "Employee ID": "Mã nhân viên",
+  "Synced from {{provider}}": "Đồng bộ từ {{provider}}",
   "Account": "Tài khoản",
   "Active": "Đang hoạt động",
   "Add": "Thêm",

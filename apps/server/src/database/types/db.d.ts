@@ -436,14 +436,17 @@ export interface Users {
   createdAt: Generated<Timestamp>;
   deactivatedAt: Timestamp | null;
   deletedAt: Timestamp | null;
+  department: string | null;
   email: string;
   emailVerifiedAt: Timestamp | null;
+  employeeId: string | null;
   id: Generated<string>;
   invitedById: string | null;
   lastActiveAt: Timestamp | null;
   lastLoginAt: Timestamp | null;
   locale: string | null;
   hasGeneratedPassword: Generated<boolean | null>;
+  jobTitle: string | null;
   name: string | null;
   password: string | null;
   role: string | null;

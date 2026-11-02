@@ -27,6 +27,9 @@ export interface IUser {
   notificationCommentCreated: boolean; // used for update
   notificationCommentResolved: boolean; // used for update
   hasGeneratedPassword?: boolean;
+  jobTitle?: string;
+  department?: string;
+  employeeId?: string;
 }
 
 export interface ICurrentUser {

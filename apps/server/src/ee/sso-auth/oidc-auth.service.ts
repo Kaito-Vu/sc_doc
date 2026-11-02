@@ -19,7 +19,7 @@ import { AttachmentService } from '../../core/attachment/services/attachment.ser
 import { MfaGateService } from '../mfa/services/mfa-gate.service';
 import { encodeOidcState, decodeOidcState } from './oidc-state.util';
 import { OidcProviderStrategyFactory } from './oidc-provider-strategy.factory';
-import { SsoIdentityResolver } from './sso-identity-resolver';
+import { SsoIdentityResolver, SsoProfile } from './sso-identity-resolver';
 
 const DISCOVERY_CACHE_TTL_MS = 10 * 60 * 1000;
 
@@ -262,6 +262,15 @@ export class OidcAuthService {
     const emailVerified = claims?.email_verified !== false;
 
     const avatarImage = await strategy.fetchAvatar(tokens);
+    const str = (v: unknown) => (typeof v === 'string' ? v : undefined);
+    const idpProfile = await strategy.fetchProfile(tokens);
+    const profile = {
+      jobTitle: idpProfile.jobTitle ?? str(claims?.job_title ?? claims?.jobTitle),
+      department: idpProfile.department ?? str(claims?.department),
+      employeeId:
+        idpProfile.employeeId ??
+        str(claims?.employee_id ?? claims?.employeeId ?? claims?.employee_number),
+    };
 
     const user = await this.resolveUser({
       email,
@@ -271,6 +280,7 @@ export class OidcAuthService {
       provider,
       workspaceId: params.workspaceId,
       avatarImage,
+      profile,
     });
 
     await this.userRepo.updateLastLogin(user.id, params.workspaceId);
@@ -311,6 +321,7 @@ export class OidcAuthService {
     provider: { id: string; allowSignup: boolean };
     workspaceId: string;
     avatarImage?: { buffer: Buffer; mimeType: string };
+    profile?: SsoProfile;
   }): Promise<User> {
     const {
       email,
@@ -320,11 +331,20 @@ export class OidcAuthService {
       provider,
       workspaceId,
       avatarImage,
+      profile,
     } = params;
 
     const user = await executeTx(this.db, (trx) =>
       this.identityResolver.resolve(
-        { email, name, emailVerified, providerUserId, provider, workspaceId },
+        {
+          email,
+          name,
+          emailVerified,
+          providerUserId,
+          provider,
+          workspaceId,
+          profile,
+        },
         trx,
       ),
     );

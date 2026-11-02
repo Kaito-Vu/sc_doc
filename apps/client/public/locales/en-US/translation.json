@@ -1,4 +1,8 @@
 {
+  "Job title": "Job title",
+  "Department": "Department",
+  "Employee ID": "Employee ID",
+  "Synced from {{provider}}": "Synced from {{provider}}",
   "Account": "Account",
   "Active": "Active",
   "Add": "Add",

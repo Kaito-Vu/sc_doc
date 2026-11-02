@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { OidcProviderStrategy } from '../oidc-provider-strategy.interface';
+import type { SsoProfile } from '../sso-identity-resolver';
 
 @Injectable()
 export class EntraIdStrategy implements OidcProviderStrategy {
@@ -54,6 +55,32 @@ export class EntraIdStrategy implements OidcProviderStrategy {
     } catch (error) {
       this.logger.warn(`Graph avatar fetch failed: ${error}`);
       return undefined;
+    }
+  }
+
+  async fetchProfile(
+    tokens: { access_token?: string },
+  ): Promise<SsoProfile> {
+    if (!tokens.access_token) return {};
+    try {
+      const res = await fetch(
+        'https://graph.microsoft.com/v1.0/me?$select=jobTitle,department,employeeId',
+        {
+          headers: { Authorization: `Bearer ${tokens.access_token}` },
+          // Best-effort like the avatar; never stall the login.
+          signal: AbortSignal.timeout(5000),
+        },
+      );
+      if (!res.ok) return {};
+      const me = await res.json();
+      return {
+        jobTitle: me.jobTitle ?? undefined,
+        department: me.department ?? undefined,
+        employeeId: me.employeeId ?? undefined,
+      };
+    } catch (error) {
+      this.logger.warn(`Graph profile fetch failed: ${error}`);
+      return {};
     }
   }
 }

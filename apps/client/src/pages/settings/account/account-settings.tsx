@@ -1,4 +1,4 @@
-import AccountNameForm from "@/features/user/components/account-name-form";
+import AccountProfileSection from "@/ee/account-profile/account-profile-section";
 import ChangeEmail from "@/features/user/components/change-email";
 import ChangePassword from "@/features/user/components/change-password";
 import { Divider } from "@mantine/core";
@@ -19,7 +19,7 @@ export default function AccountSettings() {
 
       <AccountAvatar />
 
-      <AccountNameForm />
+      <AccountProfileSection />
 
       <Divider my="lg" />
 
