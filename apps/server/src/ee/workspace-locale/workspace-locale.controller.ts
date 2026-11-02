@@ -43,7 +43,7 @@ export class WorkspaceLocaleController {
     const row = await this.db
       .updateTable('workspaces')
       .set({
-        settings: sql`COALESCE(settings, '{}'::jsonb) || ${JSON.stringify(patch)}::jsonb`,
+        settings: sql`COALESCE(settings, '{}'::jsonb) || ${JSON.stringify(patch)}::text::jsonb`,
         updatedAt: new Date(),
       })
       .where('id', '=', workspace.id)

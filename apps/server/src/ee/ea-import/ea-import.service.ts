@@ -456,7 +456,7 @@ export class EaImportService {
       .set({
         metadata: sql`coalesce(metadata, '{}'::jsonb) || ${JSON.stringify({
           progress: Math.round(progress),
-        })}::jsonb` as any,
+        })}::text::jsonb` as any,
       })
       .where('id', '=', taskId)
       .where('status', '=', FileTaskStatus.Processing)

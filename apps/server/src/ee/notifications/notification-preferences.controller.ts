@@ -46,9 +46,9 @@ export class NotificationPreferencesController {
       .set({
         settings: sql`COALESCE(settings, '{}'::jsonb)
           || jsonb_build_object(
-            'notificationPrefs', ${JSON.stringify(groups)}::jsonb,
+            'notificationPrefs', ${JSON.stringify(groups)}::text::jsonb,
             'notifications', COALESCE(settings->'notifications', '{}'::jsonb)
-              || ${JSON.stringify(legacyReset)}::jsonb)`,
+              || ${JSON.stringify(legacyReset)}::text::jsonb)`,
         updatedAt: new Date(),
       })
       .where('id', '=', user.id)
