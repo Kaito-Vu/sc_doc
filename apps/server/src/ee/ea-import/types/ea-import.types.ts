@@ -43,6 +43,8 @@ export interface EaDiagram {
   subjectIds: string[];
   diagramId?: string;
   embeddedImage?: EaImageAsset;
+  /** Every embedded image on the diagram, in reading order (top→bottom, left→right). */
+  embeddedImages?: EaImageAsset[];
   /** Wireframing controls, converted to draw.io when the diagram has no image. */
   wireframe?: EaWireframeShape[];
   /** Flow drawn on the diagram, rendered as a Mermaid flowchart. */

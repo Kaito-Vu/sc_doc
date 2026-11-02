@@ -60,9 +60,12 @@ export class EaImageEmbedder {
       if (imageHtmlById.has(key)) {
         continue;
       }
-      const asset =
-        resolveImageForDiagram(diagram, this.byKey) ?? diagram.embeddedImage;
-      if (!asset) {
+      const companion = resolveImageForDiagram(diagram, this.byKey);
+      const assets = companion
+        ? [companion]
+        : (diagram.embeddedImages ??
+          (diagram.embeddedImage ? [diagram.embeddedImage] : []));
+      if (assets.length === 0) {
         if (diagram.wireframe?.length) {
           const html = await this.uploadWireframeDrawio(
             diagram,
@@ -76,22 +79,31 @@ export class EaImageEmbedder {
         continue;
       }
 
-      const html = await this.upload(
-        'Diagram',
-        asset.fileName,
-        {
-          buffer: asset.buffer,
-          fileName: asset.fileName,
-          mimeType: asset.mimeType,
-          pageId,
-        },
-        pageTitle,
-      );
-      if (html === false) {
-        break;
+      let combined = '';
+      let spent = false;
+      for (const asset of assets) {
+        const html = await this.upload(
+          'Diagram',
+          asset.fileName,
+          {
+            buffer: asset.buffer,
+            fileName: asset.fileName,
+            mimeType: asset.mimeType,
+            pageId,
+          },
+          pageTitle,
+        );
+        if (html === false) {
+          spent = true;
+          break;
+        }
+        combined += html ?? '';
       }
-      if (html) {
-        imageHtmlById.set(key, html);
+      if (combined) {
+        imageHtmlById.set(key, combined);
+      }
+      if (spent) {
+        break;
       }
     }
 
