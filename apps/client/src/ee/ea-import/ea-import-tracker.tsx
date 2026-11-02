@@ -77,6 +77,7 @@ export function EaImportTracker() {
   const fails = useRef(new Map<string, number>());
   const lastTask = useRef(new Map<string, IFileTask>());
   const inFlight = useRef(new Set<string>());
+  const nextAt = useRef(new Map<string, number>());
 
   const notifId = (task: IFileTask) => `ea-import-${task.id}`;
 
@@ -95,6 +96,8 @@ export function EaImportTracker() {
         canceling.current.add(task.id);
         renderProgress(lastTask.current.get(task.id) ?? task);
         cancelEaImport(task.id).catch((err) => {
+          // The import may have finished before the cancel landed: don't contradict its outcome.
+          if (finished.current.has(task.id)) return;
           canceling.current.delete(task.id);
           renderProgress(lastTask.current.get(task.id) ?? task);
           notifications.show({
@@ -144,8 +147,9 @@ export function EaImportTracker() {
           <Progress
             value={progress ?? 0}
             size="sm"
-            animated
+            animated={!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches}
             aria-label={t("Importing pages")}
+            aria-valuetext={statusText}
           />
           <Group justify="space-between">
             <Text
@@ -162,6 +166,7 @@ export function EaImportTracker() {
                 variant="subtle"
                 color="red"
                 disabled={isCanceling}
+                aria-label={`${t("Cancel import")}: ${task.fileName}`}
                 onClick={() => confirmCancel(task)}
               >
                 {t("Cancel")}
@@ -203,6 +208,8 @@ export function EaImportTracker() {
     let chosen = false;
     const modalId = `ea-duplicate-${task.id}`;
     const run = (mode: EaImportMode) => {
+      // The modal animates out, so buttons stay clickable briefly: never upload twice.
+      if (chosen) return;
       chosen = true;
       modals.close(modalId);
       importEaXml(file, task.spaceId, mode, (task.metadata as any)?.parentPageId)
@@ -313,9 +320,13 @@ export function EaImportTracker() {
         ...done,
         color: "red",
         title: t("Page import failed"),
-        message: t("Something went wrong while importing pages: {{reason}}.", {
-          reason: task.errorMessage || t("unknown error"),
-        }),
+        message: (
+          <Text size="sm" role="alert">
+            {t("Something went wrong while importing pages: {{reason}}.", {
+              reason: task.errorMessage || t("unknown error"),
+            })}
+          </Text>
+        ),
         icon: <IconX size={18} />,
         autoClose: false,
       });
@@ -386,17 +397,28 @@ export function EaImportTracker() {
       }, 50);
     }
     files.current.delete(task.id);
+    // Keep `shown`/`finished` (they stop a late poll re-showing the toast); drop the rest.
+    lastTask.current.delete(task.id);
+    fails.current.delete(task.id);
+    nextAt.current.delete(task.id);
+    canceling.current.delete(task.id);
   };
 
   const poll = async (id: string) => {
+    if (Date.now() < (nextAt.current.get(id) ?? 0)) return;
     if (!navigator.onLine) return markFailure(id);
     // A slow request must not overlap the next tick's request for the same task.
     if (inFlight.current.has(id)) return;
     inFlight.current.add(id);
     try {
       const task = await getFileTaskById(id);
+      // A proxy can answer 200 with a non-task body: treat it as transient, keep polling.
+      if (!task?.id || typeof task.status !== "string") {
+        throw new Error("Unexpected task response");
+      }
       if (finished.current.has(id)) return;
       fails.current.delete(id);
+      nextAt.current.delete(id);
       if (task.status === "processing") {
         renderProgress(task);
         return;
@@ -404,8 +426,16 @@ export function EaImportTracker() {
       finished.current.add(id);
       setIds((prev) => prev.filter((x) => x !== id));
       await finish(task);
-    } catch {
-      markFailure(id);
+    } catch (err: any) {
+      const status = err?.response?.status;
+      if (status === 401 || status === 403 || status === 404) {
+        // The task is gone or not ours: stop polling instead of retrying forever.
+        finished.current.add(id);
+        setIds((prev) => prev.filter((x) => x !== id));
+        notifications.hide(`ea-import-${id}`);
+      } else {
+        markFailure(id);
+      }
     } finally {
       inFlight.current.delete(id);
     }
@@ -415,6 +445,8 @@ export function EaImportTracker() {
   const markFailure = (id: string) => {
     const n = (fails.current.get(id) ?? 0) + 1;
     fails.current.set(id, n);
+    // Back off (1s, 2s, 4s … max 30s) so a 429 isn't answered with more requests.
+    nextAt.current.set(id, Date.now() + Math.min(30000, 1000 * 2 ** n));
     const task = lastTask.current.get(id);
     if (n === LOST_AFTER_FAILS && task) renderProgress(task);
   };
@@ -425,12 +457,20 @@ export function EaImportTracker() {
       addTask(task);
     };
     listeners.add(listener);
-    getActiveEaImports()
-      .then((tasks) =>
-        tasks.filter((task) => !wasSeen(task.id)).forEach(addTask),
-      )
-      .catch(() => undefined);
+    let alive = true;
+    // Retry a couple of times: a 429/network blip right after F5 must not hide a running import.
+    const discover = (attempt: number) =>
+      getActiveEaImports()
+        .then((tasks) => {
+          if (!alive || !Array.isArray(tasks)) return;
+          tasks.filter((task) => !wasSeen(task.id)).forEach(addTask);
+        })
+        .catch(() => {
+          if (alive && attempt < 3) setTimeout(() => discover(attempt + 1), 3000 * attempt);
+        });
+    discover(1);
     return () => {
+      alive = false;
       listeners.delete(listener);
     };
   }, []);

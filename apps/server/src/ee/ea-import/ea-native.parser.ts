@@ -1,3 +1,4 @@
+import { inflateRawSync } from 'zlib';
 import {
   EaActivity,
   EaDiagram,
@@ -375,6 +376,10 @@ function attachDocuments(
 
   let index = 0;
   for (const row of readTable(root, 't_document')) {
+    // ExtDoc rows are image Artifacts, not RTF; see attachArtifactImages.
+    if (row.get('DOCTYPE') === 'ExtDoc') {
+      continue;
+    }
     const base64 = (row.get('BINCONTENT') ?? '').trim();
     const docName = normalizeName(row.get('DOCNAME') ?? '');
     const segments = docName.split('::');
@@ -510,6 +515,67 @@ function attachDiagrams(
   }
 }
 
+/**
+ * EA wraps ExtDoc content in a one-entry ZIP (`str.dat`); read its first local
+ * entry directly. Anything that isn't a ZIP is returned as-is.
+ */
+function unwrapExtDoc(buffer: Buffer): Buffer {
+  if (buffer.readUInt32LE(0) !== 0x04034b50) {
+    return buffer;
+  }
+  const start = 30 + buffer.readUInt16LE(26) + buffer.readUInt16LE(28);
+  const method = buffer.readUInt16LE(8);
+  try {
+    return method === 8 ? inflateRawSync(buffer.subarray(start)) : buffer.subarray(start);
+  } catch {
+    return buffer;
+  }
+}
+
+/**
+ * Image Artifacts (`t_document` rows of DOCTYPE `ExtDoc`, base64 in
+ * `BINCONTENT`) are attached to their package's first diagram so they render
+ * on the same page; a package with no diagram gets one image-only diagram.
+ */
+function attachArtifactImages(
+  root: FxpNode,
+  objectRows: Row[],
+  byPackageId: Map<string, EaPackageNode>,
+): void {
+  const objectByGuid = new Map<string, Row>();
+  for (const row of objectRows) {
+    objectByGuid.set(row.get('EA_GUID') ?? '', row);
+  }
+  for (const row of readTable(root, 't_document')) {
+    if (row.get('DOCTYPE') !== 'ExtDoc') {
+      continue;
+    }
+    const buffer = unwrapExtDoc(
+      Buffer.from((row.get('BINCONTENT') ?? '').replace(/\s+/g, ''), 'base64'),
+    );
+    const mimeType = sniffImageMime(buffer);
+    const owner = objectByGuid.get(row.get('ELEMENTID') ?? '');
+    const node = byPackageId.get(owner?.get('PACKAGE_ID') ?? '');
+    if (!mimeType || !node) {
+      continue;
+    }
+    const base = normalizeName(owner?.get('NAME') ?? '').replace(/\.\w+$/, '');
+    const fileName = `${base || 'image'}${imageExtForMime(mimeType)}`;
+    const asset: EaImageAsset = {
+      key: normalizeAssetKey(fileName),
+      fileName,
+      mimeType,
+      buffer,
+    };
+    let diagram = node.diagrams[0];
+    if (!diagram) {
+      diagram = { name: base, ownerId: node.id, subjectIds: [] };
+      node.diagrams.push(diagram);
+    }
+    (diagram.attachments ??= []).push(asset);
+  }
+}
+
 export function parseEaNative(buffer: Buffer): EaParseResult {
   if (!Buffer.isBuffer(buffer)) {
     throw new Error('parseEaNative expects a Buffer');
@@ -551,6 +617,7 @@ export function parseEaNative(buffer: Buffer): EaParseResult {
     readImages(root),
     readWireframeControls(objectRows, stereotypes),
   );
+  attachArtifactImages(root, objectRows, byPackageId);
   splitMultiItems(roots);
 
   return { roots, warnings };

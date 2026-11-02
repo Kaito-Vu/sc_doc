@@ -2255,5 +2255,13 @@
   "e.g. 203.0.113.5 or 10.0.0.0/8": "vd: 203.0.113.5 hoặc 10.0.0.0/8",
   "Only allow sign-in from the addresses below. An empty list allows every IP. Make sure your own IP is included before enabling.": "Chỉ cho phép đăng nhập từ các địa chỉ bên dưới. Danh sách trống nghĩa là cho phép mọi IP. Hãy chắc chắn IP của bạn có trong danh sách trước khi bật.",
   "Sign-in from a second IP detected": "Phát hiện đăng nhập từ IP thứ hai",
-  "Second-IP sign-in resolved": "Đã xử lý đăng nhập từ IP thứ hai"
+  "Second-IP sign-in resolved": "Đã xử lý đăng nhập từ IP thứ hai",
+  "The file is too large to import.": "Tệp quá lớn để nhập.",
+  "Too many requests. Please wait a moment and try again.": "Quá nhiều yêu cầu. Vui lòng chờ một lát rồi thử lại.",
+  "Select import source": "Chọn nguồn nhập",
+  "Markdown / HTML (ZIP)": "Markdown / HTML (ZIP)",
+  "Uploading import file": "Đang tải tệp nhập lên",
+  "Unsupported file type": "Loại tệp không được hỗ trợ",
+  "Please don't close this tab.": "Vui lòng không đóng tab này.",
+  "File exceeds the {{limit}} import limit": "Tệp vượt quá giới hạn nhập {{limit}}"
 }

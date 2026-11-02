@@ -25,6 +25,12 @@ export async function importEaXml(
     },
   });
 
+  if (!req?.data?.id) {
+    // Surface the raw body (e.g. a proxy page served with HTTP 200) instead of
+    // crashing later on `task.id`.
+    console.error("EA import: unexpected upload response", req);
+    throw new Error("Unexpected response from the import endpoint");
+  }
   return req.data;
 }
 

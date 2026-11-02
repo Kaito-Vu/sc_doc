@@ -2262,5 +2262,13 @@
   "Zoom in": "Zoom in",
   "Zoom out": "Zoom out",
   "Reset zoom": "Reset zoom",
-  "This invitation link is invalid or has expired.": "This invitation link is invalid or has expired."
+  "This invitation link is invalid or has expired.": "This invitation link is invalid or has expired.",
+  "The file is too large to import.": "The file is too large to import.",
+  "Too many requests. Please wait a moment and try again.": "Too many requests. Please wait a moment and try again.",
+  "Select import source": "Select import source",
+  "Markdown / HTML (ZIP)": "Markdown / HTML (ZIP)",
+  "Uploading import file": "Uploading import file",
+  "Unsupported file type": "Unsupported file type",
+  "Please don't close this tab.": "Please don't close this tab.",
+  "File exceeds the {{limit}} import limit": "File exceeds the {{limit}} import limit"
 }

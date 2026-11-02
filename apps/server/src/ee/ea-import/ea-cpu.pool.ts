@@ -52,7 +52,10 @@ function runChunk(
   workers: Set<Worker>,
 ): Promise<void> {
   return new Promise<void>((resolve, reject) => {
-    const worker = new Worker(WORKER_FILE);
+    const worker = new Worker(WORKER_FILE, {
+      // A runaway conversion must kill only this worker, not the API process.
+      resourceLimits: { maxOldGenerationSizeMb: 768 },
+    });
     workers.add(worker);
     let settled = false;
     // A worker stuck in a pathological conversion would otherwise hang the import forever.
@@ -147,17 +150,15 @@ export async function runEaCpuJobs(
   await chain;
   if (abort !== undefined) throw abort;
 
-  // A crashed worker (e.g. out of memory on a hostile file) leaves its jobs
-  // unfinished. They fail instead of re-running inline: repeating that job on
-  // the main thread could take the whole API process down with it.
+  // A crashed or timed-out worker (e.g. out of memory on a hostile file) leaves
+  // its jobs unfinished. Never re-run them inline (that could take the API
+  // process down), and never report them as per-job errors: the caller would
+  // commit blank pages and mark the task successful. Fail the whole run.
   const failure = failures.find(Boolean);
-  for (const job of jobs) {
-    if (!results.has(job.id)) {
-      await record({
-        id: job.id,
-        error: `EA import worker failed: ${failure?.message ?? 'no result'}`,
-      });
-    }
+  if (jobs.some((job) => !results.has(job.id))) {
+    throw new Error(
+      `EA import worker failed: ${failure?.message ?? 'no result'}`,
+    );
   }
   return results;
 }

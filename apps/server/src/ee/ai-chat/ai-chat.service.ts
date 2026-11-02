@@ -15,7 +15,7 @@ import {
   prepareFile,
 } from '../../core/attachment/attachment.utils';
 import { AttachmentType } from '../../core/attachment/attachment.constants';
-import { createByteCountingStream } from '../../common/helpers/utils';
+import { streamMultipartFile } from '../../common/helpers';
 import { v7 as uuid7 } from 'uuid';
 import { MultipartFile } from '@fastify/multipart';
 import { writeSse } from '../ai/sse.util';
@@ -196,11 +196,10 @@ export class AiChatService {
     });
     const attachmentId = uuid7();
     const filePath = `${getAttachmentFolderPath(AttachmentType.Chat, workspaceId)}/${attachmentId}/${prepared.fileName}`;
-    const { stream, getBytesRead } = createByteCountingStream(
-      prepared.multiPartFile.file,
+    prepared.fileSize = await streamMultipartFile(
+      prepared.multiPartFile,
+      (stream) => this.storageService.upload(filePath, stream),
     );
-    await this.storageService.upload(filePath, stream);
-    prepared.fileSize = getBytesRead();
 
     await this.attachmentRepo.insertAttachment({
       id: attachmentId,

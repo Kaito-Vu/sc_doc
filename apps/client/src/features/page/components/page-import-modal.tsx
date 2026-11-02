@@ -25,6 +25,7 @@ import {
 } from "@/features/page/services/page-service.ts";
 import { importEaXml } from "@/ee/ea-import/services/ea-import-service.ts";
 import { trackEaImport } from "@/ee/ea-import/ea-import-tracker.tsx";
+import { getErrorMessage as getEaErrorMessage } from "@/ee/ea-import/get-error-message.ts";
 import type { EaImportMode } from "@/ee/ea-import/services/ea-import-service.ts";
 import { modals } from "@mantine/modals";
 import { notifications } from "@mantine/notifications";
@@ -117,10 +118,6 @@ function ImportFormatSelection({
   const confluenceFileRef = useRef<() => void>(null);
   const zipFileRef = useRef<() => void>(null);
   const eaFileRef = useRef<() => void>(null);
-  const pendingEaFileRef = useRef<File | null>(null);
-  const handleEaUploadRef = useRef<
-    ((file: File, mode?: EaImportMode) => Promise<void>) | null
-  >(null);
 
   const canUseConfluence = useHasFeature(Feature.CONFLUENCE_IMPORT);
   const canUseDocx = useHasFeature(Feature.DOCX_IMPORT);
@@ -205,67 +202,6 @@ function ImportFormatSelection({
       try {
         const fileTask = await getFileTaskById(fileTaskId);
         const status = fileTask.status;
-
-        if ((fileTask.metadata as any)?.duplicate === true) {
-          clearInterval(intervalId);
-          setFileTaskId(null);
-          notifications.hide("import");
-          const pendingFile = pendingEaFileRef.current;
-          const run = (mode: EaImportMode) => {
-            modals.closeAll();
-            if (pendingFile) {
-              void handleEaUploadRef.current?.(pendingFile, mode);
-            }
-          };
-          modals.open({
-            title: t("Package already imported"),
-            centered: true,
-            children: (
-              <Stack gap="lg">
-                <Text size="sm">
-                  {t(
-                    "This Enterprise Architect package was already imported into this space. Choose how to proceed:",
-                  )}
-                </Text>
-                <Stack gap="xs">
-                  <Button
-                    variant="default"
-                    onClick={() => run("keep")}
-                  >
-                    {t("Keep both")}
-                  </Button>
-                  <Button
-                    variant="default"
-                    onClick={() => modals.closeAll()}
-                  >
-                    {t("Skip")}
-                  </Button>
-                  <Button color="red" onClick={() => run("replace")}>
-                    {t("Replace")}
-                  </Button>
-                </Stack>
-              </Stack>
-            ),
-          });
-          return;
-        }
-
-        if ((fileTask.metadata as any)?.skipped === true) {
-          notifications.update({
-            id: "import",
-            color: "yellow",
-            title: t("Import skipped"),
-            message: t(
-              "This Enterprise Architect package was already imported into this space.",
-            ),
-            loading: false,
-            withCloseButton: true,
-            autoClose: false,
-          });
-          clearInterval(intervalId);
-          setFileTaskId(null);
-          return;
-        }
 
         if (status === "success") {
           notifications.update({
@@ -441,8 +377,6 @@ function ImportFormatSelection({
       return;
     }
 
-    pendingEaFileRef.current = selectedFile;
-
     try {
       onClose();
 
@@ -467,7 +401,7 @@ function ImportFormatSelection({
         id: "import",
         color: "red",
         title: t("Failed to upload import file"),
-        message: err?.response?.data?.message,
+        message: getEaErrorMessage(err),
         icon: <IconX size={18} />,
         loading: false,
         withCloseButton: true,
@@ -475,7 +409,6 @@ function ImportFormatSelection({
       });
     }
   };
-  handleEaUploadRef.current = handleEaUpload;
 
   const fileExt = (f: File) =>
     f.name.slice(f.name.lastIndexOf(".")).toLowerCase();

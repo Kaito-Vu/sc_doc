@@ -1,12 +1,18 @@
 import { mapLimit } from '../common/map-limit';
 import { INSERT_BATCH } from './ea-constants';
 import {
+  BadRequestException,
   Inject,
   Injectable,
   Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { MultipartFile } from '@fastify/multipart';
+import SpaceAbilityFactory from '../../core/casl/abilities/space-ability.factory';
+import {
+  SpaceCaslAction,
+  SpaceCaslSubject,
+} from '../../core/casl/interfaces/space-ability.type';
 import { InjectKysely } from 'nestjs-kysely';
 import { KyselyDB } from '@docmost/db/types/kysely.types';
 import { executeTx } from '@docmost/db/utils';
@@ -20,9 +26,9 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import {
-  createByteCountingStream,
   generateSlugId,
   sanitizeFileName,
+  streamMultipartFile,
 } from '../../common/helpers';
 import { jsonToText } from '../../collaboration/collaboration.util';
 import { EventName } from '../../common/events/event.contants';
@@ -86,6 +92,10 @@ const IMAGE_UPLOAD_CONCURRENCY = 4;
 /** Parse on a worker thread above this size; smaller files parse faster inline. */
 const PARSE_WORKER_MIN_BYTES = 512 * 1024;
 const MAX_PAGES = 300;
+/** Concurrent processing imports one user may have queued. */
+const MAX_ACTIVE_IMPORTS_PER_USER = 3;
+/** Raw (non-ZIP) XML is parsed into a DOM many times its size; ZIP entries are capped at 64 MB too. */
+const MAX_RAW_XML_BYTES = 64 * 1024 * 1024;
 const MAX_LOGGED_WARNINGS = 20;
 /** Finished imports stay listed this long so a user who closed the tab still sees the outcome. */
 const RECENT_FINISHED_MS = 10 * 60 * 1000;
@@ -119,6 +129,8 @@ interface PreparedPage {
   title: string;
   content: any;
   ydoc: Buffer | null;
+  /** Merge target the user may not edit (or sits under one): never write here. */
+  restricted?: boolean;
 }
 
 interface ExistingImport {
@@ -163,7 +175,39 @@ export class EaImportService {
     private readonly eventEmitter: EventEmitter2,
     @Inject(AUDIT_SERVICE) private readonly auditService: IAuditService,
     @InjectQueue(EA_IMPORT_QUEUE) private readonly eaImportQueue: Queue,
+    private readonly spaceAbility: SpaceAbilityFactory,
   ) {}
+
+  /**
+   * The controller authorized the user at upload time, but the job may sit in
+   * the queue: re-check space edit access and the parent page before writing.
+   */
+  private async assertStillAuthorized(
+    userId: string,
+    spaceId: string,
+    parentPageId?: string,
+  ): Promise<void> {
+    const user = await this.db
+      .selectFrom('users')
+      .selectAll()
+      .where('id', '=', userId)
+      .where('deletedAt', 'is', null)
+      .executeTakeFirst();
+    const denied = new Error(
+      'You no longer have permission to import into this space',
+    );
+    if (!user) throw denied;
+    const ability = await this.spaceAbility.createForUser(user, spaceId);
+    if (ability.cannot(SpaceCaslAction.Edit, SpaceCaslSubject.Page)) {
+      throw denied;
+    }
+    if (
+      parentPageId &&
+      !(await this.editablePageIds([parentPageId], userId)).has(parentPageId)
+    ) {
+      throw denied;
+    }
+  }
 
   /**
    * Persist the uploaded file and enqueue an asynchronous import. Returns the
@@ -190,9 +234,25 @@ export class EaImportService {
       workspaceId,
     )}/${fileTaskId}/${fileNameWithExt}`;
 
-    const { stream, getBytesRead } = createByteCountingStream(file.file);
-    await this.storageService.upload(filePath, stream);
-    const fileSize = getBytesRead();
+    const active = await this.listActive(userId, workspaceId);
+    if (
+      active.filter((task) => task.status === FileTaskStatus.Processing)
+        .length >= MAX_ACTIVE_IMPORTS_PER_USER
+    ) {
+      throw new BadRequestException(
+        'Too many imports are already running. Wait for one to finish.',
+      );
+    }
+
+    let fileSize: number;
+    try {
+      fileSize = await streamMultipartFile(file, (stream) =>
+        this.storageService.upload(filePath, stream),
+      );
+    } catch (error) {
+      await this.deleteStoredFile(filePath);
+      throw error;
+    }
 
     const fileTask = await this.db
       .insertInto('fileTasks')
@@ -213,7 +273,11 @@ export class EaImportService {
           : {}),
       })
       .returningAll()
-      .executeTakeFirstOrThrow();
+      .executeTakeFirstOrThrow()
+      .catch(async (error) => {
+        await this.deleteStoredFile(filePath);
+        throw error;
+      });
 
     try {
       await this.eaImportQueue.add(
@@ -257,6 +321,10 @@ export class EaImportService {
       fileTask.status === EA_STATUS_CANCELED
     ) {
       this.logger.log(`EA import task ${fileTaskId} already processed`);
+      // A cancel can win the race against pickup: the worker is the only one left to clean up.
+      if (fileTask.filePath) {
+        await this.deleteStoredFile(fileTask.filePath);
+      }
       return;
     }
 
@@ -266,6 +334,12 @@ export class EaImportService {
           'EA import task is missing filePath, spaceId or creatorId',
         );
       }
+
+      await this.assertStillAuthorized(
+        fileTask.creatorId,
+        fileTask.spaceId,
+        parentPageId,
+      );
 
       const stream = await this.storageService.readStream(fileTask.filePath);
       const buffer = await streamToBuffer(stream);
@@ -290,6 +364,8 @@ export class EaImportService {
           updatedAt: new Date(),
         })
         .where('id', '=', fileTaskId)
+        // A late cancel must not be flipped back to success.
+        .where('status', '=', FileTaskStatus.Processing)
         .execute();
     } catch (error) {
       if (error instanceof EaImportCanceledError) {
@@ -306,10 +382,20 @@ export class EaImportService {
   }
 
   /** Active (processing) EA imports of a user, so the client can resume tracking after a reload. */
-  async listActive(userId: string, workspaceId: string): Promise<FileTask[]> {
+  async listActive(userId: string, workspaceId: string) {
     return this.db
       .selectFrom('fileTasks')
-      .selectAll()
+      // Not selectAll: the storage `filePath` is internal.
+      .select([
+        'id',
+        'status',
+        'fileName',
+        'errorMessage',
+        'metadata',
+        'spaceId',
+        'createdAt',
+        'updatedAt',
+      ])
       .where('source', '=', EA_SOURCE)
       .where('type', '=', FileTaskType.Import)
       .where((eb) =>
@@ -485,6 +571,11 @@ export class EaImportService {
         ]),
       );
     } else {
+      if (buffer.length > MAX_RAW_XML_BYTES) {
+        throw new Error(
+          `EA XML file exceeds ${MAX_RAW_XML_BYTES / 1024 / 1024} MB; export a smaller package or upload a ZIP.`,
+        );
+      }
       parsed = await this.parseDocument(buffer);
     }
 
@@ -532,7 +623,9 @@ export class EaImportService {
       if (page.action === 'skip') {
         warnings.push({
           page: page.node.name,
-          reason: 'Page already has content; it was not overwritten',
+          reason: page.restricted
+            ? 'Page is restricted; it was not imported or changed'
+            : 'Page already has content; it was not overwritten',
         });
       }
     }
@@ -556,38 +649,49 @@ export class EaImportService {
       byKey,
       warnings,
     );
-    const htmlByPage = await this.buildPagesHtml(
-      work,
-      documentContent,
-      images,
-      taskId,
-    );
-    lap('html built');
+    let committed: Awaited<ReturnType<EaImportService['commitPages']>>;
+    try {
+      const htmlByPage = await this.buildPagesHtml(
+        work,
+        documentContent,
+        images,
+        taskId,
+      );
+      lap('html built');
 
-    await this.convertPages(work, htmlByPage, warnings, taskId);
-    lap('pages converted');
+      await this.convertPages(work, htmlByPage, warnings, taskId);
+      lap('pages converted');
 
-    // Last cancellable point: the transaction below commits all pages at once.
-    await this.checkpoint(taskId, 92);
+      // Last cancellable point: the transaction below commits all pages at once.
+      await this.checkpoint(taskId, 92);
 
-    const { pageIds, rootPageIds, filledIds } = await this.commitPages(
-      work,
-      merge,
-      scope,
-    );
+      committed = await this.commitPages(work, merge, scope);
+    } catch (error) {
+      // Nothing was committed: the uploaded images would be orphans.
+      await images.discardUploads().catch(() => undefined);
+      throw error;
+    }
+    const { pageIds, rootPageIds, filledIds } = committed;
     lap('pages inserted');
 
-    if (pageIds.length > 0) {
-      this.eventEmitter.emit(EventName.PAGE_CREATED, {
-        pageIds,
-        workspaceId,
-      });
-    }
-    if (filledIds.length > 0) {
-      this.eventEmitter.emit(EventName.PAGE_UPDATED, {
-        pageIds: filledIds,
-        workspaceId,
-      });
+    // Pages are committed: a listener failure must not flip the task to failed.
+    try {
+      if (pageIds.length > 0) {
+        this.eventEmitter.emit(EventName.PAGE_CREATED, {
+          pageIds,
+          workspaceId,
+        });
+      }
+      if (filledIds.length > 0) {
+        this.eventEmitter.emit(EventName.PAGE_UPDATED, {
+          pageIds: filledIds,
+          workspaceId,
+        });
+      }
+    } catch (error) {
+      this.logger.warn(
+        `EA import ${taskId}: event emit failed: ${errorMessage(error)}`,
+      );
     }
 
     // Pages are committed: an audit failure must not flip the task to failed.
@@ -727,6 +831,8 @@ export class EaImportService {
   ): PreparedPage[] {
     const prepared: PreparedPage[] = [];
     const pageIdByNode = new Map<EaPackageNode, string>();
+    // Merge must not hang new pages under a page the user cannot edit.
+    const restrictedNodes = new Set<EaPackageNode>();
     const queue: Array<{ node: EaPackageNode; parent: EaPackageNode | null }> =
       roots.map((node) => ({ node, parent: null }));
 
@@ -744,9 +850,17 @@ export class EaImportService {
             ? 'fill'
             : 'skip';
       }
+      const restricted =
+        (hit !== undefined && !hit.editable) ||
+        (parent !== null && restrictedNodes.has(parent));
+      if (restricted) {
+        restrictedNodes.add(node);
+        if (action === 'insert' || action === 'fill') action = 'skip';
+      }
       const id = hit?.id ?? v7();
       pageIdByNode.set(node, id);
       prepared.push({
+        restricted,
         action,
         node,
         id,
@@ -1150,19 +1264,34 @@ export class EaImportService {
       'rootPageIds',
       'pageIds',
     );
-    const live = rootPageIds.length
-      ? await this.db
-          .selectFrom('pages')
-          .select(['id', 'title'])
-          .where('id', 'in', rootPageIds)
-          .where('spaceId', '=', spaceId)
-          .where('deletedAt', 'is', null)
-          .execute()
-      : [];
-    const editable = await this.editablePageIds(
-      live.map((page) => page.id),
-      creatorId,
-    );
+    let live: Array<{ id: string; title: string | null }> = [];
+    let editable = new Set<string>();
+    try {
+      live = rootPageIds.length
+        ? await this.db
+            .selectFrom('pages')
+            .select(['id', 'title'])
+            .where('id', 'in', rootPageIds)
+            .where('spaceId', '=', spaceId)
+            .where('deletedAt', 'is', null)
+            .execute()
+        : [];
+      editable = await this.editablePageIds(
+        live.map((page) => page.id),
+        creatorId,
+      );
+    } catch (error) {
+      // The new pages are already committed: report, don't fail the task.
+      this.logger.error(
+        'Failed to look up the previous EA import for replace',
+        error instanceof Error ? error.stack : undefined,
+      );
+      warnings.push({
+        page: '',
+        reason: 'The previous import could not be replaced; it was kept',
+      });
+      return;
+    }
 
     for (const page of live) {
       if (!editable.has(page.id)) {

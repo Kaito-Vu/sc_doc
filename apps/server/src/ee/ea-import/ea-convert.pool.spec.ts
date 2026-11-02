@@ -1,3 +1,5 @@
+jest.mock('@sindresorhus/slugify', () => ({ default: (text: string) => text }));
+
 import {
   convertModelDocuments,
   eaConvertConcurrency,

@@ -35,6 +35,10 @@ export interface EaImageContext {
 export class EaImageEmbedder {
   private count = 0;
   private bytes = 0;
+  private readonly uploadedItems: Array<{
+    attachmentId: string;
+    storageFilePath: string;
+  }> = [];
 
   constructor(
     private readonly attachments: EaAttachmentService,
@@ -42,6 +46,11 @@ export class EaImageEmbedder {
     private readonly byKey: Map<string, EaImageAsset>,
     private readonly warnings: EaParseWarning[],
   ) {}
+
+  /** Remove everything uploaded so far; call when the import aborts before commit. */
+  discardUploads(): Promise<void> {
+    return this.attachments.discardUploaded(this.uploadedItems.splice(0));
+  }
 
   /**
    * Resolve and upload the companion (or embedded) image for every diagram
@@ -92,6 +101,29 @@ export class EaImageEmbedder {
       }
       if (html) {
         imageHtmlById.set(key, html);
+      }
+    }
+
+    for (const diagram of node.diagrams) {
+      const key = diagram.diagramId ?? diagram.name;
+      for (const asset of diagram.attachments ?? []) {
+        const html = await this.upload(
+          'Diagram',
+          asset.fileName,
+          {
+            buffer: asset.buffer,
+            fileName: asset.fileName,
+            mimeType: asset.mimeType,
+            pageId,
+          },
+          pageTitle,
+        );
+        if (html === false) {
+          return imageHtmlById;
+        }
+        if (html) {
+          imageHtmlById.set(key, (imageHtmlById.get(key) ?? '') + html);
+        }
       }
     }
 
@@ -189,6 +221,7 @@ export class EaImageEmbedder {
         ...image,
         ...this.context,
       });
+      this.uploadedItems.push(uploaded);
       return uploaded.imgHtml;
     } catch (error) {
       this.count -= 1;
@@ -222,6 +255,7 @@ export class EaImageEmbedder {
         pageId,
         ...this.context,
       });
+      this.uploadedItems.push(uploaded);
       return drawioNodeHtml({
         src: uploaded.apiFilePath,
         attachmentId: uploaded.attachmentId,

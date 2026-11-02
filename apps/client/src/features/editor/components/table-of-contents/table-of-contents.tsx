@@ -102,7 +102,7 @@ export const TableOfContents: FC<TableOfContentsProps> = (props) => {
     props.isShare ? [props.editor] : [],
   );
 
-  useTocActiveSection(props.editor, headingDOMNodes, setActiveElement);
+  useTocActiveSection(props.editor, headingDOMNodes, setActiveElement, activeElement);
 
   useEffect(() => {
     try {

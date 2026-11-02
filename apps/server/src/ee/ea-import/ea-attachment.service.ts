@@ -34,6 +34,7 @@ export class EaAttachmentService {
     attachmentId: string;
     apiFilePath: string;
     imgHtml: string;
+    storageFilePath: string;
   }> {
     const { buffer, mimeType, pageId, workspaceId, spaceId, creatorId } = opts;
 
@@ -51,22 +52,28 @@ export class EaAttachmentService {
       { recreateClient: true },
     );
 
-    await this.db
-      .insertInto('attachments')
-      .values({
-        id: attachmentId,
-        filePath: storageFilePath,
-        fileName,
-        fileSize: buffer.length,
-        mimeType,
-        type: 'file',
-        fileExt: path.extname(fileName).toLowerCase(),
-        creatorId,
-        workspaceId,
-        pageId,
-        spaceId,
-      })
-      .execute();
+    try {
+      await this.db
+        .insertInto('attachments')
+        .values({
+          id: attachmentId,
+          filePath: storageFilePath,
+          fileName,
+          fileSize: buffer.length,
+          mimeType,
+          type: 'file',
+          fileExt: path.extname(fileName).toLowerCase(),
+          creatorId,
+          workspaceId,
+          pageId,
+          spaceId,
+        })
+        .execute();
+    } catch (error) {
+      // Don't leave the uploaded object behind without a row pointing at it.
+      await this.storageService.delete(storageFilePath).catch(() => undefined);
+      throw error;
+    }
 
     let width = DEFAULT_IMAGE_WIDTH;
     if (mimeType.startsWith('image/') && mimeType !== 'image/svg+xml') {
@@ -91,6 +98,22 @@ export class EaAttachmentService {
 
     this.logger.debug(`Uploaded EA diagram image ${fileName} (${attachmentId})`);
 
-    return { attachmentId, apiFilePath, imgHtml };
+    return { attachmentId, apiFilePath, imgHtml, storageFilePath };
+  }
+
+  /** Best-effort removal of images uploaded for pages that were never committed. */
+  async discardUploaded(
+    items: Array<{ attachmentId: string; storageFilePath: string }>,
+  ): Promise<void> {
+    for (const item of items) {
+      await this.db
+        .deleteFrom('attachments')
+        .where('id', '=', item.attachmentId)
+        .execute()
+        .catch((error) =>
+          this.logger.warn(`Failed to delete attachment row ${item.attachmentId}: ${error}`),
+        );
+      await this.storageService.delete(item.storageFilePath).catch(() => undefined);
+    }
   }
 }

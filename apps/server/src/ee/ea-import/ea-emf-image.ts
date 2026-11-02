@@ -23,6 +23,7 @@ const BI_JPEG = 4;
 const BI_PNG = 5;
 
 const MAX_DIMENSION = 16384;
+const MAX_PIXELS = 25_000_000;
 
 const CRC_TABLE = Array.from({ length: 256 }, (_, n) => {
   let c = n;
@@ -96,6 +97,8 @@ function dibToImage(
   const height = Math.abs(rawHeight);
   if (width <= 0 || width > MAX_DIMENSION) return null;
   if (height <= 0 || height > MAX_DIMENSION) return null;
+  // Off-heap RGB + PNG buffers: bound the pixel count, not just each side.
+  if (width * height > MAX_PIXELS) return null;
 
   const paletteAt = bmi + headerSize;
   const masksBytes =

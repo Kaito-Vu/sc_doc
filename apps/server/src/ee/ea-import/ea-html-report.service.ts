@@ -239,16 +239,21 @@ export class EaHtmlReportService {
         workspaceId,
       });
 
-      await this.auditService.log({
-        event: AuditEvent.PAGE_IMPORTED,
-        resourceType: AuditResource.PAGE,
-        resourceId: spaceId,
-        spaceId,
-        metadata: {
-          source: 'ea-html',
-          pageCount: pageIds.length,
-        },
-      });
+      // Pages are committed: an audit failure must not fail the task (a retry would duplicate them).
+      try {
+        await this.auditService.log({
+          event: AuditEvent.PAGE_IMPORTED,
+          resourceType: AuditResource.PAGE,
+          resourceId: spaceId,
+          spaceId,
+          metadata: {
+            source: 'ea-html',
+            pageCount: pageIds.length,
+          },
+        });
+      } catch (error) {
+        this.logger.warn(`EA HTML import: audit log failed: ${errorMessage(error)}`);
+      }
 
       this.logger.log(
         `Imported ${pageIds.length} pages from EA HTML report (${warnings.length} warnings)`,
