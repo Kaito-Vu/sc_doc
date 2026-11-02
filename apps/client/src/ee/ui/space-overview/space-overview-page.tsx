@@ -64,6 +64,7 @@ import RecentChanges from "@/components/common/recent-changes";
 import FavoritesPages from "@/features/home/components/favorites-pages";
 import CreatedByMe from "@/features/home/components/created-by-me";
 import PersonalSpaceQuotaCard from "@/ee/personal-space/components/personal-space-quota-card";
+import { Error404 } from "@/components/ui/error-404.tsx";
 import classes from "./space-overview-page.module.css";
 
 type SettingsTab = "general" | "members";
@@ -73,7 +74,7 @@ type UserMember = Extract<ISpaceMember, { type: "user" }>;
 export function SpaceOverviewPage() {
   const { t } = useTranslation();
   const { spaceSlug } = useParams();
-  const { data: space } = useGetSpaceBySlugQuery(spaceSlug);
+  const { data: space, error } = useGetSpaceBySlugQuery(spaceSlug);
   const spaceId = space?.id ?? "";
 
   const spaceAbility = useSpaceAbility(space?.membership?.permissions);
@@ -91,6 +92,7 @@ export function SpaceOverviewPage() {
   const unwatchSpace = useUnwatchSpaceMutation();
   const { data: membersData } = useSpaceMembersInfiniteQuery(spaceId, "");
 
+  if ([403, 404].includes(error?.["status"])) return <Error404 />;
   if (!space) return null;
 
   const canManagePages = spaceAbility.can(
