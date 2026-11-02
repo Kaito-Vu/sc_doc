@@ -63,6 +63,7 @@ import SpaceSettingsModal from "@/features/space/components/settings-modal";
 import RecentChanges from "@/components/common/recent-changes";
 import FavoritesPages from "@/features/home/components/favorites-pages";
 import CreatedByMe from "@/features/home/components/created-by-me";
+import PersonalSpaceQuotaCard from "@/ee/personal-space/components/personal-space-quota-card";
 import classes from "./space-overview-page.module.css";
 
 type SettingsTab = "general" | "members";
@@ -342,6 +343,7 @@ export function SpaceOverviewPage() {
 
           <Grid.Col span={{ base: 12, lg: 4 }}>
             <Stack gap="md">
+              <PersonalSpaceQuotaCard spaceId={space.id} />
               <section className={classes.card}>
                 <div className={classes.cardHeader}>
                   <h2 className={classes.cardTitle}>{t("Members")}</h2>

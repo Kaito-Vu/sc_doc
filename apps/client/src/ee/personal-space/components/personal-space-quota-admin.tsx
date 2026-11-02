@@ -8,10 +8,7 @@ import {
   setPersonalQuota,
 } from "@/ee/personal-space/services/personal-space-service";
 
-const fmt = (n: number) =>
-  n >= 1024 ** 3
-    ? `${+(n / 1024 ** 3).toFixed(2)}gb`
-    : `${+(n / 1024 ** 2).toFixed(1)}mb`;
+const toMb = (n: number) => +(n / 1024 ** 2).toFixed(1);
 
 function LimitEditor({
   userId,
@@ -26,7 +23,7 @@ function LimitEditor({
   const qc = useQueryClient();
   const [value, setValue] = useState(initial);
   const save = useMutation({
-    mutationFn: () => setPersonalQuota({ userId, limit: value.trim() || null }),
+    mutationFn: () => setPersonalQuota({ userId, limit: value.trim() ? `${value.trim()}mb` : null }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["personal-space-quotas"] });
       qc.invalidateQueries({ queryKey: ["personal-space-usage"] });
@@ -42,6 +39,10 @@ function LimitEditor({
       <TextInput
         size="xs"
         w={110}
+        type="number"
+        min={1}
+        rightSection={<Text size="xs" c="dimmed">MB</Text>}
+        rightSectionWidth={32}
         value={value}
         placeholder={placeholder}
         onChange={(e) => setValue(e.currentTarget.value)}
@@ -65,9 +66,9 @@ export default function PersonalSpaceQuotaAdmin() {
     <div>
       <Text size="md">{t("Personal space storage limit")}</Text>
       <Text size="sm" c="dimmed" mb="xs">
-        {t("Default limit for every member. Override per member below (e.g. 500mb, 2gb). Leave empty to reset.")}
+        {t("Default limit for every member, in MB. Override per member below. Leave empty to reset.")}
       </Text>
-      <LimitEditor key={data.defaultLimit} initial={fmt(data.defaultLimit)} />
+      <LimitEditor key={data.defaultLimit} initial={String(toMb(data.defaultLimit))} />
       <Table mt="md" verticalSpacing="xs">
         <Table.Tbody>
           {data.users.map((u) => (
@@ -78,13 +79,13 @@ export default function PersonalSpaceQuotaAdmin() {
               </Table.Td>
               <Table.Td w={160}>
                 <Progress value={Math.min(100, (u.used / u.limit) * 100)} size="xs" />
-                <Text size="xs" c="dimmed">{fmt(u.used)} / {fmt(u.limit)}</Text>
+                <Text size="xs" c="dimmed">{toMb(u.used)} / {toMb(u.limit)} MB</Text>
               </Table.Td>
               <Table.Td>
                 <LimitEditor
                   key={`${u.userId}-${u.override}`}
                   userId={u.userId}
-                  initial={u.override === null ? "" : fmt(u.override)}
+                  initial={u.override === null ? "" : String(toMb(u.override))}
                   placeholder={t("Default")}
                 />
               </Table.Td>
