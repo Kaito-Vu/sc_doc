@@ -38,6 +38,7 @@ overrides:
   path-to-regexp@^8: 8.4.0
   brace-expansion@^5: 5.0.12
   '@xmldom/xmldom': 0.9.12
+  'mammoth>@xmldom/xmldom': 0.8.15
   handlebars: 4.7.9
   axios: 1.20.0
   fast-uri: 3.1.9

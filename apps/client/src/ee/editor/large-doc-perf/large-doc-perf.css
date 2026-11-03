@@ -1,0 +1,12 @@
+/* Set by use-large-doc-perf.ts on very large pages only. 180px ~ average
+   block height; `auto` remembers the real height once a block has rendered. */
+.ProseMirror[data-large-doc="true"] > * {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 0 auto 180px;
+}
+
+@media print {
+  .ProseMirror[data-large-doc="true"] > * {
+    content-visibility: visible;
+  }
+}

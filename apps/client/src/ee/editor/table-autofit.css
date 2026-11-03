@@ -3,6 +3,9 @@
    editor-ext's updateColumns. Applies to print/PDF too. */
 .ProseMirror .tableWrapper table {
   width: 100% !important;
+  /* Never squeeze columns below their saved widths: wider tables overflow and
+     scroll horizontally inside .tableWrapper (overflow-x: auto). */
+  min-width: min-content !important;
 }
 
 /* Fit content: table shrinks to its content. */
