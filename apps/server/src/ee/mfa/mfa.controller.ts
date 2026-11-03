@@ -25,27 +25,27 @@ import { AuthThrottle } from './auth-throttle.decorator';
 export class MfaController {
   constructor(private readonly mfaService: MfaService) {}
 
+  @RequireFeature(Feature.MFA)
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
   @Post('status')
-  @RequireFeature(Feature.MFA)
   async status(@AuthUser() user: User) {
     return this.mfaService.getStatus(user.id);
   }
 
+  @RequireFeature(Feature.MFA)
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
   @Post('setup')
-  @RequireFeature(Feature.MFA)
   async setup(@AuthUser() user: User, @AuthWorkspace() workspace: Workspace) {
     return this.mfaService.setup(user, workspace);
   }
 
   @AuthThrottle()
+  @RequireFeature(Feature.MFA)
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
   @Post('enable')
-  @RequireFeature(Feature.MFA)
   async enable(
     @AuthUser() user: User,
     @Body() body: { verificationCode: string },
@@ -54,10 +54,10 @@ export class MfaController {
   }
 
   @AuthThrottle()
+  @RequireFeature(Feature.MFA)
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
   @Post('disable')
-  @RequireFeature(Feature.MFA)
   async disable(
     @AuthUser() user: User,
     @AuthWorkspace() workspace: Workspace,
@@ -67,10 +67,10 @@ export class MfaController {
   }
 
   @AuthThrottle()
+  @RequireFeature(Feature.MFA)
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
   @Post('generate-backup-codes')
-  @RequireFeature(Feature.MFA)
   async generateBackupCodes(
     @AuthUser() user: User,
     @AuthWorkspace() workspace: Workspace,
