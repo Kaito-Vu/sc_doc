@@ -1,0 +1,71 @@
+.spaceName {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  padding: var(--mantine-spacing-xs);
+  color: light-dark(var(--mantine-color-dark-4), var(--mantine-color-dark-0));
+}
+
+.scroll {
+  max-height: 320px;
+  overflow-y: auto;
+  margin-top: var(--mantine-spacing-xs);
+}
+
+.groupLabel {
+  padding: 6px 8px 2px;
+  font-size: var(--mantine-font-size-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--mantine-color-dimmed);
+}
+
+.option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 4px 4px 8px;
+  min-height: 34px;
+  border-radius: var(--mantine-radius-sm);
+  cursor: pointer;
+  transition: background-color 120ms ease;
+}
+
+.option[data-active="true"] {
+  background-color: light-dark(
+    var(--mantine-color-gray-1),
+    var(--mantine-color-dark-5)
+  );
+  outline: 2px solid var(--mantine-primary-color-filled);
+  outline-offset: -2px;
+}
+
+.option:hover {
+  background-color: light-dark(
+    var(--mantine-color-gray-0),
+    var(--mantine-color-dark-6)
+  );
+}
+
+.optionName {
+  flex: 1;
+  min-width: 0;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .option {
+    transition: none;
+  }
+}

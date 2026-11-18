@@ -1,5 +1,3 @@
-export type StatsPeriod = "week" | "month" | "year";
-
 export interface IWeeklyCount {
   weekStart: string;
   count: number;
@@ -35,4 +33,56 @@ export interface IContributorStat {
   createdCount: number;
   editCount: number;
   contributionScore: number;
+}
+
+export interface IMonthlyTrendPoint {
+  month: string; // YYYY-MM
+  pagesCreated: number;
+  activeEditors: number;
+  newUsers: number;
+  edits: number;
+}
+
+export interface IVerificationSummary {
+  expiring: Record<string, number>;
+  qms: Record<string, number>;
+  total: number;
+}
+
+export interface IWorkspaceExtraStats {
+  monthlyTrend: IMonthlyTrendPoint[];
+  activeUsers: { last7Days: number; last30Days: number };
+  stalePages: { over90Days: number; over180Days: number };
+  verification: IVerificationSummary;
+  comments: { createdThisMonth: number; unresolved: number };
+}
+
+export interface ISpaceRankRow {
+  spaceId: string;
+  name: string;
+  slug: string;
+  value: number;
+}
+
+export interface ISpacesRanking {
+  month: string;
+  byPages: (ISpaceRankRow & { editsThisMonth: number; memberCount: number })[];
+  byStorage: ISpaceRankRow[];
+  byStalePages: ISpaceRankRow[];
+}
+
+export interface ISpaceOverview {
+  month: string;
+  pagesCreated: number;
+  pagesEdited: number;
+  edits: number;
+  comments: { createdInMonth: number; unresolved: number };
+  stalePages90Days: number;
+  mostEditedPages: {
+    pageId: string;
+    slugId: string;
+    title: string;
+    icon: string | null;
+    edits: number;
+  }[];
 }

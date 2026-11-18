@@ -113,7 +113,8 @@ export class ScimTokenService {
     if (!token) {
       throw new UnauthorizedException('Invalid SCIM token');
     }
-    await this.scimTokenRepo.touchLastUsed(token.id);
+    // best-effort bookkeeping: keep it off the request's critical path
+    this.scimTokenRepo.touchLastUsed(token.id).catch(() => undefined);
     return token;
   }
 }

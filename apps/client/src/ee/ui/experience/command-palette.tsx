@@ -32,12 +32,16 @@ import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useUnifiedSearch } from "@/features/search/hooks/use-unified-search";
 import type { IPageSearch } from "@/features/search/types/search.types";
-import { useGetSpacesQuery } from "@/features/space/queries/space-query";
+import { useParams } from "react-router-dom";
+import { useFavoriteIds } from "@/features/favorite/queries/favorite-query";
+import { useSpaceSwitcherData } from "@/ee/ui/space-switcher/use-space-switcher-data";
+import { parseSpacesMode } from "./palette-spaces-mode";
 import { buildPageUrl } from "@/features/page/page.utils";
 import { getSpaceUrl } from "@/lib/config";
 import { searchSpotlight } from "@/features/search/constants";
 import { workspaceAtom } from "@/features/user/atoms/current-user-atom";
 import {
+  commandPaletteInitialQueryAtom,
   commandPaletteOpenedAtom,
   quickCreateOpenedAtom,
   recentPagesListAtom,
@@ -50,10 +54,20 @@ type CommandItem = {
   section: string;
   icon: React.ReactNode;
   hint?: string;
+  markers?: string[];
+  keepOpen?: boolean;
   run: () => void;
 };
 
-const SECTION_ORDER = ["Actions", "Pages", "Spaces", "Recent"];
+const SECTION_ORDER = [
+  "Actions",
+  "Pages",
+  "Recent spaces",
+  "Favorite spaces",
+  "Spaces",
+  "Recent",
+];
+const COLLAPSED_SPACES = 8;
 
 export function CommandPalette() {
   const { t } = useTranslation();
@@ -65,13 +79,20 @@ export function CommandPalette() {
   const [query, setQuery] = useState("");
   const [debouncedQuery] = useDebouncedValue(query, 250);
   const [activeIndex, setActiveIndex] = useState(0);
+  const [initialQuery, setInitialQuery] = useAtom(commandPaletteInitialQueryAtom);
+  const { spaceSlug: currentSpaceSlug } = useParams();
+  const favoriteIds = useFavoriteIds("space");
+  const { spacesMode, term: spaceTerm } = parseSpacesMode(query);
 
   const aiChatEnabled = workspace?.settings?.ai?.chat === true;
 
-  const { data: spacesData } = useGetSpacesQuery({ limit: 100 });
+  const spaceData = useSpaceSwitcherData(
+    opened && (spacesMode || spaceTerm.length > 0) ? spaceTerm : "",
+    opened && (spacesMode || spaceTerm.length > 0),
+  );
   const { data: searchResults, isFetching } = useUnifiedSearch(
     { query: debouncedQuery, contentType: "page" },
-    opened && debouncedQuery.trim().length >= 2,
+    opened && !spacesMode && debouncedQuery.trim().length >= 2,
   );
 
   const close = () => {
@@ -80,9 +101,9 @@ export function CommandPalette() {
     setActiveIndex(0);
   };
 
-  const run = (action: () => void) => {
-    close();
-    action();
+  const run = (item: CommandItem) => {
+    if (!item.keepOpen) close();
+    item.run();
   };
 
   useHotkeys([["mod+Shift+K", () => setOpened((value) => !value)]]);
@@ -90,6 +111,13 @@ export function CommandPalette() {
   useEffect(() => {
     setActiveIndex(0);
   }, [query, opened]);
+
+  useEffect(() => {
+    if (opened && initialQuery) {
+      setQuery(initialQuery);
+      setInitialQuery("");
+    }
+  }, [opened, initialQuery, setInitialQuery]);
 
   const items = useMemo<CommandItem[]>(() => {
     const term = query.trim().toLocaleLowerCase();
@@ -177,10 +205,12 @@ export function CommandPalette() {
       });
     }
 
-    const actionItems = actions.filter((item) => matches(item.label));
+    const actionItems = spacesMode
+      ? []
+      : actions.filter((item) => matches(item.label));
 
     const pageItems: CommandItem[] =
-      debouncedQuery.trim().length >= 2
+      !spacesMode && debouncedQuery.trim().length >= 2
         ? ((searchResults ?? []) as IPageSearch[]).slice(0, 8).map((result) => ({
             id: `page-${result.id}`,
             label: result.title || t("Untitled"),
@@ -198,18 +228,65 @@ export function CommandPalette() {
           }))
         : [];
 
-    const spaceItems: CommandItem[] = (spacesData?.items ?? [])
-      .filter((space) => matches(space.name))
-      .slice(0, 8)
-      .map((space) => ({
-        id: `space-${space.id}`,
-        label: space.name,
-        section: "Spaces",
-        icon: <IconLayoutGrid size={18} />,
-        run: () => navigate(getSpaceUrl(space.slug)),
-      }));
+    const { sections: sp } = spaceData;
+    const seenSpaces = new Set<string>();
+    const toSpaceItem = (
+      space: (typeof sp.all)[number],
+      section: string,
+    ): CommandItem[] => {
+      if (seenSpaces.has(space.id)) return [];
+      seenSpaces.add(space.id);
+      const markers = [
+        space.slug === currentSpaceSlug ? t("Current") : "",
+        favoriteIds.has(space.id) ? t("Pinned") : "",
+        space.isPersonal ? t("Personal") : "",
+        space.isArchived ? t("Archived") : "",
+      ].filter(Boolean);
+      return [
+        {
+          id: `space-${section}-${space.id}`,
+          label: space.name,
+          section,
+          icon: <IconLayoutGrid size={18} />,
+          markers,
+          run: () => navigate(getSpaceUrl(space.slug)),
+        },
+      ];
+    };
 
-    const recentItems: CommandItem[] = recentPages
+    let spaceItems: CommandItem[] = [];
+    if (spacesMode) {
+      spaceItems = [
+        ...sp.recent.flatMap((s) => toSpaceItem(s, "Recent spaces")),
+        ...sp.favorites.flatMap((s) => toSpaceItem(s, "Favorite spaces")),
+        ...sp.all.flatMap((s) => toSpaceItem(s, "Spaces")),
+      ];
+      if (spaceData.hasNextPage) {
+        spaceItems.push({
+          id: "spaces-more",
+          label: t("Show more spaces"),
+          section: "Spaces",
+          icon: <IconPlus size={18} />,
+          keepOpen: true,
+          run: () => spaceData.fetchNextPage(),
+        });
+      }
+    } else if (spaceTerm) {
+      const all = sp.all.flatMap((s) => toSpaceItem(s, "Spaces"));
+      spaceItems = all.slice(0, COLLAPSED_SPACES);
+      if (all.length > COLLAPSED_SPACES || spaceData.hasNextPage) {
+        spaceItems.push({
+          id: "spaces-more",
+          label: t("Show more spaces"),
+          section: "Spaces",
+          icon: <IconPlus size={18} />,
+          keepOpen: true,
+          run: () => setQuery(`s ${spaceTerm}`),
+        });
+      }
+    }
+
+    const recentItems: CommandItem[] = (spacesMode ? [] : recentPages)
       .filter((page) => matches(page.title || ""))
       .slice(0, 6)
       .map((page) => ({
@@ -227,13 +304,17 @@ export function CommandPalette() {
     return [...actionItems, ...pageItems, ...spaceItems, ...recentItems];
   }, [
     aiChatEnabled,
+    currentSpaceSlug,
+    favoriteIds,
+    spaceData,
+    spaceTerm,
+    spacesMode,
     debouncedQuery,
     navigate,
     query,
     recentPages,
     searchResults,
     setQuickCreateOpened,
-    spacesData,
     t,
   ]);
 
@@ -269,7 +350,7 @@ export function CommandPalette() {
     } else if (event.key === "Enter") {
       event.preventDefault();
       const item = items[activeIndex];
-      if (item) run(item.run);
+      if (item) run(item);
     } else if (event.key === "Escape") {
       event.preventDefault();
       close();
@@ -299,7 +380,7 @@ export function CommandPalette() {
         role="combobox"
         aria-autocomplete="list"
         aria-expanded={opened}
-        aria-controls="sc-command-listbox"
+        aria-controls={grouped.length > 0 ? "sc-command-listbox" : undefined}
         aria-activedescendant={
           items[activeIndex]
             ? `sc-command-option-${items[activeIndex].id}`
@@ -307,7 +388,11 @@ export function CommandPalette() {
         }
         leftSection={<IconSearch size={18} />}
         rightSection={
-          isFetching ? <Loader size="xs" /> : <Kbd size="xs">Esc</Kbd>
+          isFetching || spaceData.isPending ? (
+            <Loader size="xs" />
+          ) : (
+            <Kbd size="xs">Esc</Kbd>
+          )
         }
         variant="unstyled"
         size="lg"
@@ -318,10 +403,23 @@ export function CommandPalette() {
       <Divider />
 
       <VisuallyHidden role="status" aria-live="polite">
-        {items.length > 0
-          ? t("{{count}} results", { count: items.length })
-          : t("No results")}
+        {spaceData.isPending
+          ? t("Loading spaces")
+          : items.length > 0
+            ? t("{{count}} results", { count: items.length })
+            : t("No results")}
       </VisuallyHidden>
+
+      {spacesMode ? (
+        <Group gap="xs" px="md" py={6}>
+          <Badge size="sm" variant="filled">
+            {t("Spaces")}
+          </Badge>
+          <Text size="xs" c="dimmed">
+            {t("Searching spaces only")}
+          </Text>
+        </Group>
+      ) : null}
 
       <ScrollArea.Autosize mah={420} type="scroll">
         {grouped.length === 0 ? (
@@ -368,7 +466,7 @@ export function CommandPalette() {
                       aria-selected={isActive}
                       tabIndex={-1}
                       data-command-active={isActive || undefined}
-                      onClick={() => run(item.run)}
+                      onClick={() => run(item)}
                       onMouseEnter={() => setActiveIndex(index)}
                       w="100%"
                       px="md"
@@ -389,6 +487,16 @@ export function CommandPalette() {
                       <Text size="sm" style={{ flex: 1 }} ta="left">
                         {item.label}
                       </Text>
+                      {item.markers?.map((marker) => (
+                        <Badge
+                          key={marker}
+                          size="xs"
+                          variant="outline"
+                          color="gray"
+                        >
+                          {marker}
+                        </Badge>
+                      ))}
                       {item.hint ? (
                         <Badge
                           size="xs"

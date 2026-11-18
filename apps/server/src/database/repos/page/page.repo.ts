@@ -602,6 +602,7 @@ export class PageRepo {
     workspaceId: string;
     spaceId?: string;
     since: Date;
+    until?: Date;
   }): Promise<
     { userId: string; name: string; avatarUrl: string | null; count: number }[]
   > {
@@ -618,6 +619,10 @@ export class PageRepo {
       .where('pages.deletedAt', 'is', null)
       .where('pages.createdAt', '>=', params.since)
       .groupBy(['pages.creatorId', 'users.name', 'users.avatarUrl']);
+
+    if (params.until) {
+      query = query.where('pages.createdAt', '<', params.until);
+    }
 
     if (params.spaceId) {
       query = query.where('pages.spaceId', '=', params.spaceId);

@@ -57,3 +57,5 @@ export const savedSearchViewsAtom = atomWithStorage<SavedSearchView[]>(
   undefined,
   { getOnInit: true },
 );
+
+export const commandPaletteInitialQueryAtom = atom("");

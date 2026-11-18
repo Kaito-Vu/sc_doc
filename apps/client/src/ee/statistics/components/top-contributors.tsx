@@ -1,24 +1,22 @@
-import { Group, Paper, SegmentedControl, Stack, Text } from "@mantine/core";
+import { Group, Paper, Stack, Text } from "@mantine/core";
 import { useTranslation } from "react-i18next";
 import { CustomAvatar } from "@/components/ui/custom-avatar.tsx";
 import { formatNumber } from "@/ee/statistics/lib/format-number";
-import {
-  IContributorStat,
-  StatsPeriod,
-} from "@/ee/statistics/types/statistics.types";
+import MonthNavigator from "@/ee/statistics/components/month-navigator";
+import { IContributorStat } from "@/ee/statistics/types/statistics.types";
 
 interface TopContributorsProps {
   data: IContributorStat[] | undefined;
   isLoading: boolean;
-  period: StatsPeriod;
-  onPeriodChange: (period: StatsPeriod) => void;
+  month: string;
+  onMonthChange: (month: string) => void;
 }
 
 export default function TopContributors({
   data,
   isLoading,
-  period,
-  onPeriodChange,
+  month,
+  onMonthChange,
 }: TopContributorsProps) {
   const { t } = useTranslation();
 
@@ -26,16 +24,7 @@ export default function TopContributors({
     <Paper withBorder p="md" radius="md">
       <Group justify="space-between" mb="sm">
         <Text fw={600}>{t("Top contributors")}</Text>
-        <SegmentedControl
-          size="xs"
-          value={period}
-          onChange={(value) => onPeriodChange(value as StatsPeriod)}
-          data={[
-            { label: t("Week"), value: "week" },
-            { label: t("Month"), value: "month" },
-            { label: t("Year"), value: "year" },
-          ]}
-        />
+        <MonthNavigator month={month} onChange={onMonthChange} />
       </Group>
 
       <Stack gap="xs">

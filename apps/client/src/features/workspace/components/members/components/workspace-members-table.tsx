@@ -86,7 +86,7 @@ export default function WorkspaceMembersTable() {
         />
       </Group>
       <Paper withBorder radius="md">
-        <Table.ScrollContainer minWidth={600}>
+        <Table.ScrollContainer minWidth={600} scrollAreaProps={{ scrollbars: false }}>
           <Table verticalSpacing="md" horizontalSpacing="lg">
             <Table.Thead>
               <Table.Tr>

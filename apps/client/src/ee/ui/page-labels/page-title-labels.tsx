@@ -1,7 +1,7 @@
 import { useState } from "react";
 import clsx from "clsx";
 import { Popover } from "@mantine/core";
-import { IconPlus } from "@tabler/icons-react";
+import { IconPlus, IconTag } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
 import { LabelChip } from "@/features/label/components/label-chip.tsx";
 import { LabelPicker } from "@/features/label/components/label-picker.tsx";
@@ -26,7 +26,7 @@ export function PageTitleLabels({ pageId, canEdit }: Props) {
   if (!canEdit && labels.length === 0) return null;
 
   return (
-    <div className={clsx(classes.labelsWrap, "print-hide")} style={{ marginBottom: 12 }}>
+    <div className={clsx(classes.labelsWrap, "print-hide")} style={{ margin: 0, gap: 4 }}>
       {labels.map((label) => (
         <LabelChip
           key={label.id}
@@ -52,10 +52,17 @@ export function PageTitleLabels({ pageId, canEdit }: Props) {
             <button
               type="button"
               className={clsx(classes.addBtn, open && classes.addBtnOpen)}
+              style={labels.length ? { padding: "0 6px" } : undefined}
               onClick={() => setOpen((v) => !v)}
             >
-              <IconPlus size={12} stroke={2} />
-              <span>{labels.length === 0 ? t("Add label") : t("Add")}</span>
+              {labels.length === 0 ? (
+                <>
+                  <IconTag size={12} stroke={2} />
+                  <span>{t("Add label")}</span>
+                </>
+              ) : (
+                <IconPlus size={12} stroke={2} aria-label={t("Add label")} />
+              )}
             </button>
           </Popover.Target>
           <Popover.Dropdown p={0} className={classes.popover}>

@@ -2,8 +2,10 @@ import api from "@/lib/api-client";
 import {
   IContributorStat,
   ISpaceStats,
+  ISpaceOverview,
+  ISpacesRanking,
+  IWorkspaceExtraStats,
   IWorkspaceStats,
-  StatsPeriod,
 } from "@/ee/statistics/types/statistics.types";
 
 export async function getWorkspaceStatistics(): Promise<IWorkspaceStats> {
@@ -12,11 +14,11 @@ export async function getWorkspaceStatistics(): Promise<IWorkspaceStats> {
 }
 
 export async function getWorkspaceTopContributors(
-  period: StatsPeriod,
+  month: string,
 ): Promise<IContributorStat[]> {
   const req = await api.post<IContributorStat[]>(
     "/statistics/workspace/top-contributors",
-    { period },
+    { month },
   );
   return req.data;
 }
@@ -30,11 +32,36 @@ export async function getSpaceStatistics(
 
 export async function getSpaceTopContributors(
   spaceId: string,
-  period: StatsPeriod,
+  month: string,
 ): Promise<IContributorStat[]> {
   const req = await api.post<IContributorStat[]>(
     "/statistics/space/top-contributors",
-    { spaceId, period },
+    { spaceId, month },
   );
+  return req.data;
+}
+
+export async function getWorkspaceExtraStatistics(): Promise<IWorkspaceExtraStats> {
+  const req = await api.post<IWorkspaceExtraStats>(
+    "/statistics/workspace/overview-extra",
+    {},
+  );
+  return req.data;
+}
+
+export async function getSpacesRanking(): Promise<ISpacesRanking> {
+  const req = await api.post<ISpacesRanking>(
+    "/statistics/workspace/spaces-ranking",
+    {},
+  );
+  return req.data;
+}
+
+export async function getSpaceOverview(
+  spaceId: string,
+): Promise<ISpaceOverview> {
+  const req = await api.post<ISpaceOverview>("/statistics/space/overview", {
+    spaceId,
+  });
   return req.data;
 }

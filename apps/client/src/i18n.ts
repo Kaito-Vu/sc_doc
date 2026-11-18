@@ -24,7 +24,6 @@ i18n
     fallbackLng: DEFAULT_LOCALE,
     supportedLngs: [...SUPPORTED_LOCALES],
     debug: false,
-    showSupportNotice: false,
     load: "currentOnly",
 
     interpolation: {

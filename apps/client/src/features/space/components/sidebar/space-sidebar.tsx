@@ -98,6 +98,8 @@ export function SpaceSidebar() {
             slug: space.slug,
             logo: space.logo,
             isPublished: isBetaPublicSpaces() && space.isPublished,
+            isArchived: !!space.archivedAt,
+            hasHomePage: !!space.homePage,
           }}
           canManagePages={spaceAbility.can(
             SpaceCaslAction.Manage,

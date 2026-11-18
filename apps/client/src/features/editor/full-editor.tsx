@@ -140,8 +140,8 @@ export function FullEditor({
         creator={creator}
         contributors={contributors}
         readOnly={!editable}
+        pageId={pageId}
       />
-      <PageTitleLabels pageId={pageId} canEdit={editable} />
       <MemoizedPageEditor
         pageId={pageId}
         editable={editable}
@@ -162,9 +162,10 @@ type PageBylineProps = {
   creator?: PageUser;
   contributors?: IContributor[];
   readOnly?: boolean;
+  pageId: string;
 };
 
-function PageByline({ creator, contributors, readOnly }: PageBylineProps) {
+function PageByline({ creator, contributors, readOnly, pageId }: PageBylineProps) {
   const { t } = useTranslation();
   const detailsTriggerProps = useAsideTriggerProps("details");
 
@@ -255,6 +256,7 @@ function PageByline({ creator, contributors, readOnly }: PageBylineProps) {
       </Tooltip>
 
       <PageVerificationBadge readOnly={readOnly} />
+      <PageTitleLabels pageId={pageId} canEdit={!readOnly} />
     </Group>
   );
 }

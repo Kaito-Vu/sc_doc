@@ -37,7 +37,7 @@ export interface VerifyActionOptions {
 export class RecaptchaService {
   private readonly logger = new Logger(RecaptchaService.name)
   private readonly VERIFY_URL = 'https://www.google.com/recaptcha/api/siteverify'
-  private readonly TIMEOUT = 5000
+  private readonly TIMEOUT = 1500
 
   constructor(
     private readonly configService: PluginConfigService,

@@ -1,9 +1,3 @@
-import { IsIn, IsUUID } from 'class-validator';
+import { SpaceMonthDto } from './month.dto';
 
-export class SpaceTopContributorsDto {
-  @IsUUID()
-  spaceId: string;
-
-  @IsIn(['week', 'month', 'year'])
-  period: 'week' | 'month' | 'year';
-}
+export class SpaceTopContributorsDto extends SpaceMonthDto {}

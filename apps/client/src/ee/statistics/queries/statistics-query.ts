@@ -4,16 +4,21 @@ import {
   UseQueryResult,
 } from "@tanstack/react-query";
 import {
+  getSpaceOverview,
   getSpaceStatistics,
+  getSpacesRanking,
   getSpaceTopContributors,
+  getWorkspaceExtraStatistics,
   getWorkspaceStatistics,
   getWorkspaceTopContributors,
 } from "@/ee/statistics/services/statistics-service";
 import {
   IContributorStat,
+  ISpaceOverview,
   ISpaceStats,
+  ISpacesRanking,
+  IWorkspaceExtraStats,
   IWorkspaceStats,
-  StatsPeriod,
 } from "@/ee/statistics/types/statistics.types";
 
 export function useWorkspaceStatisticsQuery(
@@ -27,13 +32,13 @@ export function useWorkspaceStatisticsQuery(
 }
 
 export function useWorkspaceTopContributorsQuery(
-  period: StatsPeriod,
+  month: string,
   enabled: boolean,
 ): UseQueryResult<IContributorStat[], Error> {
   return useQuery({
-    queryKey: ["workspace-top-contributors", period],
-    queryFn: () => getWorkspaceTopContributors(period),
-    // Keep the current list on screen while another period loads.
+    queryKey: ["workspace-top-contributors", month],
+    queryFn: () => getWorkspaceTopContributors(month),
+    // Keep the current list on screen while another month loads.
     placeholderData: keepPreviousData,
     enabled,
   });
@@ -52,15 +57,46 @@ export function useSpaceStatisticsQuery(
 
 export function useSpaceTopContributorsQuery(
   spaceId: string,
-  period: StatsPeriod,
+  month: string,
   enabled: boolean,
 ): UseQueryResult<IContributorStat[], Error> {
   return useQuery({
-    queryKey: ["space-top-contributors", spaceId, period],
-    queryFn: () => getSpaceTopContributors(spaceId, period),
-    // Only across a period switch; never show another space's contributors.
+    queryKey: ["space-top-contributors", spaceId, month],
+    queryFn: () => getSpaceTopContributors(spaceId, month),
+    // Only across a month switch; never show another space's contributors.
     placeholderData: (prev, prevQuery) =>
       prevQuery?.queryKey[1] === spaceId ? prev : undefined,
+    enabled: enabled && !!spaceId,
+  });
+}
+
+export function useWorkspaceExtraStatisticsQuery(
+  enabled: boolean,
+): UseQueryResult<IWorkspaceExtraStats, Error> {
+  return useQuery({
+    queryKey: ["workspace-statistics-extra"],
+    queryFn: () => getWorkspaceExtraStatistics(),
+    enabled,
+  });
+}
+
+export function useSpacesRankingQuery(
+  enabled: boolean,
+): UseQueryResult<ISpacesRanking, Error> {
+  return useQuery({
+    queryKey: ["workspace-spaces-ranking"],
+    queryFn: () => getSpacesRanking(),
+    enabled,
+  });
+}
+
+export function useSpaceOverviewQuery(
+  spaceId: string,
+  enabled: boolean,
+): UseQueryResult<ISpaceOverview, Error> {
+  return useQuery({
+    queryKey: ["space-statistics-overview", spaceId],
+    queryFn: () => getSpaceOverview(spaceId),
     enabled: enabled && !!spaceId,
   });
 }

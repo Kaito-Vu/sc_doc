@@ -6,6 +6,7 @@ import { executeWithCursorPagination } from '@docmost/db/pagination/cursor-pagin
 import { jsonObjectFrom } from 'kysely/helpers/postgres';
 import { sql } from 'kysely';
 import { stringify } from 'csv-stringify/sync';
+import { ttlMemo } from '../common/ttl-memo';
 import { AuditQueryFilters, MIN_AUDIT_RETENTION_DAYS } from './dto/audit-query.dto';
 
 const EXPORT_ROW_LIMIT = 20000;
@@ -270,7 +271,16 @@ export class AuditQueryService {
     return row ? this.mapRow(row) : null;
   }
 
-  async getStats(workspaceId: string, rawFilters: AuditQueryFilters) {
+  getStats(workspaceId: string, rawFilters: AuditQueryFilters) {
+    // 6 parallel aggregates per call: memoize briefly per workspace+filters
+    return ttlMemo(
+      `audit-stats:${workspaceId}:${JSON.stringify(rawFilters ?? {})}`,
+      30_000,
+      () => this.computeStats(workspaceId, rawFilters),
+    );
+  }
+
+  private async computeStats(workspaceId: string, rawFilters: AuditQueryFilters) {
     const filters = withDefaultWindow(rawFilters);
     const base = () =>
       this.applyFilters(

@@ -65,9 +65,15 @@ function mergeConfig(
   }
 }
 
+const CONFIG_CACHE_TTL_MS = 5000
+
 @Injectable()
 export class PluginConfigService {
   private readonly logger = new Logger(PluginConfigService.name)
+  private readonly configCache = new Map<
+    string,
+    { value: PluginConfigData; exp: number }
+  >()
 
   constructor(
     @InjectKysely() private readonly db: Kysely<any>,
@@ -83,6 +89,12 @@ export class PluginConfigService {
       throw new NotFoundException(`Plugin ${pluginId} not found`)
     }
 
+    // Hot path (login hooks): short per-process TTL cache.
+    // ponytail: other nodes see updates after <= CONFIG_CACHE_TTL_MS; use Redis pub/sub if that matters.
+    const key = `${workspaceId}:${pluginId}`
+    const hit = this.configCache.get(key)
+    if (hit && hit.exp > Date.now()) return hit.value
+
     const config = await this.db
       .selectFrom('plugin_configurations')
       .selectAll()
@@ -90,18 +102,18 @@ export class PluginConfigService {
       .where('plugin_id', '=', pluginId)
       .executeTakeFirst()
 
-    if (!config) {
-      return {
-        id: null,
-        workspaceId,
-        pluginId,
-        enabled: false,
-        config: {},
-        version: 0,
-      }
-    }
-
-    return toConfigData(config)
+    const value: PluginConfigData = config
+      ? toConfigData(config)
+      : {
+          id: null,
+          workspaceId,
+          pluginId,
+          enabled: false,
+          config: {},
+          version: 0,
+        }
+    this.configCache.set(key, { value, exp: Date.now() + CONFIG_CACHE_TTL_MS })
+    return value
   }
 
   async updateConfig(
@@ -126,6 +138,8 @@ export class PluginConfigService {
       userId,
       plugin.configSchema,
     )
+
+    this.configCache.delete(`${workspaceId}:${pluginId}`)
 
     this.logger.log(
       `Plugin ${pluginId} config updated in workspace ${workspaceId}`,

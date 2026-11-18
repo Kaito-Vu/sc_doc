@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import {
   ActionIcon,
   Button,
@@ -8,7 +8,6 @@ import {
   Tooltip,
 } from "@mantine/core";
 import {
-  IconArrowRight,
   IconClipboardCheck,
   IconCommand,
   IconHome,
@@ -29,15 +28,12 @@ import { useDisclosure } from "@mantine/hooks";
 import { currentUserAtom, workspaceAtom } from "@/features/user/atoms/current-user-atom";
 import { mobileSidebarAtom } from "@/components/layouts/global/hooks/atoms/sidebar-atom";
 import { useToggleSidebar } from "@/components/layouts/global/hooks/hooks/use-toggle-sidebar";
-import { useFavoritesQuery } from "@/features/favorite/queries/favorite-query";
-import { useGetSpacesQuery } from "@/features/space/queries/space-query";
 import { useHasFeature } from "@/ee/hooks/use-feature";
 import { useUpgradeLabel } from "@/ee/hooks/use-upgrade-label";
 import { Feature } from "@/ee/features";
 import { useVerificationListQuery } from "@/ee/page-verification/queries/page-verification-query";
 import { usePersonalSpaceQuery } from "@/ee/personal-space/queries/personal-space-query";
 import CreatePersonalSpaceModal from "@/ee/personal-space/components/create-personal-space-modal";
-import { excludePersonalSpaces } from "@/ee/personal-space/lib/filter-personal-spaces";
 import { WorkspaceInviteForm } from "@/features/workspace/components/members/components/workspace-invite-form";
 import { CustomAvatar } from "@/components/ui/custom-avatar";
 import { searchSpotlight } from "@/features/search/constants";
@@ -49,10 +45,8 @@ import {
 } from "@/ee/ui/experience/atoms";
 import {
   SidebarNavItem,
-  SidebarSection,
-  SidebarSpaceRow,
-  SidebarEmpty,
 } from "./sidebar-components";
+import { SidebarSpacesNav } from "./sidebar-spaces-nav";
 import classes from "./global-sidebar-v2.module.css";
 
 export function GlobalSidebarV2() {
@@ -74,8 +68,6 @@ export function GlobalSidebarV2() {
   const [personalCreateOpened, setPersonalCreateOpened] = useState(false);
 
   const { data: personalSpace } = usePersonalSpaceQuery(hasPersonalSpaces);
-  const { data: favoriteSpacesData } = useFavoritesQuery("space");
-  const { data: spacesData } = useGetSpacesQuery({ limit: 50 });
   const { data: reviewData } = useVerificationListQuery(
     {
       verifierId: user?.id,
@@ -98,23 +90,6 @@ export function GlobalSidebarV2() {
         item.status === "in_approval" ||
         item.status === "needs_clarification",
     ).length ?? 0;
-
-  const favoriteSpaces = useMemo(() => {
-    const items =
-      favoriteSpacesData?.pages
-        .flatMap((page) => page.items)
-        .flatMap((favorite) =>
-          favorite.space?.id && favorite.space?.slug
-            ? [favorite.space]
-            : [],
-        ) ?? [];
-    return items.sort((a, b) => a.name.localeCompare(b.name));
-  }, [favoriteSpacesData]);
-
-  const allSpaces = useMemo(
-    () => excludePersonalSpaces(spacesData?.items ?? []),
-    [spacesData],
-  );
 
   const handleNavClick = () => {
     if (mobileSidebarOpened) {
@@ -234,69 +209,11 @@ export function GlobalSidebarV2() {
           )}
         </nav>
 
-        {favoriteSpaces.length > 0 && (
-          <SidebarSection
-            title={t("Favorite spaces")}
-            collapsible
-            defaultOpened
-          >
-            {favoriteSpaces.slice(0, 8).map((space) => (
-              <SidebarSpaceRow
-                key={space.id}
-                space={space}
-                active={isSpaceActive(space.slug)}
-                onClick={handleNavClick}
-              />
-            ))}
-          </SidebarSection>
-        )}
-
-        <SidebarSection
-          title={t("Spaces")}
-          collapsible
-          action={
-            <Tooltip label={t("View all spaces")} withArrow>
-              <ActionIcon
-                component={Link}
-                to="/spaces"
-                variant="subtle"
-                color="gray"
-                size="xs"
-                aria-label={t("View all spaces")}
-                onClick={handleNavClick}
-              >
-                <IconArrowRight size={14} />
-              </ActionIcon>
-            </Tooltip>
-          }
-        >
-          {allSpaces.length === 0 ? (
-            <SidebarEmpty>{t("No spaces yet")}</SidebarEmpty>
-          ) : (
-            <>
-              {allSpaces.slice(0, 12).map((space) => (
-                <SidebarSpaceRow
-                  key={space.id}
-                  space={space}
-                  active={isSpaceActive(space.slug)}
-                  onClick={handleNavClick}
-                />
-              ))}
-              {allSpaces.length > 12 && (
-                <Link
-                  to="/spaces"
-                  className={classes.viewAll}
-                  onClick={handleNavClick}
-                >
-                  {t("View all {{count}} spaces", {
-                    count: allSpaces.length,
-                  })}
-                  <IconArrowRight size={12} />
-                </Link>
-              )}
-            </>
-          )}
-        </SidebarSection>
+        <SidebarSpacesNav
+          isSpaceActive={isSpaceActive}
+          personalSpaceId={personalSpace?.id}
+          onNavigate={handleNavClick}
+        />
       </ScrollArea>
 
       <div className={classes.footer}>

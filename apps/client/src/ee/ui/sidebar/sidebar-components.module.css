@@ -196,3 +196,67 @@
   }
 }
 
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.sectionHeading {
+  margin: 0;
+  font: inherit;
+}
+
+.chevron {
+  transition: transform 160ms ease;
+}
+
+.chevron[data-opened] {
+  transform: rotate(180deg);
+}
+
+.spaceRowWrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  border-radius: 7px;
+}
+
+.spaceRowWrap > .spaceRow {
+  flex: 1;
+  min-width: 0;
+  padding-right: 34px;
+}
+
+.spaceFav {
+  position: absolute;
+  right: 3px;
+  top: 50%;
+  transform: translateY(-50%);
+  opacity: 0;
+}
+
+.spaceRowWrap:hover .spaceFav,
+.spaceRowWrap:focus-within .spaceFav {
+  opacity: 1;
+}
+
+@media (pointer: coarse) {
+  .spaceFav {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .item,
+  .spaceRow,
+  .chevron {
+    transition: none;
+  }
+}

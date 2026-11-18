@@ -10,7 +10,8 @@ import {
 import { useAtomValue, useSetAtom } from "jotai";
 import { Link, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { SwitchSpace } from "@/features/space/components/sidebar/switch-space";
+import { EeSpaceSwitcher } from "@/ee/ui/space-switcher/ee-space-switcher";
+import { SpaceVisitTracker } from "@/ee/ui/space-switcher/space-visit-tracker";
 import CreatePageMenu from "@/ee/template/components/create-page-menu";
 import { searchSpotlight } from "@/features/search/constants";
 import { getSpaceUrl } from "@/lib/config";
@@ -28,6 +29,8 @@ type SpaceSidebarTopProps = {
     slug: string;
     logo?: string | null;
     isPublished?: boolean;
+    isArchived?: boolean;
+    hasHomePage?: boolean;
   };
   canManagePages: boolean;
   onCreatePage: () => void;
@@ -69,11 +72,19 @@ export function SpaceSidebarTop({
     <div className={classes.root}>
       <div className={classes.header}>
         <div className={classes.switcher}>
-          <SwitchSpace
+          <SpaceVisitTracker
+            id={space.id}
+            slug={space.slug}
+            name={space.name}
+            logo={space.logo}
+          />
+          <EeSpaceSwitcher
+            spaceId={space.id}
             spaceName={space.name}
             spaceSlug={space.slug}
             spaceIcon={space.logo}
             isPublished={space.isPublished}
+            isArchived={space.isArchived}
           />
         </div>
         <Tooltip label={t("Workspace home")} withArrow>
@@ -116,7 +127,7 @@ export function SpaceSidebarTop({
       <nav className={classes.nav} aria-label={t("Space navigation")}>
         <SidebarNavItem
           icon={IconHome}
-          label={t("Overview")}
+          label={space.hasHomePage ? t("Home") : t("Overview")}
           to={spaceUrl}
           active={active.toLowerCase() === spaceUrl.toLowerCase()}
           onNavigate={onNavigate}

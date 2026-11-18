@@ -24,6 +24,7 @@ import {
 import { SpaceIdDto } from '../../core/space/dto/space-id.dto';
 import { WorkspaceTopContributorsDto } from './dto/workspace-top-contributors.dto';
 import { SpaceTopContributorsDto } from './dto/space-top-contributors.dto';
+import { SpaceMonthDto } from './dto/month.dto';
 
 @UseGuards(JwtAuthGuard)
 @Controller('statistics')
@@ -67,7 +68,7 @@ export class StatisticsController {
     this.assertWorkspaceAdmin(user, workspace);
     return this.statisticsService.getTopContributors(
       { workspaceId: workspace.id },
-      dto.period,
+      dto.month,
     );
   }
 
@@ -94,7 +95,45 @@ export class StatisticsController {
     await this.assertSpaceAdmin(user, dto.spaceId);
     return this.statisticsService.getTopContributors(
       { workspaceId: workspace.id, spaceId: dto.spaceId },
-      dto.period,
+      dto.month,
+    );
+  }
+
+  @HttpCode(HttpStatus.OK)
+  @Post('workspace/overview-extra')
+  @RequireFeature(Feature.STATISTICS)
+  async getWorkspaceExtra(
+    @AuthUser() user: User,
+    @AuthWorkspace() workspace: Workspace,
+  ) {
+    this.assertWorkspaceAdmin(user, workspace);
+    return this.statisticsService.getWorkspaceExtra(workspace.id);
+  }
+
+  @HttpCode(HttpStatus.OK)
+  @Post('workspace/spaces-ranking')
+  @RequireFeature(Feature.STATISTICS)
+  async getSpacesRanking(
+    @AuthUser() user: User,
+    @AuthWorkspace() workspace: Workspace,
+  ) {
+    this.assertWorkspaceAdmin(user, workspace);
+    return this.statisticsService.getSpacesRanking(workspace.id);
+  }
+
+  @HttpCode(HttpStatus.OK)
+  @Post('space/overview')
+  @RequireFeature(Feature.STATISTICS)
+  async getSpaceOverview(
+    @Body() dto: SpaceMonthDto,
+    @AuthUser() user: User,
+    @AuthWorkspace() workspace: Workspace,
+  ) {
+    await this.assertSpaceAdmin(user, dto.spaceId);
+    return this.statisticsService.getSpaceOverview(
+      dto.spaceId,
+      workspace.id,
+      dto.month,
     );
   }
 }

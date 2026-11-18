@@ -152,6 +152,7 @@ export class PageHistoryRepo {
     workspaceId: string;
     spaceId?: string;
     since: Date;
+    until?: Date;
   }): Promise<
     { userId: string; name: string; avatarUrl: string | null; count: number }[]
   > {
@@ -171,6 +172,10 @@ export class PageHistoryRepo {
         'users.name',
         'users.avatarUrl',
       ]);
+
+    if (params.until) {
+      query = query.where('pageHistory.createdAt', '<', params.until);
+    }
 
     if (params.spaceId) {
       query = query.where('pageHistory.spaceId', '=', params.spaceId);

@@ -1,4 +1,8 @@
-import { StatisticsService } from './statistics.service';
+import { BadRequestException } from '@nestjs/common';
+import {
+  StatisticsService,
+  summarizeVerification,
+} from './statistics.service';
 
 describe('StatisticsService.getTopContributors', () => {
   let pageRepo: { countCreatedByUserSince: jest.Mock };
@@ -12,6 +16,7 @@ describe('StatisticsService.getTopContributors', () => {
       pageRepo as any,
       {} as any,
       pageHistoryRepo as any,
+      {} as any,
       {} as any,
       {} as any,
     );
@@ -29,7 +34,6 @@ describe('StatisticsService.getTopContributors', () => {
 
     const result = await service.getTopContributors(
       { workspaceId: 'ws1' },
-      'week',
     );
 
     expect(result).toEqual([
@@ -60,22 +64,45 @@ describe('StatisticsService.getTopContributors', () => {
     ]);
   });
 
-  it('passes a ~365-day window for "year" and a ~7-day window for "week"', async () => {
-    pageRepo.countCreatedByUserSince.mockResolvedValue([]);
-    pageHistoryRepo.countEditsByUserSince.mockResolvedValue([]);
-    const now = Date.now();
+  describe('month range', () => {
+    afterEach(() => jest.useRealTimers());
 
-    await service.getTopContributors({ workspaceId: 'ws1' }, 'year');
-    const yearSince = pageRepo.countCreatedByUserSince.mock.calls[0][0].since;
-    const yearDays = (now - yearSince.getTime()) / (24 * 60 * 60 * 1000);
-    expect(yearDays).toBeGreaterThan(364);
-    expect(yearDays).toBeLessThan(366);
+    it('defaults to the current Vietnam-time month as [since, until)', async () => {
+      jest.useFakeTimers().setSystemTime(new Date('2026-11-18T10:00:00Z'));
+      pageRepo.countCreatedByUserSince.mockResolvedValue([]);
+      pageHistoryRepo.countEditsByUserSince.mockResolvedValue([]);
 
-    await service.getTopContributors({ workspaceId: 'ws1' }, 'week');
-    const weekSince = pageRepo.countCreatedByUserSince.mock.calls[1][0].since;
-    const weekDays = (now - weekSince.getTime()) / (24 * 60 * 60 * 1000);
-    expect(weekDays).toBeGreaterThan(6);
-    expect(weekDays).toBeLessThan(8);
+      await service.getTopContributors({ workspaceId: 'ws1' });
+
+      const arg = pageRepo.countCreatedByUserSince.mock.calls[0][0];
+      expect(arg.since.toISOString()).toBe('2026-10-31T17:00:00.000Z');
+      expect(arg.until.toISOString()).toBe('2026-11-30T17:00:00.000Z');
+      expect(pageHistoryRepo.countEditsByUserSince.mock.calls[0][0]).toMatchObject(
+        { since: arg.since, until: arg.until },
+      );
+    });
+
+    it('uses an explicit past month', async () => {
+      jest.useFakeTimers().setSystemTime(new Date('2026-11-18T10:00:00Z'));
+      pageRepo.countCreatedByUserSince.mockResolvedValue([]);
+      pageHistoryRepo.countEditsByUserSince.mockResolvedValue([]);
+
+      await service.getTopContributors({ workspaceId: 'ws1' }, '2026-02');
+
+      const arg = pageRepo.countCreatedByUserSince.mock.calls[0][0];
+      expect(arg.since.toISOString()).toBe('2026-01-31T17:00:00.000Z');
+      expect(arg.until.toISOString()).toBe('2026-02-28T17:00:00.000Z');
+    });
+
+    it('rejects future, too-old and malformed months', async () => {
+      jest.useFakeTimers().setSystemTime(new Date('2026-11-18T10:00:00Z'));
+      for (const bad of ['2026-12', '2020-10', '2026-13', 'nope']) {
+        await expect(
+          service.getTopContributors({ workspaceId: 'ws1' }, bad),
+        ).rejects.toBeInstanceOf(BadRequestException);
+      }
+      expect(pageRepo.countCreatedByUserSince).not.toHaveBeenCalled();
+    });
   });
 
   it('limits results to the top 10 contributors', async () => {
@@ -90,7 +117,6 @@ describe('StatisticsService.getTopContributors', () => {
 
     const result = await service.getTopContributors(
       { workspaceId: 'ws1' },
-      'month',
     );
 
     expect(result).toHaveLength(10);
@@ -103,7 +129,6 @@ describe('StatisticsService.getTopContributors', () => {
 
     await service.getTopContributors(
       { workspaceId: 'ws1', spaceId: 'sp1' },
-      'week',
     );
 
     expect(pageRepo.countCreatedByUserSince.mock.calls[0][0]).toMatchObject({
@@ -158,6 +183,7 @@ describe('StatisticsService.getWorkspaceStats', () => {
       {} as any,
       attachmentRepo as any,
       spaceRepo as any,
+      {} as any,
     );
 
     const result = await service.getWorkspaceStats('ws1');
@@ -202,6 +228,7 @@ describe('StatisticsService.getSpaceStats', () => {
       {} as any,
       {} as any,
       spaceRepo as any,
+      {} as any,
     );
 
     const result = await service.getSpaceStats('sp1', 'ws1');
@@ -214,5 +241,120 @@ describe('StatisticsService.getSpaceStats', () => {
     expect(spaceRepo.findById).toHaveBeenCalledWith('sp1', 'ws1', {
       includeMemberCount: true,
     });
+  });
+});
+
+describe('summarizeVerification', () => {
+  it('folds rows into per-type status maps and a total', () => {
+    expect(
+      summarizeVerification([
+        { type: 'expiring', status: 'verified', count: 4 },
+        { type: 'expiring', status: 'expired', count: 2 },
+        { type: 'qms', status: 'approved', count: 3 },
+        { type: 'qms', status: 'approved', count: 1 },
+      ]),
+    ).toEqual({
+      expiring: { verified: 4, expired: 2 },
+      qms: { approved: 4 },
+      total: 10,
+    });
+  });
+});
+
+describe('StatisticsService extra stats', () => {
+  it('getWorkspaceExtra builds a dense 12-month trend and passes through aggregates', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-11-18T10:00:00Z'));
+    const queries = {
+      pagesCreatedByMonth: jest
+        .fn()
+        .mockResolvedValue([{ month: '2026-11', count: 3 }]),
+      usersJoinedByMonth: jest.fn().mockResolvedValue([]),
+      editsByMonth: jest.fn().mockResolvedValue({
+        edits: [{ month: '2026-10', count: 9 }],
+        editors: [{ month: '2026-10', count: 2 }],
+      }),
+      activeUsers: jest.fn().mockResolvedValue({ last7Days: 1, last30Days: 2 }),
+      stalePages: jest
+        .fn()
+        .mockResolvedValue({ over90Days: 5, over180Days: 1 }),
+      verificationStatusCounts: jest
+        .fn()
+        .mockResolvedValue([{ type: 'expiring', status: 'expired', count: 2 }]),
+      comments: jest
+        .fn()
+        .mockResolvedValue({ createdInMonth: 7, unresolved: 4 }),
+    };
+    const service = new StatisticsService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      queries as any,
+    );
+
+    const res = await service.getWorkspaceExtra('ws-extra-test');
+    jest.useRealTimers();
+
+    expect(res.monthlyTrend).toHaveLength(12);
+    expect(res.monthlyTrend[0].month).toBe('2025-12');
+    expect(res.monthlyTrend[11]).toEqual({
+      month: '2026-11',
+      pagesCreated: 3,
+      activeEditors: 0,
+      newUsers: 0,
+      edits: 0,
+    });
+    expect(res.monthlyTrend[10]).toMatchObject({ edits: 9, activeEditors: 2 });
+    expect(res.comments).toEqual({ createdThisMonth: 7, unresolved: 4 });
+    expect(res.verification.expiring.expired).toBe(2);
+    expect(res.stalePages.over90Days).toBe(5);
+  });
+
+  it('getSpacesRanking merges edits and member counts into the by-pages list', async () => {
+    const queries = {
+      topSpacesByPages: jest
+        .fn()
+        .mockResolvedValue([{ spaceId: 's1', name: 'A', slug: 'a', value: 10 }]),
+      topSpacesByStorage: jest.fn().mockResolvedValue([]),
+      topSpacesByStale: jest.fn().mockResolvedValue([]),
+      editsBySpace: jest.fn().mockResolvedValue(new Map([['s1', 6]])),
+      memberCounts: jest.fn().mockResolvedValue(new Map([['s1', 3]])),
+    };
+    const service = new StatisticsService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      queries as any,
+    );
+    const res = await service.getSpacesRanking('ws-rank-test');
+    expect(res.byPages).toEqual([
+      {
+        spaceId: 's1',
+        name: 'A',
+        slug: 'a',
+        value: 10,
+        editsThisMonth: 6,
+        memberCount: 3,
+      },
+    ]);
+  });
+
+  it('getSpaceOverview validates the month before querying', async () => {
+    const queries = { spaceMonthActivity: jest.fn() };
+    const service = new StatisticsService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      queries as any,
+    );
+    expect(() => service.getSpaceOverview('sp', 'ws', '2999-01')).toThrow(
+      BadRequestException,
+    );
+    expect(queries.spaceMonthActivity).not.toHaveBeenCalled();
   });
 });

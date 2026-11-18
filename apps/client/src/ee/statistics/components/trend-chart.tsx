@@ -9,6 +9,7 @@ interface TrendChartProps {
   data: IWeeklyCount[];
   seriesName: string;
   color?: string;
+  monthly?: boolean; // points are month starts; label as "Nov 26"
 }
 
 export default function TrendChart({
@@ -16,12 +17,15 @@ export default function TrendChart({
   data,
   seriesName,
   color = "blue.6",
+  monthly = false,
 }: TrendChartProps) {
   const chartData = data.map((point) => ({
-    week: new Date(point.weekStart).toLocaleDateString(undefined, {
-      month: "short",
-      day: "numeric",
-    }),
+    week: new Date(point.weekStart).toLocaleDateString(
+      undefined,
+      monthly
+        ? { month: "short", year: "2-digit", timeZone: "UTC" }
+        : { month: "short", day: "numeric" },
+    ),
     [seriesName]: point.count,
   }));
 

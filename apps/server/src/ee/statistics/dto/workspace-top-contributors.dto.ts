@@ -1,6 +1,3 @@
-import { IsIn } from 'class-validator';
+import { WorkspaceMonthDto } from './month.dto';
 
-export class WorkspaceTopContributorsDto {
-  @IsIn(['week', 'month', 'year'])
-  period: 'week' | 'month' | 'year';
-}
+export class WorkspaceTopContributorsDto extends WorkspaceMonthDto {}

@@ -9,7 +9,7 @@ export const SESSION_GUARD_MAX_GRACE_SECONDS = 60;
 export const SESSION_GUARD_STATE_TTL_SECONDS = 180;
 export const SESSION_GUARD_ALIVE_TTL_SECONDS = 15;
 export const SESSION_GUARD_LOCK_TTL_SECONDS = 10;
-export const SESSION_GUARD_LOCK_RETRIES = 25;
+export const SESSION_GUARD_LOCK_RETRIES = 6; // ~0.5s worst case on login; caller already fails open
 export const SESSION_GUARD_LOCK_RETRY_DELAY_MS = 80;
 export const SESSION_GUARD_MAX_OTHER_SESSIONS = 100;
 

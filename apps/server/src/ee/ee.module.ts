@@ -35,6 +35,7 @@ import { ClientLogModule } from './logging/client-log.module';
 import { PlatformModule } from './platform/platform.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { PageLabelInheritModule } from './page-label-inherit/page-label-inherit.module';
+import { AnnouncementModule } from './announcement/announcement.module';
 import { FeatureGateGuard } from './common/guards/feature-gate.guard';
 
 @Module({
@@ -75,6 +76,7 @@ import { FeatureGateGuard } from './common/guards/feature-gate.guard';
     DocMetadataModule,
     NotificationsModule,
     PageLabelInheritModule,
+    AnnouncementModule,
   ],
   providers: [FeatureGateGuard],
   exports: [

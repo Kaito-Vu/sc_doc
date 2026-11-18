@@ -28,7 +28,7 @@ export default function WorkspaceInvitesTable() {
       </Alert>
 
       <Paper withBorder radius="md" mt="md">
-        <Table.ScrollContainer minWidth={600}>
+        <Table.ScrollContainer minWidth={600} scrollAreaProps={{ scrollbars: false }}>
           <Table verticalSpacing="md" horizontalSpacing="lg">
             <Table.Thead>
               <Table.Tr>

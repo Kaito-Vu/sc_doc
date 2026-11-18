@@ -6,7 +6,9 @@ import {
   UnstyledButton,
 } from "@mantine/core";
 import { IconChevronDown } from "@tabler/icons-react";
+import { useReducedMotion } from "@mantine/hooks";
 import { Link } from "react-router-dom";
+import { SpaceFavoriteButton } from "@/ee/ui/space-switcher/space-favorite-button";
 import { CustomAvatar } from "@/components/ui/custom-avatar";
 import { AvatarIconType } from "@/features/attachments/types/attachment.types";
 import { getSpaceUrl } from "@/lib/config";
@@ -50,13 +52,15 @@ export function SidebarNavItem({
     </>
   );
 
-  const className = clsx(classes.item);
+  const reasonId = useId();
+  const hasReason = !!(disabled && disabledReason);
   const shared = {
-    className,
+    className: clsx(classes.item),
     "data-active": active || undefined,
     "data-disabled": disabled || undefined,
     "aria-current": active ? ("page" as const) : undefined,
     "aria-disabled": disabled || undefined,
+    "aria-describedby": hasReason ? reasonId : undefined,
   };
 
   const item =
@@ -67,17 +71,21 @@ export function SidebarNavItem({
     ) : (
       <UnstyledButton
         {...shared}
-        onClick={disabled ? undefined : onClick}
-        tabIndex={disabled ? -1 : undefined}
+        onClick={disabled ? (e: React.MouseEvent) => e.preventDefault() : onClick}
       >
         {content}
       </UnstyledButton>
     );
 
-  if (disabled && disabledReason) {
+  if (hasReason) {
     return (
       <Tooltip label={disabledReason} position="right" withArrow>
-        <span style={{ display: "block" }}>{item}</span>
+        <span style={{ display: "block" }}>
+          {item}
+          <span id={reasonId} className={classes.srOnly}>
+            {disabledReason}
+          </span>
+        </span>
       </Tooltip>
     );
   }
@@ -102,29 +110,31 @@ export function SidebarSection({
 }: SidebarSectionProps) {
   const [opened, setOpened] = useState(defaultOpened);
   const contentId = useId();
+  const reduceMotion = useReducedMotion();
 
   return (
-    <section className={classes.section} aria-label={title}>
+    <div className={classes.section}>
       <div className={classes.sectionHeader}>
-        {collapsible ? (
-          <UnstyledButton
-            className={classes.sectionTitleButton}
-            onClick={() => setOpened((value) => !value)}
-            aria-expanded={opened}
-            aria-controls={contentId}
-          >
-            <span>{title}</span>
-            <IconChevronDown
-              size={13}
-              style={{
-                transform: opened ? "rotate(180deg)" : "rotate(0deg)",
-                transition: "transform 160ms ease",
-              }}
-            />
-          </UnstyledButton>
-        ) : (
-          <span className={classes.sectionTitleButton}>{title}</span>
-        )}
+        <h3 className={classes.sectionHeading}>
+          {collapsible ? (
+            <UnstyledButton
+              className={classes.sectionTitleButton}
+              onClick={() => setOpened((value) => !value)}
+              aria-expanded={opened}
+              aria-controls={contentId}
+            >
+              <span>{title}</span>
+              <IconChevronDown
+                size={13}
+                aria-hidden="true"
+                className={classes.chevron}
+                data-opened={opened || undefined}
+              />
+            </UnstyledButton>
+          ) : (
+            <span className={classes.sectionTitleButton}>{title}</span>
+          )}
+        </h3>
         {action ? <div className={classes.sectionAction}>{action}</div> : null}
       </div>
 
@@ -132,14 +142,14 @@ export function SidebarSection({
         <Collapse
           id={contentId}
           expanded={opened}
-          transitionDuration={160}
+          transitionDuration={reduceMotion ? 0 : 160}
         >
           {children}
         </Collapse>
       ) : (
         children
       )}
-    </section>
+    </div>
   );
 }
 
@@ -162,24 +172,30 @@ export function SidebarSpaceRow({
   onClick,
 }: SidebarSpaceRowProps) {
   return (
-    <Link
-      className={classes.spaceRow}
-      data-active={active || undefined}
-      aria-current={active ? "page" : undefined}
-      to={getSpaceUrl(space.slug)}
-      onClick={onClick}
-    >
-      <CustomAvatar
-        name={space.name}
-        avatarUrl={space.logo}
-        type={AvatarIconType.SPACE_ICON}
-        color="initials"
-        variant="filled"
-        size={20}
-      />
-      <span className={classes.spaceName}>{space.name}</span>
-      {meta ? <span className={classes.spaceMeta}>{meta}</span> : null}
-    </Link>
+    <div className={classes.spaceRowWrap} data-active={active || undefined}>
+      <Link
+        className={classes.spaceRow}
+        data-active={active || undefined}
+        aria-current={active ? "page" : undefined}
+        to={getSpaceUrl(space.slug)}
+        title={space.name}
+        onClick={onClick}
+      >
+        <CustomAvatar
+          name={space.name}
+          avatarUrl={space.logo}
+          type={AvatarIconType.SPACE_ICON}
+          color="initials"
+          variant="filled"
+          size={20}
+        />
+        <span className={classes.spaceName}>{space.name}</span>
+        {meta ? <span className={classes.spaceMeta}>{meta}</span> : null}
+      </Link>
+      <span className={classes.spaceFav}>
+        <SpaceFavoriteButton spaceId={space.id} />
+      </span>
+    </div>
   );
 }
 

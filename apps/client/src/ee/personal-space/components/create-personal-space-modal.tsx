@@ -1,4 +1,5 @@
-import { Modal, Text, Button, Group, Divider } from "@mantine/core";
+import { Modal, Text, Button, Group, Stack, ThemeIcon } from "@mantine/core";
+import { IconUser } from "@tabler/icons-react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useCreatePersonalSpaceMutation } from "@/ee/personal-space/queries/personal-space-query";
@@ -22,7 +23,7 @@ export default function CreatePersonalSpaceModal({ opened, onClose }: Props) {
       navigate(getSpaceUrl(createdSpace.slug));
     } catch (err) {
       notifications.show({
-        message: err?.response?.data?.message,
+        message: err?.response?.data?.message ?? t("Failed to create personal space"),
         color: "red",
       });
     }
@@ -34,16 +35,27 @@ export default function CreatePersonalSpaceModal({ opened, onClose }: Props) {
       onClose={onClose}
       title={t("Create personal space")}
       closeButtonProps={{ "aria-label": t("Close") }}
+      centered
+      radius="md"
+      size={420}
     >
-      <Divider size="xs" mb="md" />
-      <Text size="sm">
-        {t('This will create your personal space, named "Personal Space".')}
-      </Text>
-      <Group justify="flex-end" mt="md">
+      <Stack align="center" gap="md" pt="xs" pb="xs">
+        <ThemeIcon size={56} radius="xl" variant="light" aria-hidden>
+          <IconUser size={28} stroke={1.6} />
+        </ThemeIcon>
+        <Text size="sm" ta="center" c="dimmed" maw={320}>
+          {t('This will create your personal space, named "Personal Space".')}
+        </Text>
+      </Stack>
+      <Group grow mt="lg">
         <Button variant="default" onClick={onClose}>
           {t("Cancel")}
         </Button>
-        <Button onClick={handleConfirm} loading={createMutation.isPending}>
+        <Button
+          onClick={handleConfirm}
+          loading={createMutation.isPending}
+          data-autofocus
+        >
           {t("Create")}
         </Button>
       </Group>

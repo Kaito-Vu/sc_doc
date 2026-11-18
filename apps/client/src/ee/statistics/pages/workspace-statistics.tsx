@@ -22,7 +22,8 @@ import {
   useWorkspaceStatisticsQuery,
   useWorkspaceTopContributorsQuery,
 } from "@/ee/statistics/queries/statistics-query";
-import { StatsPeriod } from "@/ee/statistics/types/statistics.types";
+import WorkspaceExtraStats from "@/ee/statistics/components/workspace-extra-stats";
+import { currentMonthKey } from "@/ee/statistics/lib/month";
 import { formatBytes } from "@/ee/statistics/lib/format-bytes";
 
 export default function WorkspaceStatistics() {
@@ -30,9 +31,9 @@ export default function WorkspaceStatistics() {
   const hasStatistics = useHasFeature(Feature.STATISTICS);
   const { data: stats, isLoading } =
     useWorkspaceStatisticsQuery(hasStatistics);
-  const [period, setPeriod] = useState<StatsPeriod>("week");
+  const [month, setMonth] = useState<string>(currentMonthKey());
   const { data: contributors, isLoading: contributorsLoading } =
-    useWorkspaceTopContributorsQuery(period, hasStatistics);
+    useWorkspaceTopContributorsQuery(month, hasStatistics);
 
   if (!hasStatistics) {
     return null;
@@ -91,13 +92,15 @@ export default function WorkspaceStatistics() {
         </Grid.Col>
       </Grid>
 
+      <WorkspaceExtraStats enabled={hasStatistics} />
+
       <Grid mt="md">
         <Grid.Col span={12}>
           <TopContributors
             data={contributors}
             isLoading={contributorsLoading}
-            period={period}
-            onPeriodChange={setPeriod}
+            month={month}
+            onMonthChange={setMonth}
           />
         </Grid.Col>
       </Grid>

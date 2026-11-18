@@ -139,6 +139,8 @@
 
 .viewAll {
   display: flex;
+  width: 100%;
+  min-height: 28px;
   align-items: center;
   gap: 5px;
   margin-top: 2px;
@@ -166,3 +168,30 @@
   }
 }
 
+.spacesNav {
+  margin-top: 14px;
+}
+
+.spacesHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 8px;
+}
+
+.spacesTitle {
+  color: light-dark(var(--mantine-color-gray-7), var(--mantine-color-dark-1));
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.spaceList {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}

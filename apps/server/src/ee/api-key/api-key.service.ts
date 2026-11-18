@@ -146,10 +146,12 @@ export class ApiKeyService {
   }
 
   async validateApiKey(payload: JwtApiKeyPayload) {
-    const apiKey = await this.apiKeyRepo.findById(
-      payload.apiKeyId,
-      payload.workspaceId,
-    );
+    // three independent reads in parallel (was 3 sequential round trips)
+    const [apiKey, workspace, user] = await Promise.all([
+      this.apiKeyRepo.findById(payload.apiKeyId, payload.workspaceId),
+      this.workspaceRepo.findById(payload.workspaceId),
+      this.userRepo.findById(payload.sub, payload.workspaceId),
+    ]);
 
     if (!apiKey) {
       throw new UnauthorizedException('Invalid API key');
@@ -159,17 +161,16 @@ export class ApiKeyService {
       throw new UnauthorizedException('API key expired');
     }
 
-    const workspace = await this.workspaceRepo.findById(payload.workspaceId);
     if (!workspace) {
       throw new UnauthorizedException();
     }
 
-    const user = await this.userRepo.findById(payload.sub, payload.workspaceId);
     if (!user || isUserDisabled(user)) {
       throw new UnauthorizedException();
     }
 
-    await this.apiKeyRepo.touchLastUsed(apiKey.id);
+    // best-effort bookkeeping: keep it off the request's critical path
+    this.apiKeyRepo.touchLastUsed(apiKey.id).catch(() => undefined);
 
     return { user, workspace };
   }

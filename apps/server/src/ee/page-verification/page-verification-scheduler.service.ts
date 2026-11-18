@@ -36,6 +36,9 @@ export class PageVerificationSchedulerService {
       ...expired.map((verification) => ({
         name: QueueJob.PAGE_VERIFICATION_EXPIRED,
         data: { verificationId: verification.id },
+        // deterministic id: BullMQ drops duplicates while the job is retained,
+        // so a still-expired row is not re-enqueued on every tick
+        opts: { jobId: `verification-expired:${verification.id}` },
       })),
     ];
     if (jobs.length > 0) {
