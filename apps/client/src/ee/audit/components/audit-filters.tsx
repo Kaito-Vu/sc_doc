@@ -83,6 +83,18 @@ export function applyPeriod(
   };
 }
 
+// Facets can list the same id more than once (e.g. a space or actor grouped
+// under several rows); Mantine rejects duplicate option values.
+function uniqueBy<T>(items: T[], key: (item: T) => string): T[] {
+  const seen = new Set<string>();
+  return items.filter((item) => {
+    const k = key(item);
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+}
+
 type AuditFiltersProps = {
   value: AuditFilterState;
   facets?: IAuditFacets;
@@ -114,7 +126,7 @@ export function AuditFilters({
   const knownEvents = new Set(
     eventFilterOptions.flatMap((g) => g.items.map((i) => i.value)),
   );
-  const extraEvents = (facets?.events ?? [])
+  const extraEvents = uniqueBy(facets?.events ?? [], (i) => i.event)
     .filter((item) => !knownEvents.has(item.event))
     .map((item) => ({
       value: item.event,
@@ -124,19 +136,19 @@ export function AuditFilters({
     eventData.push({ group: t("Other"), items: extraEvents });
   }
 
-  const resourceData = (facets?.resourceTypes ?? []).map((item) => ({
+  const resourceData = uniqueBy(facets?.resourceTypes ?? [], (i) => i.resourceType).map((item) => ({
     value: item.resourceType,
     label: `${t(getResourceTypeLabel(item.resourceType))} (${item.count})`,
   }));
 
-  const actorData = (facets?.actors ?? []).map((item) => ({
+  const actorData = uniqueBy(facets?.actors ?? [], (i) => i.actorId).map((item) => ({
     value: item.actorId,
     label: `${item.name ?? item.email ?? item.actorId}${
       item.email && item.name ? ` · ${item.email}` : ""
     }`,
   }));
 
-  const spaceData = (facets?.spaces ?? []).map((item) => ({
+  const spaceData = uniqueBy(facets?.spaces ?? [], (i) => i.spaceId).map((item) => ({
     value: item.spaceId,
     label: `${item.name ?? item.spaceId} (${item.count})`,
   }));
