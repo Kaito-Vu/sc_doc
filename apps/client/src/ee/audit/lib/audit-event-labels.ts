@@ -64,6 +64,8 @@ export const auditEventLabels: Record<string, string> = {
   "space.member_removed": "Removed space member",
   "space.member_role_changed": "Changed space member role",
   "space.exported": "Exported space",
+  "space.archived": "Archived space",
+  "space.unarchived": "Unarchived space",
 
   // Groups
   "group.created": "Created group",
@@ -103,6 +105,9 @@ export const auditEventLabels: Record<string, string> = {
   "page.verification_created": "Created page verification",
   "page.verification_updated": "Updated page verification",
   "page.verification_removed": "Removed page verification",
+  "page.verifier_added": "Added page verifier",
+  "page.verifier_removed": "Removed page verifier",
+  "page.verification_invalidated": "Invalidated page verification",
   "page.verified": "Verified page",
   "page.approval_requested": "Requested page approval",
   "page.approval_rejected": "Rejected page approval",
@@ -139,6 +144,12 @@ export const auditEventLabels: Record<string, string> = {
   "audit.exported": "Exported audit logs",
   "audit.purged": "Purged expired audit logs",
   "api.request": "Performed an action",
+
+  "announcement.created": "Created announcement",
+  "announcement.updated": "Updated announcement",
+  "announcement.archived": "Archived announcement",
+  "announcement.unarchived": "Unarchived announcement",
+  "announcement.deleted": "Deleted announcement",
 };
 
 export function getEventLabel(event: string): string {
@@ -170,7 +181,7 @@ export function getEventCategory(event: string): AuditEventCategory {
     return CATEGORIES.security;
   }
   if (event.startsWith("user.")) return CATEGORIES.user;
-  if (event.startsWith("workspace.")) return CATEGORIES.workspace;
+  if (event.startsWith("workspace.") || event.startsWith("announcement.")) return CATEGORIES.workspace;
   if (event.startsWith("space.") || event.startsWith("group.")) {
     return CATEGORIES.space;
   }
@@ -242,6 +253,7 @@ export const resourceTypeLabels: Record<string, string> = {
   license: "License",
   siem_destination: "SIEM destination",
   template: "Template",
+  announcement: "Announcement",
   label: "Label",
   base: "Base",
   session: "Session",

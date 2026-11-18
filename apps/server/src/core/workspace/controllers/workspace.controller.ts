@@ -37,9 +37,12 @@ import { EnvironmentService } from '../../../integrations/environment/environmen
 import { LicenseCheckService } from '../../../integrations/environment/license-check.service';
 import { CheckHostnameDto } from '../dto/check-hostname.dto';
 import { RemoveWorkspaceUserDto } from '../dto/remove-workspace-user.dto';
+import { ListWorkspaceUsersDto } from '../dto/list-workspace-users.dto';
+import { resolveWorkspaceUserListStatus } from '../workspace.util';
 import { WorkspaceRepo } from '@docmost/db/repos/workspace/workspace.repo';
 import { CoreHooks } from '../../../core/plugins/plugin-hooks';
 import { runHook } from '../../../core/plugins/run-hook';
+import { ApiKeyScope } from '../../../common/decorators/api-key-scope.decorator';
 
 @UseGuards(JwtAuthGuard)
 @Controller('workspace')
@@ -67,6 +70,7 @@ export class WorkspaceController {
     return this.workspaceService.getWorkspaceInfo(workspace.id);
   }
 
+  @ApiKeyScope('read')
   @HttpCode(HttpStatus.OK)
   @Post('entitlements')
   async getEntitlements(@AuthWorkspace() workspace: Workspace) {
@@ -121,7 +125,7 @@ export class WorkspaceController {
   @OAuthScope('read')
   async getWorkspaceMembers(
     @Body()
-    pagination: PaginationOptions,
+    dto: ListWorkspaceUsersDto,
     // Opaque pass-through for EE plugins (e.g. ee/sso's SSO provider
     // filter) — core does not interpret this value itself, see
     // user.repo.ts#getUsersPaginated / CoreHooks.BEFORE_MEMBERS_QUERY.
@@ -134,10 +138,19 @@ export class WorkspaceController {
       throw new ForbiddenException();
     }
 
-    return this.workspaceService.getWorkspaceUsers(workspace.id, {
-      ...pagination,
-      providerId,
-    });
+    const canManageMembers = ability.can(
+      WorkspaceCaslAction.Manage,
+      WorkspaceCaslSubject.Member,
+    );
+
+    return this.workspaceService.getWorkspaceUsers(
+      workspace.id,
+      { ...dto, providerId },
+      {
+        status: resolveWorkspaceUserListStatus(dto.status, canManageMembers),
+        adminView: canManageMembers,
+      },
+    );
   }
 
   @HttpCode(HttpStatus.OK)
@@ -209,6 +222,7 @@ export class WorkspaceController {
     );
   }
 
+  @ApiKeyScope('read')
   @HttpCode(HttpStatus.OK)
   @Post('invites')
   async getInvitations(

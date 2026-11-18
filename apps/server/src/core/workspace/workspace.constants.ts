@@ -3,7 +3,35 @@ export enum WorkspaceStatus {
   Suspended = 'suspended',
 }
 
+export const WORKSPACE_USER_LIST_STATUSES = [
+  'active',
+  'deactivated',
+  'deleted',
+  'all',
+] as const;
+
+export type WorkspaceUserListStatus =
+  (typeof WORKSPACE_USER_LIST_STATUSES)[number];
+
 export const INVITATION_EXPIRY_DAYS = 7;
+
+export const DEFAULT_LOCALE = 'en-US';
+
+// keep in sync with the languages in apps/client/public/locales
+export const SUPPORTED_LOCALES = [
+  'en-US',
+  'es-ES',
+  'de-DE',
+  'fr-FR',
+  'nl-NL',
+  'pt-BR',
+  'it-IT',
+  'ja-JP',
+  'ko-KR',
+  'uk-UA',
+  'ru-RU',
+  'zh-CN',
+];
 
 export const DISALLOWED_HOSTNAMES = [
   'app',

@@ -28,7 +28,12 @@ import {
   useUpdateTemplateMutation,
   useGetTemplateByIdQuery,
 } from "../queries/template-query";
-import { useTemplateScopeOptions } from "@/ee/template/hooks/use-template-scope-options";
+import {
+  useGetSpacesQuery,
+  useUnlistedSpaceQuery,
+} from "@/features/space/queries/space-query";
+import { includeSpace } from "@/features/space/space.utils";
+import useUserRole from "@/hooks/use-user-role";
 import { useAtomValue } from "jotai";
 import { userAtom } from "@/features/user/atoms/current-user-atom";
 import { FixedToolbar } from "@/features/editor/components/fixed-toolbar/fixed-toolbar";
@@ -42,15 +47,21 @@ import ColumnsMenu from "@/features/editor/components/columns/columns-menu.tsx";
 
 import classes from "./template-editor.module.css";
 import { DocumentTitle } from "@/components/ui/document-title.tsx";
+import { useExportDisabled } from "@/ee/security/hooks/use-export-disabled";
+import { useDisablePrint } from "@/ee/security/hooks/use-disable-print";
 
 export default function TemplateEditor() {
   const { t } = useTranslation();
   const { templateId } = useParams<{ templateId: string }>();
+  const { isAdmin: isWorkspaceAdmin } = useUserRole();
   const user = useAtomValue(userAtom);
   const editorToolbarEnabled =
     user?.settings?.preferences?.editorToolbar ?? true;
 
   const { data: existingTemplate } = useGetTemplateByIdQuery(templateId || "");
+  const { exportDisabledLabel } = useExportDisabled(existingTemplate?.spaceId);
+  useDisablePrint(exportDisabledLabel);
+  const { data: spaces } = useGetSpacesQuery({ limit: 100 });
   const updateMutation = useUpdateTemplateMutation();
   const updateMutationRef = useRef(updateMutation.mutateAsync);
   updateMutationRef.current = updateMutation.mutateAsync;
@@ -59,6 +70,10 @@ export default function TemplateEditor() {
   const [icon, setIcon] = useState<string | null>(null);
   const [spaceId, setSpaceId] = useState<string | null>(null);
   const [draftSpaceId, setDraftSpaceId] = useState<string | null>(null);
+  const { data: templateSpace } = useUnlistedSpaceQuery(
+    spaceId,
+    spaces?.items,
+  );
   const [settingsOpened, { open: openSettings, close: closeSettings }] =
     useDisclosure(false);
 
@@ -125,7 +140,24 @@ export default function TemplateEditor() {
     }
   }, [existingTemplate, editor]);
 
-  const spaceOptions = useTemplateScopeOptions();
+  const scopeSpaces = includeSpace(spaces?.items ?? [], templateSpace);
+
+  const spaceOptions = [
+    ...(isWorkspaceAdmin
+      ? [
+          { group: t("Workspace"), items: [{ value: "", label: t("Global") }] },
+        ]
+      : []),
+    ...(scopeSpaces.length
+      ? [
+          {
+            group: t("Spaces"),
+            items: scopeSpaces.map((s) => ({ value: s.id, label: s.name })),
+          },
+        ]
+      : []),
+  ];
+
   // Save function
   const save = useCallback(async () => {
     if (!editor || !templateId || !titleRef.current.trim()) return;

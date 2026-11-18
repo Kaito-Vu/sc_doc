@@ -8,11 +8,11 @@ export interface IFileTask {
   fileSize: number;
   fileExt: string;
   errorMessage: string | null;
+  metadata?: Record<string, unknown> | null;
   creatorId: string;
   spaceId: string;
   workspaceId: string;
   createdAt: string;
   updatedAt: string;
   deletedAt: string | null;
-  metadata?: Record<string, unknown> | null;
 }

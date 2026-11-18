@@ -75,7 +75,7 @@ export default function HistoryModalBody({ pageId }: Props) {
         </div>
       </nav>
 
-      <div style={{ position: "relative", flex: 1 }}>
+      <div style={{ position: "relative", flex: 1, minWidth: 0 }}>
         {isComparing && (
           <Group
             justify="space-between"

@@ -79,6 +79,7 @@ function HistoryView() {
         content={data.content}
         title={data.title}
         previousContent={hasComparison ? prevData?.content : undefined}
+        previousTitle={hasComparison ? prevData?.title : undefined}
       />
     </div>
   );

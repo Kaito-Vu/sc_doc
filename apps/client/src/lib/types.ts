@@ -5,6 +5,7 @@ export interface QueryParams {
   limit?: number;
   adminView?: boolean;
   providerId?: string;
+  status?: string;
 }
 
 export enum UserRole {

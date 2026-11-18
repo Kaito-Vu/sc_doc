@@ -7,7 +7,6 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { IndexeddbPersistence } from "y-indexeddb";
 import {
   WebSocketStatus,
   onStatelessParameters,
@@ -21,18 +20,19 @@ import {
 import {
   Editor,
   EditorContent,
-  EditorProvider,
   useEditor,
   useEditorState,
 } from "@tiptap/react";
+import { createDocument } from "@tiptap/core";
+import { EditorState } from "@tiptap/pm/state";
+import { Node as ProseMirrorNode } from "@tiptap/pm/model";
 import {
   collabExtensions,
   mainExtensions,
 } from "@/features/editor/extensions/extensions";
-import { useAtom, useAtomValue, useSetAtom } from "jotai";
+import { useAtom, useSetAtom } from "jotai";
 import { currentUserAtom } from "@/features/user/atoms/current-user-atom";
 import {
-  currentPageEditModeAtom,
   lightboxRequestAtom,
   pageEditorAtom,
   yjsConnectionStatusAtom,
@@ -83,12 +83,18 @@ import { useEditorScroll } from "./hooks/use-editor-scroll";
 import { PageSubpagesSection } from "@/ee/subpages-section/page-subpages-section";
 import { useRestoreEditorFocus } from "@/ee/editor/restore-focus/use-restore-editor-focus";
 import { useLargeDocPerf } from "@/ee/editor/large-doc-perf/use-large-doc-perf";
+import { usePageYdoc } from "./hooks/use-page-ydoc";
+import { useDestroyEditorBeforeChildren } from "./hooks/use-destroy-editor-before-children";
 import { EditorAiMenu } from "@/ee/ai/components/editor/ai-menu/ai-menu";
+import { usePageEditMode } from "@/ee/page-verification/hooks/use-page-edit-mode";
 import { EditorLinkMenu } from "@/features/editor/components/link/link-menu";
 import { EditorContextMenu } from "@/ee/editor/context-menu/editor-context-menu";
 import ColumnsMenu from "@/features/editor/components/columns/columns-menu.tsx";
 import { IntegrationPasteMenu } from "@/features/editor/components/integration-link/integration-paste-menu.tsx";
 import { BasePasteMenu } from "@/features/editor/components/base-embed/base-paste-menu.tsx";
+import MicrosoftFileMenu from "@/features/editor/components/microsoft/microsoft-file-menu.tsx";
+import MicrosoftFolderMenu from "@/features/editor/components/microsoft/microsoft-folder-menu.tsx";
+import { MicrosoftFullscreenModal } from "@/features/editor/components/microsoft/microsoft-fullscreen-modal.tsx";
 import { getInstalledIntegrations } from "@/features/integration/services/integration-service";
 import { TransclusionLookupProvider } from "@/features/editor/components/transclusion/transclusion-lookup-context";
 import { useTranslation } from "react-i18next";
@@ -117,6 +123,8 @@ export default function PageEditor({
   const slugId = extractPageSlugId(pageSlug);
   const [socket] = useState(getCollabSocket);
   const hasCollabToken = !!collabQuery?.token;
+  const [showStatic, setShowStatic] = useState(true);
+  const localDoc = usePageYdoc(pageId);
 
   useEffect(() => {
     if (!hasCollabToken) return;
@@ -179,10 +187,14 @@ export default function PageEditor({
 
   return (
     <TransclusionLookupProvider>
-      {collabQuery?.token ? (
+      {showStatic && (
+        <StaticPageEditor content={content} ariaLabel={t("Page content")} />
+      )}
+      {collabQuery?.token && localDoc && (
         <HocuspocusProviderWebsocketComponent websocketProvider={socket}>
           <HocuspocusRoom
             name={`page.${pageId}`}
+            document={localDoc}
             token={collabQuery.token}
             flushDelay={500}
             onStateless={handleStateless}
@@ -191,24 +203,29 @@ export default function PageEditor({
             <CollabPageEditor
               pageId={pageId}
               editable={editable}
-              content={content}
               canComment={canComment}
+              showStatic={showStatic}
+              onShown={() => setShowStatic(false)}
             />
           </HocuspocusRoom>
         </HocuspocusProviderWebsocketComponent>
-      ) : (
-        <StaticPageEditor content={content} ariaLabel={t("Page content")} />
       )}
     </TransclusionLookupProvider>
   );
 }
 
+type CollabPageEditorProps = Omit<PageEditorProps, "content"> & {
+  showStatic: boolean;
+  onShown: () => void;
+};
+
 function CollabPageEditor({
   pageId,
   editable,
-  content,
   canComment,
-}: PageEditorProps) {
+  showStatic,
+  onShown,
+}: CollabPageEditorProps) {
   const { t } = useTranslation();
   const provider = useHocuspocusProvider();
   const isComponentMounted = useRef(false);
@@ -226,7 +243,6 @@ function CollabPageEditor({
   const [showCommentPopup, setShowCommentPopup] = useAtom(showCommentPopupAtom);
   const [showReadOnlyCommentPopup] = useAtom(showReadOnlyCommentPopupAtom);
   const [lightboxRequest, setLightboxRequest] = useAtom(lightboxRequestAtom);
-  const [isLocalSynced, setIsLocalSynced] = useState(false);
   const [isRemoteSynced, setIsRemoteSynced] = useState(false);
   const [yjsConnectionStatus, setYjsConnectionStatus] = useAtom(
     yjsConnectionStatusAtom,
@@ -238,23 +254,12 @@ function CollabPageEditor({
   const { pageSlug } = useParams();
   const [searchParams] = useSearchParams();
   const slugId = extractPageSlugId(pageSlug);
-  const currentPageEditMode = useAtomValue(currentPageEditModeAtom);
+  const { editMode } = usePageEditMode(pageId);
   const canScroll = useCallback(
     () => Boolean(isComponentMounted.current && editorRef.current),
     [isComponentMounted],
   );
   const { handleScrollTo } = useEditorScroll({ canScroll });
-
-  useEffect(() => {
-    const local = new IndexeddbPersistence(
-      provider.configuration.name,
-      provider.document,
-    );
-    local.on("synced", () => setIsLocalSynced(true));
-    return () => {
-      local.destroy();
-    };
-  }, [provider]);
 
   useHocuspocusEvent("synced", ({ state }) => setIsRemoteSynced(state));
   useHocuspocusEvent("status", ({ status }) => setYjsConnectionStatus(status));
@@ -288,13 +293,14 @@ function CollabPageEditor({
     return [...mainExtensions, ...collabExtensions(provider, currentUser.user)];
   }, [provider, currentUser?.user]);
 
-  const debouncedUpdateContent = useDebouncedCallback((newContent: any) => {
+  const debouncedUpdateContent = useDebouncedCallback((doc: ProseMirrorNode) => {
     const pageData = queryClient.getQueryData<IPage>(["pages", slugId]);
 
     if (pageData) {
       queryClient.setQueryData(["pages", slugId], {
         ...pageData,
-        content: newContent,
+        // serialized once typing pauses: on a long page this is too slow for every keystroke
+        content: doc.toJSON(),
       });
     }
   }, 3000);
@@ -306,6 +312,8 @@ function CollabPageEditor({
       textDirection: "auto",
       immediatelyRender: true,
       shouldRerenderOnTransaction: false,
+      // nothing listens for the delete event, and tiptap maps every changed range on each update to emit it
+      enableCoreExtensions: { delete: false },
       editorProps: {
         scrollThreshold: 80,
         scrollMargin: 80,
@@ -388,9 +396,8 @@ function CollabPageEditor({
       },
       onUpdate({ editor }) {
         if (editor.isEmpty) return;
-        const editorJson = editor.getJSON();
         //update local page cache to reduce flickers
-        debouncedUpdateContent(editorJson);
+        debouncedUpdateContent(editor.state.doc);
       },
     },
     [pageId, editable, extensions],
@@ -405,6 +412,8 @@ function CollabPageEditor({
     });
   }, []);
 
+  useDestroyEditorBeforeChildren(editor);
+
   useLayoutEffect(() => {
     if (editor && !editor.isDestroyed) {
       // @ts-ignore
@@ -412,6 +421,11 @@ function CollabPageEditor({
       // @ts-ignore
       editor.storage.pageId = pageId;
       editorRef.current = editor;
+      // a destroyed editor must not stay behind for the title and header of the next page
+      return () => {
+        // @ts-ignore
+        setEditor((current) => (current === editor ? null : current));
+      };
     }
   }, [editor, pageId, setEditor]);
 
@@ -457,7 +471,7 @@ function CollabPageEditor({
     setLightboxRequest(null);
   }, [pageId]);
 
-  const isSynced = isLocalSynced && isRemoteSynced;
+  const isSynced = isRemoteSynced;
   useRestoreEditorFocus(editor, pageId, isSynced);
   useLargeDocPerf(editor);
 
@@ -480,11 +494,10 @@ function CollabPageEditor({
   }, [yjsConnectionStatus, isSynced]);
   useEffect(() => {
     if (!editor) return;
-    editor.setEditable(editable && currentPageEditMode === PageEditMode.Edit);
-  }, [currentPageEditMode, editor, editable]);
+    editor.setEditable(editable && editMode === PageEditMode.Edit);
+  }, [editMode, editor, editable]);
 
   const hasConnectedOnceRef = useRef(false);
-  const [showStatic, setShowStatic] = useState(true);
 
   useSearchNavigationParams({
     editor,
@@ -501,12 +514,12 @@ function CollabPageEditor({
       isSynced
     ) {
       hasConnectedOnceRef.current = true;
-      setShowStatic(false);
+      onShown();
     }
   }, [yjsConnectionStatus, isSynced]);
 
   if (showStatic) {
-    return <StaticPageEditor content={content} ariaLabel={t("Page content")} />;
+    return null;
   }
 
   return (
@@ -516,11 +529,15 @@ function CollabPageEditor({
         <EditorContent editor={editor} />
 
         {editor && (
-          <SearchAndReplaceDialog editor={editor} editable={editable} />
+          <SearchAndReplaceDialog
+            editor={editor}
+            editable={editable && editMode === PageEditMode.Edit}
+          />
         )}
         {editor && <SearchNavigationDialog editor={editor} />}
         {editor && <DrawioZoomLayer editor={editor} />}
 
+        <MicrosoftFullscreenModal />
         {editor && editorIsEditable && (
           <div>
             <EditorAiMenu editor={editor} />
@@ -539,6 +556,8 @@ function CollabPageEditor({
             <ColumnsMenu editor={editor} />
             <IntegrationPasteMenu editor={editor} />
             <BasePasteMenu editor={editor} />
+            <MicrosoftFileMenu editor={editor} />
+            <MicrosoftFolderMenu editor={editor} />
           </div>
         )}
         {editor && !editorIsEditable && (editable || canComment) && (
@@ -575,18 +594,33 @@ function StaticPageEditor({
   content: any;
   ariaLabel: string;
 }) {
-  return (
-    <EditorProvider
-      editable={false}
-      immediatelyRender={true}
-      textDirection="auto"
-      extensions={mainExtensions}
-      content={content}
-      editorProps={{
-        attributes: {
-          "aria-label": ariaLabel,
-        },
-      }}
-    />
-  );
+  const editor = useEditor({
+    editable: false,
+    immediatelyRender: true,
+    shouldRerenderOnTransaction: false,
+    textDirection: "auto",
+    extensions: mainExtensions,
+    editorProps: {
+      attributes: {
+        "aria-label": ariaLabel,
+      },
+    },
+  });
+  useDestroyEditorBeforeChildren(editor);
+
+  // EditorContent redraws the whole document when it adds the React node views,
+  // so the content goes in after that and is drawn once.
+  useLayoutEffect(() => {
+    if (!editor || editor.isDestroyed) return;
+    const doc = createDocument(
+      content,
+      editor.schema,
+      editor.options.parseOptions,
+    );
+    editor.view.updateState(
+      EditorState.create({ doc, plugins: editor.state.plugins }),
+    );
+  }, [editor]);
+
+  return <EditorContent editor={editor} />;
 }

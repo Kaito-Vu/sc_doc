@@ -44,12 +44,14 @@ import { useQueryEmit } from "@/features/websocket/use-query-emit";
 
 export function usePageQuery(
   pageInput: Partial<IPageInput>,
+  options?: { staleTime?: number; refetchOnMount?: boolean | "always" },
 ): UseQueryResult<IPage, Error> {
   const query = useQuery({
     queryKey: ["pages", pageInput.pageId],
     queryFn: () => getPageById(pageInput),
     enabled: !!pageInput.pageId,
     staleTime: 5 * 60 * 1000,
+    ...options,
   });
 
   useEffect(() => {
@@ -142,6 +144,7 @@ export function useRemovePageMutation() {
       }
 
       invalidateOnDeletePage(pageId);
+      queryClient.invalidateQueries({ queryKey: ["space"] });
       queryClient.invalidateQueries({
         predicate: (item) =>
           ["trash-list"].includes(item.queryKey[0] as string),

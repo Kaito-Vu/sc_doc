@@ -22,6 +22,7 @@ import EnforceMfa from "@/ee/security/components/enforce-mfa.tsx";
 import SessionGuardSettings from "@/ee/security/components/session-guard-settings.tsx";
 import IpAllowlistSettings from "@/ee/security/components/ip-allowlist-settings.tsx";
 import DisablePublicSharing from "@/ee/security/components/disable-public-sharing.tsx";
+import DisableExport from "@/ee/security/components/disable-export.tsx";
 import TrashRetention from "@/ee/security/components/trash-retention.tsx";
 import RecaptchaSettings from "@/ee/security/components/recaptcha-settings.tsx";
 import { useAtom } from "jotai";
@@ -78,6 +79,9 @@ export default function Security() {
       <IpAllowlistSettings />
 
       <DisablePublicSharing />
+      <Divider my="lg" />
+
+      <DisableExport />
       <Divider my="lg" />
 
       <TrashRetention />

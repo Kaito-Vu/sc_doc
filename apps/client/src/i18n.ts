@@ -3,6 +3,13 @@ import { initReactI18next } from "react-i18next";
 import Backend from "i18next-http-backend";
 import { DEFAULT_LOCALE, SUPPORTED_LOCALES } from "@/lib/locales";
 
+// public pages served by the server carry the workspace language in <html lang>
+const serverLanguage = (SUPPORTED_LOCALES as readonly string[]).includes(
+  document.documentElement.lang,
+)
+  ? document.documentElement.lang
+  : undefined;
+
 i18n
   // load translation using http -> see /public/locales (i.e. https://github.com/i18next/react-i18next/tree/master/example/react/public/locales)
   // learn more: https://github.com/i18next/i18next-http-backend
@@ -13,6 +20,7 @@ i18n
   // init i18next
   // for all options read: https://www.i18next.com/overview/configuration-options
   .init({
+    lng: serverLanguage,
     fallbackLng: DEFAULT_LOCALE,
     supportedLngs: [...SUPPORTED_LOCALES],
     debug: false,
@@ -26,5 +34,9 @@ i18n
       useSuspense: false,
     }
   });
+
+i18n.on("languageChanged", (lng) => {
+  document.documentElement.lang = i18n.resolvedLanguage || lng;
+});
 
 export default i18n;

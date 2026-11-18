@@ -21,20 +21,31 @@ import MemberActionMenu from "@/features/workspace/components/members/components
 import { MemberProviderFilter } from "@/ee/security/components/member-provider-filter.tsx";
 import { OnlineDot } from "@/ee/presence/online-dot.tsx";
 import { MemberProviderBadge } from "@/ee/security/components/member-provider-badge.tsx";
+import MemberStatusFilter from "@/features/workspace/components/members/components/member-status-filter.tsx";
+import { MemberListStatus } from "@/features/workspace/types/workspace.types.ts";
+import { formatLocalized, useDateFnsLocale } from "@/lib/date-locale.ts";
 
 export default function WorkspaceMembersTable() {
   const { t } = useTranslation();
-  const { search, cursor, goNext, goPrev, handleSearch, resetCursor } =
+  const locale = useDateFnsLocale();
+  const { search, cursor, goNext, goPrev, handleSearch, resetPagination } =
     usePaginateAndSearch();
   const [providerId, setProviderId] = useState<string | null>(null);
+  const [status, setStatus] = useState<MemberListStatus>("active");
   const { data, isLoading } = useWorkspaceMembersQuery({
     cursor,
     limit: 100,
     query: search,
     providerId: providerId || undefined,
+    status,
   });
   const changeMemberRoleMutation = useChangeMemberRoleMutation();
   const { isAdmin, isOwner } = useUserRole();
+
+  const handleStatusChange = (value: MemberListStatus) => {
+    setStatus(value);
+    resetPagination();
+  };
 
   const assignableUserRoles = isOwner
     ? userRoleData
@@ -42,7 +53,7 @@ export default function WorkspaceMembersTable() {
 
   const handleProviderFilterChange = (value: string | null) => {
     setProviderId(value);
-    resetCursor();
+    resetPagination();
   };
 
   const handleRoleChange = async (
@@ -66,6 +77,9 @@ export default function WorkspaceMembersTable() {
     <>
       <Group mb="sm" align="flex-end">
         <SearchInput onSearch={handleSearch} mb={0} />
+        {isAdmin && (
+          <MemberStatusFilter status={status} onChange={handleStatusChange} />
+        )}
         <MemberProviderFilter
           value={providerId}
           onChange={handleProviderFilterChange}
@@ -110,13 +124,32 @@ export default function WorkspaceMembersTable() {
                             {user.name}
                           </Text>
                           <Text fz="xs" c="dimmed">
-                            {user.email}
+                            {user.deletedAt
+                              ? t("Deleted on {{date}}", {
+                                  date: formatLocalized(
+                                    user.deletedAt,
+                                    "MMM d, yyyy",
+                                    "PP",
+                                    locale,
+                                  ),
+                                })
+                              : user.email}
                           </Text>
                         </div>
                       </Group>
                     </Table.Td>
                     <Table.Td>
-                      {user.deactivatedAt ? (
+                      {user.deletedAt ? (
+                        <Badge
+                          variant="light"
+                          color="red"
+                          radius="sm"
+                          tt="none"
+                          fw={500}
+                        >
+                          {t("Deleted")}
+                        </Badge>
+                      ) : user.deactivatedAt ? (
                         <Badge
                           variant="light"
                           color="orange"
@@ -142,7 +175,7 @@ export default function WorkspaceMembersTable() {
                       <MemberProviderBadge user={user} />
                     </Table.Td>
                     <Table.Td>
-                      {isAdmin ? (
+                      {isAdmin && !user.deletedAt ? (
                         <RoleSelectMenu
                           roles={assignableUserRoles}
                           roleName={getUserRoleLabel(user.role)}
@@ -155,7 +188,7 @@ export default function WorkspaceMembersTable() {
                       )}
                     </Table.Td>
                     <Table.Td>
-                      {isAdmin && (
+                      {isAdmin && !user.deletedAt && (
                         <MemberActionMenu
                           userId={user.id}
                           name={user.name}

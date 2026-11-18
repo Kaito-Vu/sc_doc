@@ -23,4 +23,4 @@ export type DiffViewMode = "inline" | "side-by-side";
 export const diffViewModeAtom = atom<DiffViewMode>("inline");
 
 export type DiffCounts = { added: number; deleted: number; total: number };
-export const diffCountsAtom = atom<DiffCounts | null>(null);
+export const diffCountsAtom = atom<DiffCounts | null>(null as DiffCounts | null);

@@ -29,9 +29,11 @@ export const Feature = {
   OAUTH: 'oauth',
   AI_CONTROLS: 'ai:controls',
   MCP_CONTROLS: 'mcp:controls',
+  EXPORT_CONTROLS: 'export:controls',
   PUBLIC_SPACE_APPEARANCE: 'public-space:appearance',
   SIEM: 'siem',
   STATISTICS: 'statistics',
+  ANNOUNCEMENTS: 'announcements',
 } as const;
 
 export type FeatureKey = (typeof Feature)[keyof typeof Feature];

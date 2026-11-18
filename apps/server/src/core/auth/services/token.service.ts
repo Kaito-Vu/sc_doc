@@ -110,7 +110,7 @@ export class TokenService {
     apiKeyId: string;
     user: User;
     workspaceId: string;
-    expiresIn?: StringValue | number;
+    expiresIn: StringValue | number;
   }): Promise<string> {
     const { apiKeyId, user, workspaceId, expiresIn } = opts;
     if (isUserDisabled(user)) {
@@ -124,7 +124,7 @@ export class TokenService {
       type: JwtType.API_KEY,
     };
 
-    return this.jwtService.sign(payload, expiresIn ? { expiresIn } : {});
+    return this.jwtService.sign(payload, { expiresIn });
   }
 
   async generatePdfRenderToken(

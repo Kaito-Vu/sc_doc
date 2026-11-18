@@ -1,44 +1,16 @@
 import { Logger, OnModuleDestroy } from '@nestjs/common';
 import { OnWorkerEvent, Processor, WorkerHost } from '@nestjs/bullmq';
-import { InjectQueue } from '@nestjs/bullmq';
-import { Job, Queue } from 'bullmq';
+import { Job } from 'bullmq';
 import { QueueJob, QueueName } from '../../integrations/queue/constants';
-import {
-  IPageBacklinkJob,
-  IPageEditSupplementJob,
-  IPageHistoryJob,
-  IPageUpdateNotificationJob,
-} from '../../integrations/queue/constants/queue.interface';
-import {
-  extractMentions,
-  extractPageMentions,
-  extractInternalLinkSlugIds,
-} from '../../common/helpers/prosemirror/utils';
-import { PageHistoryRepo } from '@docmost/db/repos/page/page-history.repo';
-import { PageRepo } from '@docmost/db/repos/page/page.repo';
-import { isDeepStrictEqual } from 'node:util';
-import { CollabHistoryService } from '../services/collab-history.service';
-import { WatcherService } from '../../core/watcher/watcher.service';
-import { isEmptyParagraphDoc } from '../collaboration.util';
-import { EventEmitter2 } from '@nestjs/event-emitter';
-import { EventName } from '../../common/events/event.contants';
-import { InjectKysely } from 'nestjs-kysely';
-import { KyselyDB } from '@docmost/db/types/kysely.types';
-import { AuditEvent, AuditResource } from '../../common/events/audit-events';
+import { IPageHistoryJob } from '../../integrations/queue/constants/queue.interface';
+import { PageHistoryRecorderService } from '../services/page-history-recorder.service';
 
 @Processor(QueueName.HISTORY_QUEUE)
 export class HistoryProcessor extends WorkerHost implements OnModuleDestroy {
   private readonly logger = new Logger(HistoryProcessor.name);
 
   constructor(
-    private readonly pageHistoryRepo: PageHistoryRepo,
-    private readonly pageRepo: PageRepo,
-    private readonly collabHistory: CollabHistoryService,
-    private readonly watcherService: WatcherService,
-    @InjectQueue(QueueName.NOTIFICATION_QUEUE) private notificationQueue: Queue,
-    @InjectQueue(QueueName.GENERAL_QUEUE) private generalQueue: Queue,
-    private readonly eventEmitter: EventEmitter2,
-    @InjectKysely() private readonly db: KyselyDB,
+    private readonly pageHistoryRecorder: PageHistoryRecorderService,
   ) {
     super();
   }
@@ -46,159 +18,7 @@ export class HistoryProcessor extends WorkerHost implements OnModuleDestroy {
   async process(job: Job<IPageHistoryJob, void>): Promise<void> {
     if (job.name !== QueueJob.PAGE_HISTORY) return;
 
-    try {
-      const { pageId } = job.data;
-
-      const page = await this.pageRepo.findById(pageId, {
-        includeContent: true,
-      });
-
-      if (!page) {
-        this.logger.warn(`Page ${pageId} not found, skipping history`);
-        await this.collabHistory.clearContributors(pageId);
-        return;
-      }
-
-      const lastHistory = await this.pageHistoryRepo.findPageLastHistory(
-        pageId,
-        { includeContent: true },
-      );
-
-      if (!lastHistory && isEmptyParagraphDoc(page.content as any)) {
-        this.logger.debug(
-          `Skipping first history for page ${pageId}: empty content`,
-        );
-        await this.collabHistory.clearContributors(pageId);
-        return;
-      }
-
-      if (
-        !lastHistory ||
-        !isDeepStrictEqual(lastHistory.content, page.content)
-      ) {
-        const contributorIds = await this.collabHistory.popContributors(pageId);
-
-        try {
-          await this.watcherService.addPageWatchers(
-            contributorIds,
-            pageId,
-            page.spaceId,
-            page.workspaceId,
-          );
-
-          const savedHistory = await this.pageHistoryRepo.saveHistory(page, {
-            contributorIds,
-          });
-          this.logger.debug(`History created for page: ${pageId}`);
-
-          // Collaborative edits arrive over the websocket, not through the
-          // REST page endpoints. Record one audit row per saved history
-          // snapshot so content changes are attributable to their editors.
-          await this.auditPageContentUpdate(
-            page,
-            contributorIds,
-            savedHistory.id,
-          );
-
-          this.eventEmitter.emit(EventName.PAGE_CONTENT_UPDATED, {
-            pageId,
-            spaceId: page.spaceId,
-            workspaceId: page.workspaceId,
-            historyId: savedHistory.id,
-            actorIds: contributorIds,
-          });
-        } catch (err) {
-          await this.collabHistory.addContributors(pageId, contributorIds);
-          throw err;
-        }
-
-        const mentions = extractMentions(page.content);
-        const pageMentions = extractPageMentions(mentions);
-        const internalLinkSlugIds = extractInternalLinkSlugIds(page.content);
-
-        await this.generalQueue
-          .add(QueueJob.PAGE_BACKLINKS, {
-            pageId,
-            workspaceId: page.workspaceId,
-            mentions: pageMentions,
-            internalLinkSlugIds,
-          } as IPageBacklinkJob)
-          .catch((err) => {
-            this.logger.error(
-              `Failed to queue backlinks for ${pageId}: ${err.message}`,
-            );
-          });
-
-        if (contributorIds.length > 0 && lastHistory?.content) {
-          const pageUpdateJob = {
-            pageId,
-            spaceId: page.spaceId,
-            workspaceId: page.workspaceId,
-            actorIds: contributorIds,
-          };
-
-          await this.notificationQueue
-            .add(
-              QueueJob.PAGE_UPDATED,
-              pageUpdateJob as IPageUpdateNotificationJob,
-            )
-            .catch((err) => {
-              this.logger.error(
-                `Failed to queue page update notification for ${pageId}: ${err.message}`,
-              );
-            });
-
-          await this.notificationQueue
-            .add(
-              QueueJob.PAGE_EDIT_SUPPLEMENT,
-              pageUpdateJob as IPageEditSupplementJob,
-            )
-            .catch((err) => {
-              this.logger.error(
-                `Failed to queue page edit supplement for ${pageId}: ${err.message}`,
-              );
-            });
-        }
-      }
-    } catch (err) {
-      throw err;
-    }
-  }
-
-  private async auditPageContentUpdate(
-    page: { id: string; spaceId: string; workspaceId: string; title?: string },
-    contributorIds: string[],
-    historyId: string,
-  ): Promise<void> {
-    if (!this.db || contributorIds.length === 0) return;
-
-    try {
-      await this.db
-        .insertInto('audit')
-        .values({
-          workspaceId: page.workspaceId,
-          actorId: contributorIds[0],
-          actorType: 'user',
-          event: AuditEvent.PAGE_UPDATED,
-          resourceType: AuditResource.PAGE,
-          resourceId: page.id,
-          spaceId: page.spaceId,
-          changes: {
-            after: { title: page.title ?? null },
-          },
-          metadata: {
-            source: 'collaboration',
-            historyId,
-            contributorIds,
-          },
-        })
-        .execute();
-    } catch (err: any) {
-      // Auditing must never block saving the history row.
-      this.logger.warn(
-        `Failed to write page.updated audit for ${page.id}: ${err?.message}`,
-      );
-    }
+    await this.pageHistoryRecorder.recordPageHistory(job.data.pageId);
   }
 
   @OnWorkerEvent('active')

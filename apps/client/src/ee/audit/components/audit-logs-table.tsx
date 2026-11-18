@@ -54,6 +54,8 @@ function getResourceUrl(entry: IAuditLog): string | null {
     case "space_member":
     case "personal_space":
       return resource.slug ? `/s/${resource.slug}` : null;
+    case "announcement":
+      return "/settings/announcements";
     default:
       return null;
   }

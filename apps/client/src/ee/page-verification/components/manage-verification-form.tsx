@@ -11,10 +11,13 @@ import {
   Tooltip,
 } from "@mantine/core";
 import { modals } from "@mantine/modals";
+import { useSetAtom } from "jotai";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import i18n from "@/i18n.ts";
 import { useCommentsQuery } from "@/features/comment/queries/comment-query";
+import { reviewChangesAtom } from "@/ee/page-verification/atoms/review-changes-atom";
+import { canReviewChanges } from "@/ee/page-verification/page-verification.utils";
 import {
   useMarkObsoleteMutation,
   usePageVerificationInfoQuery,
@@ -72,6 +75,28 @@ type ManageContentProps = {
   onClose: () => void;
 };
 
+function ReviewChangesButton({
+  pageId,
+  info,
+}: Pick<ManageContentProps, "pageId" | "info">) {
+  const { t } = useTranslation();
+  const setReviewChanges = useSetAtom(reviewChangesAtom);
+
+  if (!canReviewChanges(info)) return null;
+
+  return (
+    <div>
+      <Button
+        variant="light"
+        size="compact-sm"
+        onClick={() => setReviewChanges({ pageId, source: "modal" })}
+      >
+        {t("Review changes")}
+      </Button>
+    </div>
+  );
+}
+
 function ExpiringManageContent({ pageId, info, onClose }: ManageContentProps) {
   const { t } = useTranslation();
   const verifyMutation = useVerifyPageMutation();
@@ -99,6 +124,9 @@ function ExpiringManageContent({ pageId, info, onClose }: ManageContentProps) {
   const [fixedDate, setFixedDate] = useState<string>(initialFixedDate);
 
   const verifiedAtAgo = useTimeAgo(info.verifiedAt ?? new Date().toISOString());
+  const invalidatedAtAgo = useTimeAgo(
+    info.invalidatedAt ?? new Date().toISOString(),
+  );
 
   const hasExpirationChange =
     mode !== initialMode ||
@@ -157,6 +185,15 @@ function ExpiringManageContent({ pageId, info, onClose }: ManageContentProps) {
         {t("Assigned verifiers must periodically re-verify this page.")}
       </Text>
 
+      {status === "invalidated" && info.invalidatedAt && (
+        <Text size="sm">
+          {t("Changed by {{name}} {{time}}", {
+            name: info.invalidatedBy?.name ?? t("Someone"),
+            time: invalidatedAtAgo,
+          })}
+        </Text>
+      )}
+
       {info.verifiedBy && (
         <Group gap="sm">
           <div>
@@ -166,12 +203,17 @@ function ExpiringManageContent({ pageId, info, onClose }: ManageContentProps) {
                     name: info.verifiedBy.name,
                     time: verifiedAtAgo,
                   })
+                : status === "invalidated"
+                ? t("Last verified by {{name}} {{time}}", {
+                    name: info.verifiedBy.name,
+                    time: verifiedAtAgo,
+                  })
                 : t("Verified by {{name}} {{time}}", {
                     name: info.verifiedBy.name,
                     time: verifiedAtAgo,
                   })}
             </Text>
-            {info.expiresAt && (
+            {info.expiresAt && status !== "invalidated" && (
               <Text size="xs" c="dimmed">
                 {t(status === "expired" ? "Expired {{date}}" : "Expires {{date}}", {
                   date: new Date(info.expiresAt).toLocaleDateString(
@@ -188,6 +230,8 @@ function ExpiringManageContent({ pageId, info, onClose }: ManageContentProps) {
           </div>
         </Group>
       )}
+
+      <ReviewChangesButton pageId={pageId} info={info} />
 
       <Divider />
 
@@ -321,6 +365,9 @@ function QmsManageContent({ pageId, info, onClose }: ManageContentProps) {
     info.requestedAt ?? new Date().toISOString(),
   );
   const rejectedAtAgo = useTimeAgo(info.rejectedAt ?? new Date().toISOString());
+  const invalidatedAtAgo = useTimeAgo(
+    info.invalidatedAt ?? new Date().toISOString(),
+  );
 
   const status = info.status;
   const reviewPageUrl = `/review/${pageId}`;
@@ -381,9 +428,17 @@ function QmsManageContent({ pageId, info, onClose }: ManageContentProps) {
               )}
             </div>
           )}
-          {!info.rejectedBy && (
-            <Text size="sm">{t("No approval has been requested yet.")}</Text>
-          )}
+          {!info.rejectedBy &&
+            (info.invalidatedAt ? (
+              <Text size="sm">
+                {t("Changed by {{name}} {{time}}. Submit it for approval again.", {
+                  name: info.invalidatedBy?.name ?? t("Someone"),
+                  time: invalidatedAtAgo,
+                })}
+              </Text>
+            ) : (
+              <Text size="sm">{t("No approval has been requested yet.")}</Text>
+            ))}
         </>
       )}
 
@@ -452,6 +507,8 @@ function QmsManageContent({ pageId, info, onClose }: ManageContentProps) {
           {t("This document has been marked as obsolete.")}
         </Text>
       )}
+
+      <ReviewChangesButton pageId={pageId} info={info} />
 
       <Divider />
 

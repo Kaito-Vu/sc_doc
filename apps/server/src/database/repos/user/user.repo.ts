@@ -16,6 +16,7 @@ import { jsonObjectFrom } from 'kysely/helpers/postgres';
 import { NotificationSettingKey } from '../../../core/notification/notification.constants';
 import { CoreHooks } from '../../../core/plugins/plugin-hooks';
 import { runHook } from '../../../core/plugins/run-hook';
+import { WorkspaceUserListStatus } from '../../../core/workspace/workspace.constants';
 
 @Injectable()
 export class UserRepo {
@@ -32,7 +33,6 @@ export class UserRepo {
     'locale',
     'timezone',
     'settings',
-    'lastLoginAt',
     'deactivatedAt',
     'createdAt',
     'updatedAt',
@@ -42,6 +42,26 @@ export class UserRepo {
     'department',
     'employeeId',
   ];
+
+  // what member lists return about other users
+  public memberFields: Array<keyof Users> = [
+    'id',
+    'email',
+    'name',
+    'avatarUrl',
+    'role',
+    'workspaceId',
+    'locale',
+    'timezone',
+    'deactivatedAt',
+    'createdAt',
+    'updatedAt',
+    'deletedAt',
+    'hasGeneratedPassword',
+  ];
+
+  // added for admins and owners
+  public adminFields: Array<keyof Users> = ['lastLoginAt', 'emailVerifiedAt'];
 
   async findById(
     userId: string,
@@ -117,7 +137,7 @@ export class UserRepo {
   async insertUser(
     insertableUser: InsertableUser,
     trx?: KyselyTransaction,
-    opts?: { pageEditMode?: string },
+    opts?: { pageEditMode?: string; locale?: string },
   ): Promise<User> {
     const user: InsertableUser = {
       name:
@@ -135,7 +155,9 @@ export class UserRepo {
         ...insertableUser,
         ...user,
         // new users start with the workspace default language (settings.defaultLocale)
-        locale: sql<string>`COALESCE((SELECT settings->>'defaultLocale' FROM workspaces WHERE id = ${insertableUser.workspaceId}), 'en-US')`,
+        locale:
+          opts?.locale ??
+          sql<string>`COALESCE((SELECT settings->>'defaultLocale' FROM workspaces WHERE id = ${insertableUser.workspaceId}), 'en-US')`,
         ...(opts?.pageEditMode
           ? {
               settings: sql`${JSON.stringify({
@@ -169,12 +191,21 @@ export class UserRepo {
   async getUsersPaginated(
     workspaceId: string,
     pagination: PaginationOptions & { providerId?: string },
+    opts?: { status?: WorkspaceUserListStatus; adminView?: boolean },
   ) {
+    const status = opts?.status ?? 'active';
+
     let query = this.db
       .selectFrom('users')
-      .select(this.baseFields)
+      .select(this.memberFields)
+      .$if(opts?.adminView, (qb) => qb.select(this.adminFields))
       .where('workspaceId', '=', workspaceId)
-      .where('deletedAt', 'is', null);
+      .$if(status === 'deleted', (qb) => qb.where('deletedAt', 'is not', null))
+      .$if(status === 'active' || status === 'deactivated', (qb) =>
+        qb
+          .where('deletedAt', 'is', null)
+          .where('deactivatedAt', status === 'active' ? 'is' : 'is not', null),
+      );
 
     if (pagination.query) {
       query = query.where((eb) =>

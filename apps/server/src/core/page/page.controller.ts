@@ -53,6 +53,7 @@ import {
   IAuditService,
 } from '../../integrations/audit/audit.service';
 import { getPageTitle } from '../../common/helpers';
+import { ApiKeyScope } from '../../common/decorators/api-key-scope.decorator';
 
 @UseGuards(JwtAuthGuard)
 @Controller('pages')
@@ -105,6 +106,7 @@ export class PageController {
     return { ...page, permissions };
   }
 
+  @ApiKeyScope('read')
   @HttpCode(HttpStatus.OK)
   @Post('labels')
   async getPageLabels(
@@ -163,6 +165,7 @@ export class PageController {
     );
   }
 
+  @ApiKeyScope('read')
   @HttpCode(HttpStatus.OK)
   @Post('backlinks-count')
   async getBacklinksCount(
@@ -178,6 +181,7 @@ export class PageController {
     return this.backlinkService.countByPageId(page.id, user.id);
   }
 
+  @ApiKeyScope('read')
   @HttpCode(HttpStatus.OK)
   @Post('backlinks')
   async getBacklinks(
@@ -463,6 +467,7 @@ export class PageController {
     return this.pageService.getRecentPages(user.id, pagination);
   }
 
+  @ApiKeyScope('read')
   @HttpCode(HttpStatus.OK)
   @Post('created-by-user')
   async getCreatedByPages(
@@ -486,6 +491,7 @@ export class PageController {
     return this.pageService.getCreatedByPages(targetUserId, user.id, pagination, dto.spaceId);
   }
 
+  @ApiKeyScope('read')
   @HttpCode(HttpStatus.OK)
   @Post('trash')
   async getDeletedPages(
@@ -511,6 +517,7 @@ export class PageController {
     }
   }
 
+  @ApiKeyScope('read')
   @HttpCode(HttpStatus.OK)
   @Post('/history')
   async getPageHistory(
@@ -528,6 +535,7 @@ export class PageController {
     return this.pageHistoryService.findHistoryByPageId(page.id, pagination);
   }
 
+  @ApiKeyScope('read')
   @HttpCode(HttpStatus.OK)
   @Post('/history/info')
   async getPageHistoryInfo(
@@ -599,6 +607,7 @@ export class PageController {
       );
     }
     let spaceId = dto.spaceId;
+    let pageId: string;
 
     if (dto.pageId) {
       const page = await this.pageRepo.findById(dto.pageId);
@@ -607,6 +616,7 @@ export class PageController {
       }
 
       spaceId = page.spaceId;
+      pageId = page.id;
     }
 
     const ability = await this.spaceAbility.createForUser(user, spaceId);
@@ -622,7 +632,7 @@ export class PageController {
     return this.pageService.getSidebarPages(
       spaceId,
       pagination,
-      dto.pageId,
+      pageId,
       user.id,
       spaceCanEdit,
     );
@@ -660,11 +670,8 @@ export class PageController {
     await this.pageAccessService.validateCanEdit(movedPage, user);
 
     // Moves only accessible pages; inaccessible child pages become root pages in original space
-    const { childPageIds } = await this.pageService.movePageToSpace(
-      movedPage,
-      dto.spaceId,
-      user.id,
-    );
+    const { childPageIds, deletedShares } =
+      await this.pageService.movePageToSpace(movedPage, dto.spaceId, user.id);
 
     this.auditService.log({
       event: AuditEvent.PAGE_MOVED_TO_SPACE,
@@ -680,6 +687,21 @@ export class PageController {
         ...(childPageIds.length > 0 && { childPageIds }),
       },
     });
+
+    for (const share of deletedShares) {
+      this.auditService.log({
+        event: AuditEvent.SHARE_DELETED,
+        resourceType: AuditResource.SHARE,
+        resourceId: share.id,
+        spaceId: share.spaceId,
+        changes: {
+          before: {
+            pageId: share.pageId,
+            spaceId: share.spaceId,
+          },
+        },
+      });
+    }
   }
 
   @HttpCode(HttpStatus.OK)
@@ -800,6 +822,7 @@ export class PageController {
     return this.pageService.movePage(dto, movedPage);
   }
 
+  @ApiKeyScope('read')
   @HttpCode(HttpStatus.OK)
   @Post('/breadcrumbs')
   async getPageBreadcrumbs(@Body() dto: PageIdDto, @AuthUser() user: User) {
