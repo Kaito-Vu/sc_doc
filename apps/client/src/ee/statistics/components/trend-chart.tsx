@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { LineChart } from "@mantine/charts";
 import "@mantine/charts/styles.css";
 import { Paper, Text } from "@mantine/core";
@@ -19,15 +20,19 @@ export default function TrendChart({
   color = "blue.6",
   monthly = false,
 }: TrendChartProps) {
-  const chartData = data.map((point) => ({
-    week: new Date(point.weekStart).toLocaleDateString(
-      undefined,
-      monthly
-        ? { month: "short", year: "2-digit", timeZone: "UTC" }
-        : { month: "short", day: "numeric" },
-    ),
-    [seriesName]: point.count,
-  }));
+  const chartData = useMemo(
+    () =>
+      data.map((point) => ({
+        week: new Date(point.weekStart).toLocaleDateString(
+          undefined,
+          monthly
+            ? { month: "short", year: "2-digit", timeZone: "UTC" }
+            : { month: "short", day: "numeric" },
+        ),
+        [seriesName]: point.count,
+      })),
+    [data, monthly, seriesName],
+  );
 
   return (
     <Paper withBorder p="md" radius="md">

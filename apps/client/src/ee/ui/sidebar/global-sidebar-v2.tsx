@@ -1,9 +1,7 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import {
   ActionIcon,
   Button,
-  Divider,
-  Modal,
   ScrollArea,
   Tooltip,
 } from "@mantine/core";
@@ -19,22 +17,19 @@ import {
   IconStar,
   IconTemplate,
   IconUser,
-  IconUserPlus,
 } from "@tabler/icons-react";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import { Link, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { useDisclosure } from "@mantine/hooks";
 import { currentUserAtom, workspaceAtom } from "@/features/user/atoms/current-user-atom";
 import { mobileSidebarAtom } from "@/components/layouts/global/hooks/atoms/sidebar-atom";
 import { useToggleSidebar } from "@/components/layouts/global/hooks/hooks/use-toggle-sidebar";
 import { useHasFeature } from "@/ee/hooks/use-feature";
 import { useUpgradeLabel } from "@/ee/hooks/use-upgrade-label";
 import { Feature } from "@/ee/features";
-import { useVerificationListQuery } from "@/ee/page-verification/queries/page-verification-query";
+import { usePendingReviewCount } from "@/ee/page-verification/hooks/use-pending-review-count";
 import { usePersonalSpaceQuery } from "@/ee/personal-space/queries/personal-space-query";
 import CreatePersonalSpaceModal from "@/ee/personal-space/components/create-personal-space-modal";
-import { WorkspaceInviteForm } from "@/features/workspace/components/members/components/workspace-invite-form";
 import { CustomAvatar } from "@/components/ui/custom-avatar";
 import { searchSpotlight } from "@/features/search/constants";
 import { getSpaceUrl } from "@/lib/config";
@@ -63,19 +58,9 @@ export function GlobalSidebarV2() {
   const hasPersonalSpaces = useHasFeature(Feature.PERSONAL_SPACES);
   const personalEnabled = workspace?.settings?.spaces?.allowPersonal === true;
   const upgradeLabel = useUpgradeLabel();
-  const [inviteOpened, { open: openInvite, close: closeInvite }] =
-    useDisclosure(false);
   const [personalCreateOpened, setPersonalCreateOpened] = useState(false);
 
   const { data: personalSpace } = usePersonalSpaceQuery(hasPersonalSpaces);
-  const { data: reviewData } = useVerificationListQuery(
-    {
-      verifierId: user?.id,
-      type: "qms",
-      limit: 50,
-    },
-    !!user?.id,
-  );
 
   const active = location.pathname;
   const aiChatEnabled = workspace?.settings?.ai?.chat === true;
@@ -84,18 +69,13 @@ export function GlobalSidebarV2() {
     return active === url || active.startsWith(`${url}/`);
   };
 
-  const pendingReviews =
-    reviewData?.items.filter(
-      (item) =>
-        item.status === "in_approval" ||
-        item.status === "needs_clarification",
-    ).length ?? 0;
+  const pendingReviews = usePendingReviewCount();
 
-  const handleNavClick = () => {
+  const handleNavClick = useCallback(() => {
     if (mobileSidebarOpened) {
       toggleMobileSidebar();
     }
-  };
+  }, [mobileSidebarOpened, toggleMobileSidebar]);
 
   return (
     <div className={classes.root} data-sc-sidebar="global">
@@ -218,11 +198,6 @@ export function GlobalSidebarV2() {
 
       <div className={classes.footer}>
         <SidebarNavItem
-          icon={IconUserPlus}
-          label={t("Invite people")}
-          onClick={openInvite}
-        />
-        <SidebarNavItem
           icon={IconSettings}
           label={t("Settings")}
           to="/settings/account/profile"
@@ -248,18 +223,6 @@ export function GlobalSidebarV2() {
         )}
       </div>
 
-      <Modal
-        size={560}
-        opened={inviteOpened}
-        onClose={closeInvite}
-        title={t("Invite new members")}
-        centered
-      >
-        <Divider size="xs" mb="sm" />
-        <ScrollArea h="70vh">
-          <WorkspaceInviteForm onClose={closeInvite} />
-        </ScrollArea>
-      </Modal>
 
       <CreatePersonalSpaceModal
         opened={personalCreateOpened}

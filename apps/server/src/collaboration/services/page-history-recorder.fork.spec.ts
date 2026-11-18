@@ -31,14 +31,6 @@ describe('PageHistoryRecorderService fork hooks', () => {
       add: jest.fn().mockReturnValue({ catch: jest.fn() }),
     };
     const eventEmitter = { emit: jest.fn() };
-    const auditDb = {
-      insertInto: jest.fn(() => ({
-        values: jest.fn(() => ({
-          execute: jest.fn().mockResolvedValue(undefined),
-        })),
-      })),
-    };
-
     const processor: any = new PageHistoryRecorderService(
       pageHistoryRepo as any,
       pageRepo as any,
@@ -47,7 +39,6 @@ describe('PageHistoryRecorderService fork hooks', () => {
       notificationQueue as any,
       generalQueue as any,
       eventEmitter as any,
-      auditDb as any,
     );
 
     await processor.recordPageHistory('p1');
@@ -64,7 +55,7 @@ describe('PageHistoryRecorderService fork hooks', () => {
     );
   });
 
-  it('queues both watcher and explicit-recipient page update jobs', async () => {
+  it('queues the page update job and emits PAGE_HISTORY_RECORDED for ee listeners', async () => {
     const page = {
       id: 'p1',
       spaceId: 's1',
@@ -91,14 +82,6 @@ describe('PageHistoryRecorderService fork hooks', () => {
       add: jest.fn().mockReturnValue({ catch: jest.fn() }),
     };
     const eventEmitter = { emit: jest.fn() };
-    const auditDb = {
-      insertInto: jest.fn(() => ({
-        values: jest.fn(() => ({
-          execute: jest.fn().mockResolvedValue(undefined),
-        })),
-      })),
-    };
-
     const processor: any = new PageHistoryRecorderService(
       pageHistoryRepo as any,
       pageRepo as any,
@@ -107,7 +90,6 @@ describe('PageHistoryRecorderService fork hooks', () => {
       notificationQueue as any,
       generalQueue as any,
       eventEmitter as any,
-      auditDb as any,
     );
 
     await processor.recordPageHistory('p1');
@@ -122,9 +104,21 @@ describe('PageHistoryRecorderService fork hooks', () => {
       QueueJob.PAGE_UPDATED,
       expectedPayload,
     );
-    expect(notificationQueue.add).toHaveBeenCalledWith(
+    expect(notificationQueue.add).not.toHaveBeenCalledWith(
       QueueJob.PAGE_EDIT_SUPPLEMENT,
-      expectedPayload,
+      expect.anything(),
+    );
+    expect(eventEmitter.emit).toHaveBeenCalledWith(
+      EventName.PAGE_HISTORY_RECORDED,
+      {
+        pageId: 'p1',
+        spaceId: 's1',
+        workspaceId: 'w1',
+        historyId: 'hist-1',
+        contributorIds: ['u1'],
+        title: null,
+        hadPreviousContent: true,
+      },
     );
   });
 });

@@ -25,6 +25,7 @@ import { SpaceIdDto } from '../../core/space/dto/space-id.dto';
 import { WorkspaceTopContributorsDto } from './dto/workspace-top-contributors.dto';
 import { SpaceTopContributorsDto } from './dto/space-top-contributors.dto';
 import { SpaceMonthDto } from './dto/month.dto';
+import { monthKeyOf } from './statistics.utils';
 
 @UseGuards(JwtAuthGuard)
 @Controller('statistics')
@@ -54,7 +55,10 @@ export class StatisticsController {
     @AuthWorkspace() workspace: Workspace,
   ) {
     this.assertWorkspaceAdmin(user, workspace);
-    return this.statisticsService.getWorkspaceStats(workspace.id);
+    return {
+      ...(await this.statisticsService.getWorkspaceStats(workspace.id)),
+      currentMonth: monthKeyOf(new Date()),
+    };
   }
 
   @HttpCode(HttpStatus.OK)
@@ -81,7 +85,10 @@ export class StatisticsController {
     @AuthWorkspace() workspace: Workspace,
   ) {
     await this.assertSpaceAdmin(user, dto.spaceId);
-    return this.statisticsService.getSpaceStats(dto.spaceId, workspace.id);
+    return {
+      ...(await this.statisticsService.getSpaceStats(dto.spaceId, workspace.id)),
+      currentMonth: monthKeyOf(new Date()),
+    };
   }
 
   @HttpCode(HttpStatus.OK)

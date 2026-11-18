@@ -1,3 +1,5 @@
+export const SPACES_MODE_PREFIX = "s ";
+
 // Pure parsing of the command palette "spaces mode" prefix ("s " + search term).
 export function parseSpacesMode(query: string): {
   spacesMode: boolean;

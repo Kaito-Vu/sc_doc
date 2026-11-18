@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { Grid, Group, Paper, Stack, Text } from "@mantine/core";
 import { useTranslation } from "react-i18next";
 import {
@@ -17,7 +16,7 @@ import {
   useSpaceStatisticsQuery,
   useSpaceTopContributorsQuery,
 } from "@/ee/statistics/queries/statistics-query";
-import { currentMonthKey } from "@/ee/statistics/lib/month";
+import { useStatsMonth } from "@/ee/statistics/lib/use-stats-month";
 import { formatNumber } from "@/ee/statistics/lib/format-number";
 
 interface SpaceStatisticsProps {
@@ -31,7 +30,9 @@ export default function SpaceStatistics({ spaceId }: SpaceStatisticsProps) {
     spaceId,
     true,
   );
-  const [month, setMonth] = useState<string>(currentMonthKey());
+  const { month, currentMonth, setMonth } = useStatsMonth(
+    stats?.currentMonth,
+  );
   const { data: contributors, isLoading: contributorsLoading } =
     useSpaceTopContributorsQuery(spaceId, month, true);
 
@@ -127,6 +128,7 @@ export default function SpaceStatistics({ spaceId }: SpaceStatisticsProps) {
             data={contributors}
             isLoading={contributorsLoading}
             month={month}
+            currentMonth={currentMonth}
             onMonthChange={setMonth}
           />
         </Grid.Col>

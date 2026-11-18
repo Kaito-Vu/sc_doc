@@ -1,6 +1,7 @@
-// Calendar-month helpers. Months are 'YYYY-MM' cut in the stats time zone (default UTC+7,
-// same as the server's STATS_TIME_ZONE_OFFSET_MINUTES default).
-const STATS_TZ_OFFSET_MINUTES = 420;
+// Calendar-month helpers. Months are 'YYYY-MM'. The authoritative "current month" comes from the
+// server (`currentMonth` in the stats responses, cut in its stats time zone); the local-time
+// fallback below is only used until that data has loaded.
+// MAX_MONTHS_BACK mirrors the server's history limit; keep both in sync.
 export const MAX_MONTHS_BACK = 60;
 
 const index = (key: string) => {
@@ -10,9 +11,9 @@ const index = (key: string) => {
 const fromIndex = (i: number) =>
   `${Math.floor(i / 12)}-${String((i % 12) + 1).padStart(2, "0")}`;
 
-export function currentMonthKey(now = new Date()): string {
-  const local = new Date(now.getTime() + STATS_TZ_OFFSET_MINUTES * 60_000);
-  return fromIndex(local.getUTCFullYear() * 12 + local.getUTCMonth());
+/** Browser-local month; only a fallback until the server's `currentMonth` is known. */
+export function localMonthKey(now = new Date()): string {
+  return fromIndex(now.getFullYear() * 12 + now.getMonth());
 }
 
 export const shiftMonth = (key: string, delta: number) =>

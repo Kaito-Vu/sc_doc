@@ -2,21 +2,17 @@ import { useMemo } from "react";
 import { useAtomValue } from "jotai";
 import { useDebouncedValue } from "@mantine/hooks";
 import { useFavoritesQuery } from "@/features/favorite/queries/favorite-query";
-import { ISpace } from "@/features/space/types/space.types";
 import { recentSpacesListAtom } from "./space-visit-atoms";
 import { useInfiniteSpaces } from "./use-infinite-spaces";
-import { buildSwitcherSections, SwitcherSpace } from "./space-switcher-data";
+import {
+  buildSwitcherSections,
+  fromFavoriteSpace,
+  fromSpace,
+  knownSpaceIds,
+  SwitcherSpace,
+} from "./space-switcher-data";
 
-const fromSpace = (s: ISpace): SwitcherSpace => ({
-  id: s.id,
-  slug: s.slug,
-  name: s.name,
-  logo: s.logo,
-  isArchived: !!s.archivedAt,
-  isPublished: s.isPublished,
-  isPersonal: s.isPersonal,
-});
-
+/** The one data path for space lists (switcher, sidebar, command palette). */
 export function useSpaceSwitcherData(rawQuery: string, enabled = true) {
   const trimmed = rawQuery.trim();
   const [query] = useDebouncedValue(trimmed, 300);
@@ -33,26 +29,18 @@ export function useSpaceSwitcherData(rawQuery: string, enabled = true) {
     () =>
       (favoritesQuery.data?.pages ?? [])
         .flatMap((p) => p.items)
-        .flatMap((f) =>
-          f.space
-            ? [
-                {
-                  id: f.space.id,
-                  slug: f.space.slug,
-                  name: f.space.name,
-                  logo: f.space.logo,
-                  isArchived: !!f.space.archivedAt,
-                },
-              ]
-            : [],
-        ),
+        .flatMap((f) => (f.space ? [fromFavoriteSpace(f.space)] : [])),
     [favoritesQuery.data],
   );
 
-  const fullyLoaded = !!spacesQuery.data && !spacesQuery.hasNextPage;
   const knownIds = useMemo(
-    () => (fullyLoaded && !query ? new Set(all.map((s) => s.id)) : undefined),
-    [fullyLoaded, query, all],
+    () =>
+      knownSpaceIds(all, {
+        loaded: !!spacesQuery.data,
+        hasNextPage: !!spacesQuery.hasNextPage,
+        query,
+      }),
+    [spacesQuery.data, spacesQuery.hasNextPage, query, all],
   );
 
   const sections = useMemo(

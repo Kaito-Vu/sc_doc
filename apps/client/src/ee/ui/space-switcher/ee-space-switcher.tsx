@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { useCallback, useId, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Badge, Button, Popover, Text, TextInput } from "@mantine/core";
@@ -8,8 +8,9 @@ import { CustomAvatar } from "@/components/ui/custom-avatar.tsx";
 import { AvatarIconType } from "@/features/attachments/types/attachment.types.ts";
 import { getSpaceUrl } from "@/lib/config";
 import { useSpaceSwitcherData } from "./use-space-switcher-data";
-import { SpaceFavoriteButton, useToggleSpaceFavorite } from "./space-favorite-button";
-import { SwitcherSpace } from "./space-switcher-data";
+import { useToggleSpaceFavorite } from "./space-favorite-button";
+import { SpaceOption, SpaceOptionData } from "./space-option";
+import { useListboxNav } from "./use-listbox-nav";
 import classes from "./space-switcher.module.css";
 
 interface Props {
@@ -21,13 +22,13 @@ interface Props {
   isArchived?: boolean;
 }
 
-type Section = "favorites" | "recent" | "all";
-type Option = { key: string; section: Section; space: SwitcherSpace };
+type Section = SpaceOptionData["section"];
 
 /**
- * Keyboard model: focus stays in the search box (aria-activedescendant).
+ * Trigger button (aria-haspopup="dialog") opens a popover holding a combobox: the search input
+ * is the combobox, the list is its listbox. Focus stays in the input (aria-activedescendant).
  * Up/Down/Home/End move, Enter opens, Shift+Enter pins/unpins the highlighted space
- * (the per-row star is mouse/touch only, tabIndex -1), Esc closes, Tab leaves.
+ * (the per-row star is mouse/touch only, tabIndex -1, outside the option), Esc closes, Tab leaves.
  */
 export function EeSpaceSwitcher({
   spaceId,
@@ -44,12 +45,10 @@ export function EeSpaceSwitcher({
   const listId = `${uid}-list`;
   const [opened, setOpened] = useState(false);
   const [query, setQuery] = useState("");
-  const [activeKey, setActiveKey] = useState<string | null>(null);
-  const scrollRef = useRef<HTMLDivElement>(null);
   const focusInput = useCallback((el: HTMLInputElement | null) => el?.focus(), []);
 
   const { sections, isPending, hasNextPage, isFetchingNextPage, fetchNextPage } =
-    useSpaceSwitcherData(opened ? query : "");
+    useSpaceSwitcherData(opened ? query : "", opened);
   const { favoriteIds, toggle } = useToggleSpaceFavorite();
 
   const groups = useMemo(
@@ -64,7 +63,7 @@ export function EeSpaceSwitcher({
         .map(([section, label]) => ({
           section,
           label,
-          options: sections[section].map<Option>((space) => ({
+          options: sections[section].map<SpaceOptionData>((space) => ({
             key: `${section}:${space.id}`,
             section,
             space,
@@ -74,54 +73,26 @@ export function EeSpaceSwitcher({
     [sections, t],
   );
   const options = useMemo(() => groups.flatMap((g) => g.options), [groups]);
-  const active = options.find((o) => o.key === activeKey) ?? options[0];
-  const optionDomId = (o: Option) => `${uid}-${o.key}`;
+  const optionDomId = useCallback((o: SpaceOptionData) => `${uid}-${o.key}`, [uid]);
 
-  const close = () => {
+  const { active, setActiveKey, reset, onKeyDown } = useListboxNav({
+    options,
+    getDomId: optionDomId,
+    onEnter: (o, e) => (e.shiftKey ? toggle(o.space.id) : select(o)),
+  });
+
+  const close = useCallback(() => {
     setOpened(false);
     setQuery("");
-    setActiveKey(null);
-  };
-  const select = (o: Option) => {
-    navigate(getSpaceUrl(o.space.slug));
-    close();
-  };
-
-  useEffect(() => {
-    if (!active) return;
-    document
-      .getElementById(optionDomId(active))
-      ?.scrollIntoView({ block: "nearest" });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active?.key]);
-
-  const move = (to: number) => {
-    if (options.length) {
-      setActiveKey(options[Math.max(0, Math.min(options.length - 1, to))].key);
-    }
-  };
-  const activeIndex = active ? options.indexOf(active) : -1;
-
-  const onKeyDown = (e: React.KeyboardEvent) => {
-    switch (e.key) {
-      case "ArrowDown":
-        e.preventDefault();
-        return move(activeIndex + 1);
-      case "ArrowUp":
-        e.preventDefault();
-        return move(activeIndex - 1);
-      case "Home":
-        e.preventDefault();
-        return move(0);
-      case "End":
-        e.preventDefault();
-        return move(options.length - 1);
-      case "Enter":
-        e.preventDefault();
-        if (!active) return;
-        return e.shiftKey ? toggle(active.space.id) : select(active);
-    }
-  };
+    reset();
+  }, [reset]);
+  const select = useCallback(
+    (o: SpaceOptionData) => {
+      navigate(getSpaceUrl(o.space.slug));
+      close();
+    },
+    [navigate, close],
+  );
 
   const onScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const el = e.currentTarget;
@@ -161,7 +132,7 @@ export function EeSpaceSwitcher({
           justify="space-between"
           color="gray"
           aria-label={`${t("Switch space")}: ${spaceName}`}
-          aria-haspopup="listbox"
+          aria-haspopup="dialog"
           aria-expanded={opened}
           rightSection={opened ? <IconChevronUp size={18} /> : <IconChevronDown size={18} />}
           onClick={() => (opened ? close() : setOpened(true))}
@@ -192,7 +163,7 @@ export function EeSpaceSwitcher({
           )}
         </Button>
       </Popover.Target>
-      <Popover.Dropdown p="xs">
+      <Popover.Dropdown p="xs" role="dialog" aria-label={t("Switch space")}>
         <TextInput
           ref={focusInput}
           value={query}
@@ -214,49 +185,25 @@ export function EeSpaceSwitcher({
         <div aria-live="polite" role="status" className={classes.srOnly}>
           {liveMessage}
         </div>
-        <div ref={scrollRef} className={classes.scroll} onScroll={onScroll}>
+        <div className={classes.scroll} onScroll={onScroll}>
           <div id={listId} role="listbox" aria-label={t("Switch space")}>
             {groups.map((g) => (
               <div key={g.section} role="group" aria-label={g.label}>
                 <div className={classes.groupLabel} aria-hidden="true">
                   {g.label}
                 </div>
-                {g.options.map((o) => {
-                  const isCurrent = o.space.id === spaceId || o.space.slug === spaceSlug;
-                  return (
-                    <div
-                      key={o.key}
-                      id={optionDomId(o)}
-                      role="option"
-                      aria-selected={isCurrent}
-                      data-active={o === active}
-                      className={classes.option}
-                      onMouseEnter={() => setActiveKey(o.key)}
-                      onMouseDown={(e) => e.preventDefault()}
-                      onClick={() => select(o)}
-                    >
-                      <CustomAvatar
-                        name={o.space.name}
-                        avatarUrl={o.space.logo ?? undefined}
-                        type={AvatarIconType.SPACE_ICON}
-                        color="initials"
-                        variant="filled"
-                        size={20}
-                      />
-                      <Text className={classes.optionName} size="sm" lineClamp={1} title={o.space.name}>
-                        {o.space.name}
-                      </Text>
-                      {isCurrent && <Marker>{t("Current")}</Marker>}
-                      {o.space.isPersonal && <Marker>{t("Personal")}</Marker>}
-                      {o.space.isArchived && <Marker>{t("Archived")}</Marker>}
-                      {o.space.isPublished && <Marker>{t("Public")}</Marker>}
-                      {o.section !== "favorites" && favoriteIds.has(o.space.id) && (
-                        <Marker>{t("Pinned")}</Marker>
-                      )}
-                      <SpaceFavoriteButton spaceId={o.space.id} tabIndex={-1} />
-                    </div>
-                  );
-                })}
+                {g.options.map((o) => (
+                  <SpaceOption
+                    key={o.key}
+                    option={o}
+                    domId={optionDomId(o)}
+                    isCurrent={o.space.id === spaceId || o.space.slug === spaceSlug}
+                    isActive={o === active}
+                    pinned={favoriteIds.has(o.space.id)}
+                    onSelect={select}
+                    onHighlight={setActiveKey}
+                  />
+                ))}
               </div>
             ))}
           </div>
@@ -280,13 +227,5 @@ export function EeSpaceSwitcher({
         </div>
       </Popover.Dropdown>
     </Popover>
-  );
-}
-
-function Marker({ children }: { children: React.ReactNode }) {
-  return (
-    <Badge size="xs" variant="light" color="gray" style={{ flexShrink: 0 }}>
-      {children}
-    </Badge>
   );
 }

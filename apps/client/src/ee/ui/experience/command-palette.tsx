@@ -35,7 +35,17 @@ import type { IPageSearch } from "@/features/search/types/search.types";
 import { useParams } from "react-router-dom";
 import { useFavoriteIds } from "@/features/favorite/queries/favorite-query";
 import { useSpaceSwitcherData } from "@/ee/ui/space-switcher/use-space-switcher-data";
-import { parseSpacesMode } from "./palette-spaces-mode";
+import { parseSpacesMode, SPACES_MODE_PREFIX } from "./palette-spaces-mode";
+import {
+  buildActionItems,
+  buildPageItems,
+  buildRecentPageItems,
+  buildSpaceItems,
+  groupItems,
+  PaletteIconKey,
+  PaletteItem,
+  PaletteNav,
+} from "./palette-items";
 import { buildPageUrl } from "@/features/page/page.utils";
 import { getSpaceUrl } from "@/lib/config";
 import { searchSpotlight } from "@/features/search/constants";
@@ -48,26 +58,20 @@ import {
 } from "./atoms";
 import { isModernUi, setModernUi } from "@/ee/modern-ui";
 
-type CommandItem = {
-  id: string;
-  label: string;
-  section: string;
-  icon: React.ReactNode;
-  hint?: string;
-  markers?: string[];
-  keepOpen?: boolean;
-  run: () => void;
-};
+type CommandItem = Omit<PaletteItem, "icon"> & { icon: React.ReactNode };
 
-const SECTION_ORDER = [
-  "Actions",
-  "Pages",
-  "Recent spaces",
-  "Favorite spaces",
-  "Spaces",
-  "Recent",
-];
-const COLLAPSED_SPACES = 8;
+const ICONS: Record<PaletteIconKey, React.ReactNode> = {
+  plus: <IconPlus size={18} />,
+  search: <IconSearch size={18} />,
+  review: <IconClipboardCheck size={18} />,
+  library: <IconLibrary size={18} />,
+  home: <IconHome size={18} />,
+  layout: <IconLayoutGrid size={18} />,
+  star: <IconStar size={18} />,
+  settings: <IconSettings size={18} />,
+  sparkles: <IconSparkles size={18} />,
+  file: <IconFileText size={18} />,
+};
 
 export function CommandPalette() {
   const { t } = useTranslation();
@@ -119,198 +123,59 @@ export function CommandPalette() {
     }
   }, [opened, initialQuery, setInitialQuery]);
 
+  const nav = useMemo<PaletteNav>(
+    () => ({
+      to: (path) => navigate(path),
+      space: (slug) => navigate(getSpaceUrl(slug)),
+      page: (spaceSlug, slugId, title) =>
+        navigate(buildPageUrl(spaceSlug, slugId, title)),
+    }),
+    [navigate],
+  );
+
   const items = useMemo<CommandItem[]>(() => {
     const term = query.trim().toLocaleLowerCase();
+    const common = { t, nav, spacesMode };
 
-    const matches = (label: string) =>
-      !term || label.toLocaleLowerCase().includes(term);
-
-    const actions: CommandItem[] = [
-      {
-        id: "new-document",
-        label: t("New document"),
-        section: "Actions",
-        icon: <IconPlus size={18} />,
-        run: () => setQuickCreateOpened(true),
-      },
-      {
-        id: "search",
-        label: t("Search documents"),
-        section: "Actions",
-        icon: <IconSearch size={18} />,
-        hint: "mod+K",
-        run: () => searchSpotlight.open(),
-      },
-      {
-        id: "reviews",
-        label: t("Review queue"),
-        section: "Actions",
-        icon: <IconClipboardCheck size={18} />,
-        run: () => navigate("/reviews"),
-      },
-      {
-        id: "documents",
-        label: t("Document library"),
-        section: "Actions",
-        icon: <IconLibrary size={18} />,
-        run: () => navigate("/documents"),
-      },
-      {
-        id: "home",
-        label: t("Home"),
-        section: "Actions",
-        icon: <IconHome size={18} />,
-        run: () => navigate("/home"),
-      },
-      {
-        id: "spaces",
-        label: t("Spaces"),
-        section: "Actions",
-        icon: <IconLayoutGrid size={18} />,
-        run: () => navigate("/spaces"),
-      },
-      {
-        id: "favorites",
-        label: t("Favorites"),
-        section: "Actions",
-        icon: <IconStar size={18} />,
-        run: () => navigate("/favorites"),
-      },
-      {
-        id: "settings",
-        label: t("Preferences"),
-        section: "Actions",
-        icon: <IconSettings size={18} />,
-        run: () => navigate("/settings/account/preferences"),
-      },
-      {
-        id: "toggle-modern-ui",
-        label: isModernUi() ? t("Switch to classic UI") : t("Switch to modern UI"),
-        section: "Actions",
-        icon: <IconLayoutGrid size={18} />,
-        run: () => {
+    return [
+      ...buildActionItems({
+        ...common,
+        term,
+        aiChatEnabled,
+        modernUi: isModernUi(),
+        newDocument: () => setQuickCreateOpened(true),
+        openSearch: () => searchSpotlight.open(),
+        toggleModernUi: () => {
           setModernUi(!isModernUi());
           window.location.reload();
         },
-      },
-    ];
-
-    if (aiChatEnabled) {
-      actions.splice(2, 0, {
-        id: "ask-ai",
-        label: t("Ask AI"),
-        section: "Actions",
-        icon: <IconSparkles size={18} />,
-        run: () => navigate("/ai"),
-      });
-    }
-
-    const actionItems = spacesMode
-      ? []
-      : actions.filter((item) => matches(item.label));
-
-    const pageItems: CommandItem[] =
-      !spacesMode && debouncedQuery.trim().length >= 2
-        ? ((searchResults ?? []) as IPageSearch[]).slice(0, 8).map((result) => ({
-            id: `page-${result.id}`,
-            label: result.title || t("Untitled"),
-            section: "Pages",
-            icon: <IconFileText size={18} />,
-            hint: result.space?.name,
-            run: () =>
-              navigate(
-                buildPageUrl(
-                  result.space.slug,
-                  result.slugId,
-                  result.title,
-                ),
-              ),
-          }))
-        : [];
-
-    const { sections: sp } = spaceData;
-    const seenSpaces = new Set<string>();
-    const toSpaceItem = (
-      space: (typeof sp.all)[number],
-      section: string,
-    ): CommandItem[] => {
-      if (seenSpaces.has(space.id)) return [];
-      seenSpaces.add(space.id);
-      const markers = [
-        space.slug === currentSpaceSlug ? t("Current") : "",
-        favoriteIds.has(space.id) ? t("Pinned") : "",
-        space.isPersonal ? t("Personal") : "",
-        space.isArchived ? t("Archived") : "",
-      ].filter(Boolean);
-      return [
-        {
-          id: `space-${section}-${space.id}`,
-          label: space.name,
-          section,
-          icon: <IconLayoutGrid size={18} />,
-          markers,
-          run: () => navigate(getSpaceUrl(space.slug)),
-        },
-      ];
-    };
-
-    let spaceItems: CommandItem[] = [];
-    if (spacesMode) {
-      spaceItems = [
-        ...sp.recent.flatMap((s) => toSpaceItem(s, "Recent spaces")),
-        ...sp.favorites.flatMap((s) => toSpaceItem(s, "Favorite spaces")),
-        ...sp.all.flatMap((s) => toSpaceItem(s, "Spaces")),
-      ];
-      if (spaceData.hasNextPage) {
-        spaceItems.push({
-          id: "spaces-more",
-          label: t("Show more spaces"),
-          section: "Spaces",
-          icon: <IconPlus size={18} />,
-          keepOpen: true,
-          run: () => spaceData.fetchNextPage(),
-        });
-      }
-    } else if (spaceTerm) {
-      const all = sp.all.flatMap((s) => toSpaceItem(s, "Spaces"));
-      spaceItems = all.slice(0, COLLAPSED_SPACES);
-      if (all.length > COLLAPSED_SPACES || spaceData.hasNextPage) {
-        spaceItems.push({
-          id: "spaces-more",
-          label: t("Show more spaces"),
-          section: "Spaces",
-          icon: <IconPlus size={18} />,
-          keepOpen: true,
-          run: () => setQuery(`s ${spaceTerm}`),
-        });
-      }
-    }
-
-    const recentItems: CommandItem[] = (spacesMode ? [] : recentPages)
-      .filter((page) => matches(page.title || ""))
-      .slice(0, 6)
-      .map((page) => ({
-        id: `recent-${page.pageId}`,
-        label: page.title || t("Untitled"),
-        section: "Recent",
-        icon: <IconFileText size={18} />,
-        hint: page.spaceName,
-        run: () =>
-          navigate(
-            buildPageUrl(page.spaceSlug, page.slugId, page.title),
-          ),
-      }));
-
-    return [...actionItems, ...pageItems, ...spaceItems, ...recentItems];
+      }),
+      ...buildPageItems({
+        ...common,
+        results: (searchResults ?? []) as IPageSearch[],
+        enabled: !spacesMode && debouncedQuery.trim().length >= 2,
+      }),
+      ...buildSpaceItems({
+        ...common,
+        sections: spaceData.sections,
+        hasNextPage: spaceData.hasNextPage,
+        spaceTerm,
+        currentSpaceSlug,
+        favoriteIds,
+        fetchNextPage: spaceData.fetchNextPage,
+        showMoreSpaces: () => setQuery(`${SPACES_MODE_PREFIX}${spaceTerm}`),
+      }),
+      ...buildRecentPageItems({ ...common, recentPages, term }),
+    ].map((item) => ({ ...item, icon: ICONS[item.icon] }));
   }, [
     aiChatEnabled,
     currentSpaceSlug,
     favoriteIds,
+    nav,
     spaceData,
     spaceTerm,
     spacesMode,
     debouncedQuery,
-    navigate,
     query,
     recentPages,
     searchResults,
@@ -331,10 +196,7 @@ export function CommandPalette() {
       ?.scrollIntoView({ block: "nearest" });
   }, [activeIndex, opened]);
 
-  const grouped = SECTION_ORDER.map((section) => ({
-    section,
-    items: items.filter((item) => item.section === section),
-  })).filter((group) => group.items.length > 0);
+  const grouped = groupItems(items);
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
     if (event.key === "ArrowDown") {

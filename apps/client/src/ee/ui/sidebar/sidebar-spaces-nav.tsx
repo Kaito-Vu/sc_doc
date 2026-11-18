@@ -1,12 +1,11 @@
 import { useMemo, useState } from "react";
 import { ActionIcon, Tooltip, UnstyledButton } from "@mantine/core";
 import { IconArrowRight, IconSearch } from "@tabler/icons-react";
-import { useAtomValue, useSetAtom } from "jotai";
+import { useSetAtom } from "jotai";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { useFavoritesQuery } from "@/features/favorite/queries/favorite-query";
-import { useGetSpacesQuery } from "@/features/space/queries/space-query";
-import { recentSpacesListAtom } from "@/ee/ui/space-switcher/space-visit-atoms";
+import { useSpaceSwitcherData } from "@/ee/ui/space-switcher/use-space-switcher-data";
+import { SPACES_MODE_PREFIX } from "@/ee/ui/experience/palette-spaces-mode";
 import {
   commandPaletteInitialQueryAtom,
   commandPaletteOpenedAtom,
@@ -32,42 +31,27 @@ export function SidebarSpacesNav({
   const [showAllFavorites, setShowAllFavorites] = useState(false);
   const setPaletteOpened = useSetAtom(commandPaletteOpenedAtom);
   const setInitialQuery = useSetAtom(commandPaletteInitialQueryAtom);
-  const recent = useAtomValue(recentSpacesListAtom);
-  const { data: favoritesData } = useFavoritesQuery("space");
-  const { data: spacesData } = useGetSpacesQuery({ limit: 50 });
+  // Same data path as the switcher/palette: favorites/recent/known-ids logic lives in
+  // buildSwitcherSections (space-switcher-data.ts).
+  const { sections } = useSpaceSwitcherData("");
 
   const favorites = useMemo(
-    () =>
-      (favoritesData?.pages ?? [])
-        .flatMap((page) => page.items)
-        .flatMap((f) => (f.space?.id && f.space?.slug ? [f.space] : []))
-        .sort((a, b) => a.name.localeCompare(b.name)),
-    [favoritesData],
+    () => [...sections.favorites].sort((a, b) => a.name.localeCompare(b.name)),
+    [sections.favorites],
   );
 
-  const recentSpaces = useMemo(() => {
-    // Existence is only verifiable when the whole list fit in one page.
-    const known =
-      spacesData && !spacesData.meta?.hasNextPage
-        ? new Set(spacesData.items.map((s) => s.id))
-        : undefined;
-    const favIds = new Set(favorites.map((s) => s.id));
-    return recent
-      .filter(
-        (s) =>
-          !favIds.has(s.id) &&
-          s.id !== personalSpaceId &&
-          (!known || known.has(s.id)),
-      )
-      .slice(0, MAX_RECENT);
-  }, [recent, favorites, spacesData, personalSpaceId]);
+  const recentSpaces = useMemo(
+    () =>
+      sections.recent.filter((s) => s.id !== personalSpaceId).slice(0, MAX_RECENT),
+    [sections.recent, personalSpaceId],
+  );
 
   const visibleFavorites = showAllFavorites
     ? favorites
     : favorites.slice(0, MAX_FAVORITES);
 
   const openFinder = () => {
-    setInitialQuery("s "); // "s " = spaces mode in the command palette
+    setInitialQuery(SPACES_MODE_PREFIX);
     setPaletteOpened(true);
   };
 

@@ -9,6 +9,8 @@ export interface IRoleCount {
 }
 
 export interface IWorkspaceStats {
+  /** Current month ("YYYY-MM") in the server's stats time zone. */
+  currentMonth?: string;
   totalPages: number;
   totalUsers: number;
   totalActiveUsers: number;
@@ -21,6 +23,8 @@ export interface IWorkspaceStats {
 }
 
 export interface ISpaceStats {
+  /** Current month ("YYYY-MM") in the server's stats time zone. */
+  currentMonth?: string;
   totalPages: number;
   totalMembers: number;
   pagesUpdatedLast7Days: number;

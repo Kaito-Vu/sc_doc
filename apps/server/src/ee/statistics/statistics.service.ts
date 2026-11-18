@@ -157,7 +157,7 @@ export class StatisticsService {
   }
 
   getWorkspaceStats(workspaceId: string): Promise<WorkspaceStats> {
-    // 11 parallel count/sum queries: memoize briefly per workspace
+    // 6 queries in 2 small batches (pool is 10): memoize briefly per workspace
     return ttlMemo(`ws-stats:${workspaceId}`, 60_000, () =>
       this.computeWorkspaceStats(workspaceId),
     );
@@ -166,50 +166,42 @@ export class StatisticsService {
   private async computeWorkspaceStats(
     workspaceId: string,
   ): Promise<WorkspaceStats> {
-    const [
-      totalPages,
-      totalUsers,
-      totalActiveUsers,
-      totalSpaces,
-      storageUsedBytes,
-      usersNeverLoggedIn,
-      pagesCreatedByWeek,
-      usersJoinedByWeek,
-      ownerCount,
-      adminCount,
-      memberCount,
-    ] = await Promise.all([
+    const [userCounts, totalPages, totalSpaces] = await Promise.all([
+      this.queries.workspaceUserCounts(workspaceId),
       this.pageRepo.countByWorkspaceId(workspaceId),
-      this.userRepo.countByWorkspaceId(workspaceId),
-      this.userRepo.countActiveByWorkspaceId(workspaceId),
       this.spaceRepo.countByWorkspaceId(workspaceId),
-      this.attachmentRepo.sumFileSizeByWorkspaceId(workspaceId),
-      this.userRepo.countNeverLoggedInByWorkspaceId(workspaceId),
-      this.pageRepo.countCreatedByWeek(workspaceId, 12),
-      this.userRepo.countJoinedByWeek(workspaceId, 12),
-      this.userRepo.roleCountByWorkspaceId(UserRole.OWNER, workspaceId),
-      this.userRepo.roleCountByWorkspaceId(UserRole.ADMIN, workspaceId),
-      this.userRepo.roleCountByWorkspaceId(UserRole.MEMBER, workspaceId),
     ]);
+    const [storageUsedBytes, pagesCreatedByWeek, usersJoinedByWeek] =
+      await Promise.all([
+        this.attachmentRepo.sumFileSizeByWorkspaceId(workspaceId),
+        this.pageRepo.countCreatedByWeek(workspaceId, 12),
+        this.userRepo.countJoinedByWeek(workspaceId, 12),
+      ]);
 
     return {
       totalPages,
-      totalUsers,
-      totalActiveUsers,
+      totalUsers: userCounts.total,
+      totalActiveUsers: userCounts.active,
       totalSpaces,
       storageUsedBytes,
-      usersNeverLoggedIn,
+      usersNeverLoggedIn: userCounts.neverLoggedIn,
       usersByRole: [
-        { role: UserRole.OWNER, count: ownerCount },
-        { role: UserRole.ADMIN, count: adminCount },
-        { role: UserRole.MEMBER, count: memberCount },
+        { role: UserRole.OWNER, count: userCounts.owners },
+        { role: UserRole.ADMIN, count: userCounts.admins },
+        { role: UserRole.MEMBER, count: userCounts.members },
       ],
       pagesCreatedByWeek: this.buildWeeklyBuckets(pagesCreatedByWeek, 12),
       usersJoinedByWeek: this.buildWeeklyBuckets(usersJoinedByWeek, 12),
     };
   }
 
-  async getSpaceStats(
+  getSpaceStats(spaceId: string, workspaceId: string): Promise<SpaceStats> {
+    return ttlMemo(`space-stats:${workspaceId}:${spaceId}`, 60_000, () =>
+      this.computeSpaceStats(spaceId, workspaceId),
+    );
+  }
+
+  private async computeSpaceStats(
     spaceId: string,
     workspaceId: string,
   ): Promise<SpaceStats> {
@@ -233,7 +225,18 @@ export class StatisticsService {
     scope: { workspaceId: string; spaceId?: string },
     month?: string,
   ): Promise<ContributorStat[]> {
-    const { since, until } = resolveMonthRange(month);
+    const range = resolveMonthRange(month); // validate before memoizing
+    return ttlMemo(
+      `contrib:${scope.workspaceId}:${scope.spaceId ?? '-'}:${range.month}`,
+      60_000,
+      () => this.computeTopContributors(scope, range),
+    );
+  }
+
+  private async computeTopContributors(
+    scope: { workspaceId: string; spaceId?: string },
+    { since, until }: { since: Date; until: Date },
+  ): Promise<ContributorStat[]> {
 
     const [created, edited] = await Promise.all([
       this.pageRepo.countCreatedByUserSince({ ...scope, since, until }),
@@ -290,15 +293,8 @@ export class StatisticsService {
     const current = resolveMonthRange(undefined, now);
     const q = this.queries;
 
-    const [
-      pagesCreated,
-      newUsers,
-      editsAgg,
-      activeUsers,
-      stalePages,
-      verificationRows,
-      comments,
-    ] = await Promise.all([
+    // two small batches: the DB pool is 10 and other requests share it
+    const [pagesCreated, newUsers, editsAgg, activeUsers] = await Promise.all([
       q.pagesCreatedByMonth(workspaceId, since),
       q.usersJoinedByMonth(workspaceId, since),
       q.editsByMonth(workspaceId, since),
@@ -307,6 +303,8 @@ export class StatisticsService {
         new Date(now.getTime() - 7 * DAY_MS),
         new Date(now.getTime() - 30 * DAY_MS),
       ),
+    ]);
+    const [stalePages, verificationRows, comments] = await Promise.all([
       q.stalePages(workspaceId, {
         d90: new Date(now.getTime() - 90 * DAY_MS),
         d180: new Date(now.getTime() - 180 * DAY_MS),
@@ -347,13 +345,13 @@ export class StatisticsService {
   ): Promise<SpacesRanking> {
     const range = resolveMonthRange();
     const q = this.queries;
-    const [byPages, byStorage, byStalePages] = await Promise.all([
+    const [byPages, byStorage] = await Promise.all([
       q.topSpacesByPages(workspaceId),
       q.topSpacesByStorage(workspaceId),
-      q.topSpacesByStale(workspaceId, new Date(Date.now() - 90 * DAY_MS)),
     ]);
     const ids = byPages.map((s) => s.spaceId);
-    const [edits, members] = await Promise.all([
+    const [byStalePages, edits, members] = await Promise.all([
+      q.topSpacesByStale(workspaceId, new Date(Date.now() - 90 * DAY_MS)),
       q.editsBySpace(workspaceId, ids, range),
       q.memberCounts(ids),
     ]);

@@ -9,6 +9,7 @@ interface TopContributorsProps {
   data: IContributorStat[] | undefined;
   isLoading: boolean;
   month: string;
+  currentMonth: string;
   onMonthChange: (month: string) => void;
 }
 
@@ -16,6 +17,7 @@ export default function TopContributors({
   data,
   isLoading,
   month,
+  currentMonth,
   onMonthChange,
 }: TopContributorsProps) {
   const { t } = useTranslation();
@@ -24,7 +26,7 @@ export default function TopContributors({
     <Paper withBorder p="md" radius="md">
       <Group justify="space-between" mb="sm">
         <Text fw={600}>{t("Top contributors")}</Text>
-        <MonthNavigator month={month} onChange={onMonthChange} />
+        <MonthNavigator month={month} current={currentMonth} onChange={onMonthChange} />
       </Group>
 
       <Stack gap="xs">

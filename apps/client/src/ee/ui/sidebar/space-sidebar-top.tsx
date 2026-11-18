@@ -7,7 +7,7 @@ import {
   IconSearch,
   IconSettings,
 } from "@tabler/icons-react";
-import { useAtomValue, useSetAtom } from "jotai";
+import { useSetAtom } from "jotai";
 import { Link, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { EeSpaceSwitcher } from "@/ee/ui/space-switcher/ee-space-switcher";
@@ -16,8 +16,7 @@ import CreatePageMenu from "@/ee/template/components/create-page-menu";
 import { searchSpotlight } from "@/features/search/constants";
 import { getSpaceUrl } from "@/lib/config";
 import { platformModifierLabel } from "@/lib";
-import { currentUserAtom } from "@/features/user/atoms/current-user-atom";
-import { useVerificationListQuery } from "@/ee/page-verification/queries/page-verification-query";
+import { usePendingReviewCount } from "@/ee/page-verification/hooks/use-pending-review-count";
 import { commandPaletteOpenedAtom } from "@/ee/ui/experience/atoms";
 import { SidebarNavItem } from "./sidebar-components";
 import classes from "./space-sidebar-top.module.css";
@@ -47,23 +46,8 @@ export function SpaceSidebarTop({
 }: SpaceSidebarTopProps) {
   const { t } = useTranslation();
   const location = useLocation();
-  const currentUser = useAtomValue(currentUserAtom);
   const setCommandPaletteOpened = useSetAtom(commandPaletteOpenedAtom);
-  const { data } = useVerificationListQuery(
-    {
-      verifierId: currentUser?.user?.id,
-      type: "qms",
-      limit: 50,
-    },
-    !!currentUser?.user?.id,
-  );
-
-  const pending =
-    data?.items.filter(
-      (item) =>
-        item.status === "in_approval" ||
-        item.status === "needs_clarification",
-    ).length ?? 0;
+  const pending = usePendingReviewCount();
 
   const active = location.pathname;
   const spaceUrl = getSpaceUrl(space.slug);

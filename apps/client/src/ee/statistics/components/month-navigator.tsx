@@ -2,7 +2,6 @@ import { ActionIcon, Group, Text } from "@mantine/core";
 import { IconChevronLeft, IconChevronRight } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
 import {
-  currentMonthKey,
   formatMonthLabel,
   MAX_MONTHS_BACK,
   monthsBetween,
@@ -11,15 +10,17 @@ import {
 
 interface MonthNavigatorProps {
   month: string;
+  /** Latest selectable month (server's current month). */
+  current: string;
   onChange: (month: string) => void;
 }
 
 export default function MonthNavigator({
   month,
+  current,
   onChange,
 }: MonthNavigatorProps) {
   const { t, i18n } = useTranslation();
-  const current = currentMonthKey();
 
   return (
     <Group gap={4} wrap="nowrap">

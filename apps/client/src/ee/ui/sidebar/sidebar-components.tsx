@@ -1,4 +1,4 @@
-import React, { useId, useState } from "react";
+import React, { memo, useId, useState } from "react";
 import clsx from "clsx";
 import {
   Collapse,
@@ -165,7 +165,8 @@ type SidebarSpaceRowProps = {
   onClick?: () => void;
 };
 
-export function SidebarSpaceRow({
+// memo: rendered per space in long lists; callers pass a boolean `active` and a stable onClick.
+export const SidebarSpaceRow = memo(function SidebarSpaceRow({
   space,
   active,
   meta,
@@ -197,7 +198,7 @@ export function SidebarSpaceRow({
       </span>
     </div>
   );
-}
+});
 
 export function SidebarEmpty({ children }: { children: React.ReactNode }) {
   return <div className={classes.empty}>{children}</div>;

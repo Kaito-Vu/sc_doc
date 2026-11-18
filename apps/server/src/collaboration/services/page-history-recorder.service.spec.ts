@@ -49,7 +49,6 @@ describe('PageHistoryRecorderService', () => {
       notificationQueue,
       generalQueue,
       { emit: jest.fn() } as any,
-      undefined as any,
     );
   });
 

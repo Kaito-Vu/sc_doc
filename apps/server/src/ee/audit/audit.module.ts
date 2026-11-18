@@ -6,6 +6,7 @@ import { AuditQueryService } from './audit-query.service';
 import { AuditQueryController } from './audit-query.controller';
 import { AuditRequestInterceptor } from './audit-request.interceptor';
 import { AuditRetentionService } from './audit-retention.service';
+import { PageHistoryAuditListener } from './page-history-audit.listener';
 
 @Global()
 @Module({
@@ -13,6 +14,7 @@ import { AuditRetentionService } from './audit-retention.service';
     AuditLogService,
     AuditQueryService,
     AuditRetentionService,
+    PageHistoryAuditListener,
     {
       provide: AUDIT_SERVICE,
       useExisting: AuditLogService,

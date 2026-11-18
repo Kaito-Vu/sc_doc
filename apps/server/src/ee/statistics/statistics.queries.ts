@@ -43,6 +43,28 @@ export class StatisticsQueries {
     })) as MonthlyCount[];
   }
 
+  /** One scan of users: totals, never-logged-in and per-role counts (active users only for roles). */
+  async workspaceUserCounts(workspaceId: string) {
+    const { rows } = await sql<any>`
+      SELECT count(*) AS total,
+             count(*) FILTER (WHERE deactivated_at IS NULL) AS active,
+             count(*) FILTER (WHERE last_login_at IS NULL) AS never_logged_in,
+             count(*) FILTER (WHERE deactivated_at IS NULL AND role = 'owner') AS owners,
+             count(*) FILTER (WHERE deactivated_at IS NULL AND role = 'admin') AS admins,
+             count(*) FILTER (WHERE deactivated_at IS NULL AND role = 'member') AS members
+      FROM users
+      WHERE workspace_id = ${workspaceId} AND deleted_at IS NULL`.execute(this.db);
+    const r = rows[0] ?? {};
+    return {
+      total: num(r.total),
+      active: num(r.active),
+      neverLoggedIn: num(r.neverLoggedIn),
+      owners: num(r.owners),
+      admins: num(r.admins),
+      members: num(r.members),
+    };
+  }
+
   pagesCreatedByMonth(workspaceId: string, since: Date) {
     return this.monthly(sql`
       SELECT ${this.bucket('created_at')} AS month, count(*) AS count

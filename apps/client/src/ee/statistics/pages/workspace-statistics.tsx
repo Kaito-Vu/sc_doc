@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { Grid } from "@mantine/core";
 import { Helmet } from "react-helmet-async";
 import { useTranslation } from "react-i18next";
@@ -23,7 +22,7 @@ import {
   useWorkspaceTopContributorsQuery,
 } from "@/ee/statistics/queries/statistics-query";
 import WorkspaceExtraStats from "@/ee/statistics/components/workspace-extra-stats";
-import { currentMonthKey } from "@/ee/statistics/lib/month";
+import { useStatsMonth } from "@/ee/statistics/lib/use-stats-month";
 import { formatBytes } from "@/ee/statistics/lib/format-bytes";
 
 export default function WorkspaceStatistics() {
@@ -31,7 +30,9 @@ export default function WorkspaceStatistics() {
   const hasStatistics = useHasFeature(Feature.STATISTICS);
   const { data: stats, isLoading } =
     useWorkspaceStatisticsQuery(hasStatistics);
-  const [month, setMonth] = useState<string>(currentMonthKey());
+  const { month, currentMonth, setMonth } = useStatsMonth(
+    stats?.currentMonth,
+  );
   const { data: contributors, isLoading: contributorsLoading } =
     useWorkspaceTopContributorsQuery(month, hasStatistics);
 
@@ -100,6 +101,7 @@ export default function WorkspaceStatistics() {
             data={contributors}
             isLoading={contributorsLoading}
             month={month}
+            currentMonth={currentMonth}
             onMonthChange={setMonth}
           />
         </Grid.Col>

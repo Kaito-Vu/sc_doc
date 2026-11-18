@@ -1,4 +1,6 @@
 import { Module } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
+import { InvitesDisabledGuard } from './common/guards/invites-disabled.guard';
 import { LicenceModule } from './licence/licence.module';
 import { ApiKeyModule } from './api-key/api-key.module';
 import { AuditEeModule } from './audit/audit.module';
@@ -78,7 +80,10 @@ import { FeatureGateGuard } from './common/guards/feature-gate.guard';
     PageLabelInheritModule,
     AnnouncementModule,
   ],
-  providers: [FeatureGateGuard],
+  providers: [
+    FeatureGateGuard,
+    { provide: APP_GUARD, useClass: InvitesDisabledGuard },
+  ],
   exports: [
     LicenceModule,
     ApiKeyModule,

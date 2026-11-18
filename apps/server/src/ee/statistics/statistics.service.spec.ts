@@ -8,8 +8,11 @@ describe('StatisticsService.getTopContributors', () => {
   let pageRepo: { countCreatedByUserSince: jest.Mock };
   let pageHistoryRepo: { countEditsByUserSince: jest.Mock };
   let service: StatisticsService;
+  let wsId: string; // ttlMemo is process-global: isolate keys per test
+  let seq = 0;
 
   beforeEach(() => {
+    wsId = `ws-${++seq}`;
     pageRepo = { countCreatedByUserSince: jest.fn() };
     pageHistoryRepo = { countEditsByUserSince: jest.fn() };
     service = new StatisticsService(
@@ -33,7 +36,7 @@ describe('StatisticsService.getTopContributors', () => {
     ]);
 
     const result = await service.getTopContributors(
-      { workspaceId: 'ws1' },
+      { workspaceId: wsId },
     );
 
     expect(result).toEqual([
@@ -72,7 +75,7 @@ describe('StatisticsService.getTopContributors', () => {
       pageRepo.countCreatedByUserSince.mockResolvedValue([]);
       pageHistoryRepo.countEditsByUserSince.mockResolvedValue([]);
 
-      await service.getTopContributors({ workspaceId: 'ws1' });
+      await service.getTopContributors({ workspaceId: wsId });
 
       const arg = pageRepo.countCreatedByUserSince.mock.calls[0][0];
       expect(arg.since.toISOString()).toBe('2026-10-31T17:00:00.000Z');
@@ -87,7 +90,7 @@ describe('StatisticsService.getTopContributors', () => {
       pageRepo.countCreatedByUserSince.mockResolvedValue([]);
       pageHistoryRepo.countEditsByUserSince.mockResolvedValue([]);
 
-      await service.getTopContributors({ workspaceId: 'ws1' }, '2026-02');
+      await service.getTopContributors({ workspaceId: wsId }, '2026-02');
 
       const arg = pageRepo.countCreatedByUserSince.mock.calls[0][0];
       expect(arg.since.toISOString()).toBe('2026-01-31T17:00:00.000Z');
@@ -98,7 +101,7 @@ describe('StatisticsService.getTopContributors', () => {
       jest.useFakeTimers().setSystemTime(new Date('2026-11-18T10:00:00Z'));
       for (const bad of ['2026-12', '2020-10', '2026-13', 'nope']) {
         await expect(
-          service.getTopContributors({ workspaceId: 'ws1' }, bad),
+          service.getTopContributors({ workspaceId: wsId }, bad),
         ).rejects.toBeInstanceOf(BadRequestException);
       }
       expect(pageRepo.countCreatedByUserSince).not.toHaveBeenCalled();
@@ -116,7 +119,7 @@ describe('StatisticsService.getTopContributors', () => {
     pageHistoryRepo.countEditsByUserSince.mockResolvedValue([]);
 
     const result = await service.getTopContributors(
-      { workspaceId: 'ws1' },
+      { workspaceId: wsId },
     );
 
     expect(result).toHaveLength(10);
@@ -128,16 +131,16 @@ describe('StatisticsService.getTopContributors', () => {
     pageHistoryRepo.countEditsByUserSince.mockResolvedValue([]);
 
     await service.getTopContributors(
-      { workspaceId: 'ws1', spaceId: 'sp1' },
+      { workspaceId: wsId, spaceId: 'sp1' },
     );
 
     expect(pageRepo.countCreatedByUserSince.mock.calls[0][0]).toMatchObject({
-      workspaceId: 'ws1',
+      workspaceId: wsId,
       spaceId: 'sp1',
     });
     expect(
       pageHistoryRepo.countEditsByUserSince.mock.calls[0][0],
-    ).toMatchObject({ workspaceId: 'ws1', spaceId: 'sp1' });
+    ).toMatchObject({ workspaceId: wsId, spaceId: 'sp1' });
   });
 });
 
@@ -160,17 +163,19 @@ describe('StatisticsService.getWorkspaceStats', () => {
         .mockResolvedValue([{ weekStart: currentWeekStart, count: 3 }]),
     };
     const userRepo = {
-      countByWorkspaceId: jest.fn().mockResolvedValue(10),
-      countActiveByWorkspaceId: jest.fn().mockResolvedValue(8),
-      countNeverLoggedInByWorkspaceId: jest.fn().mockResolvedValue(2),
       countJoinedByWeek: jest
         .fn()
         .mockResolvedValue([{ weekStart: currentWeekStart, count: 1 }]),
-      roleCountByWorkspaceId: jest
-        .fn()
-        .mockImplementation((role: string) =>
-          Promise.resolve(role === 'owner' ? 1 : role === 'admin' ? 2 : 7),
-        ),
+    };
+    const queries = {
+      workspaceUserCounts: jest.fn().mockResolvedValue({
+        total: 10,
+        active: 8,
+        neverLoggedIn: 2,
+        owners: 1,
+        admins: 2,
+        members: 7,
+      }),
     };
     const attachmentRepo = {
       sumFileSizeByWorkspaceId: jest.fn().mockResolvedValue(1024),
@@ -183,7 +188,7 @@ describe('StatisticsService.getWorkspaceStats', () => {
       {} as any,
       attachmentRepo as any,
       spaceRepo as any,
-      {} as any,
+      queries as any,
     );
 
     const result = await service.getWorkspaceStats('ws1');

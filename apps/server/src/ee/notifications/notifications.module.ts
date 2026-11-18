@@ -8,6 +8,7 @@ import { PageEditSupplementService } from './page-edit-supplement.service';
 import { NotificationPreferencesController } from './notification-preferences.controller';
 import { PageLifecycleNotificationListener } from './listeners/page-lifecycle.listener';
 import { SpaceMembershipNotificationListener } from './listeners/space-membership.listener';
+import { PageEditSupplementListener } from './listeners/page-edit-supplement.listener';
 
 @Module({
   imports: [NotificationModule, CollaborationModule],
@@ -19,6 +20,7 @@ import { SpaceMembershipNotificationListener } from './listeners/space-membershi
     PageEditSupplementService,
     PageLifecycleNotificationListener,
     SpaceMembershipNotificationListener,
+    PageEditSupplementListener,
   ],
   exports: [
     NotificationRecipientsRepo,

@@ -43,7 +43,6 @@ import { WorkspaceRepo } from '@docmost/db/repos/workspace/workspace.repo';
 import { CoreHooks } from '../../../core/plugins/plugin-hooks';
 import { runHook } from '../../../core/plugins/run-hook';
 import { ApiKeyScope } from '../../../common/decorators/api-key-scope.decorator';
-import { InvitesDisabledGuard } from '../../../ee/common/guards/invites-disabled.guard';
 
 @UseGuards(JwtAuthGuard)
 @Controller('workspace')
@@ -257,7 +256,6 @@ export class WorkspaceController {
   }
 
   @HttpCode(HttpStatus.OK)
-  @UseGuards(InvitesDisabledGuard)
   @Post('invites/create')
   async inviteUser(
     @Body() inviteUserDto: InviteUserDto,
@@ -290,7 +288,6 @@ export class WorkspaceController {
   }
 
   @HttpCode(HttpStatus.OK)
-  @UseGuards(InvitesDisabledGuard)
   @Post('invites/resend')
   async resendInvite(
     @Body() revokeInviteDto: RevokeInviteDto,
@@ -332,7 +329,6 @@ export class WorkspaceController {
 
   @Public()
   @HttpCode(HttpStatus.OK)
-  @UseGuards(InvitesDisabledGuard)
   @Post('invites/accept')
   async acceptInvite(
     @Body() acceptInviteDto: AcceptInviteDto,
@@ -371,7 +367,6 @@ export class WorkspaceController {
   }
 
   @HttpCode(HttpStatus.OK)
-  @UseGuards(InvitesDisabledGuard)
   @Post('invites/link')
   async getInviteLink(
     @Body() inviteDto: InvitationIdDto,

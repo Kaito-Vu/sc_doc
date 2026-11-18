@@ -1,4 +1,6 @@
 // Pure helpers for the space switcher (kept free of React so they are unit-testable).
+import type { ISpace } from "@/features/space/types/space.types";
+
 export const MAX_RECENT_SPACES = 8;
 
 export type SwitcherSpace = {
@@ -10,6 +12,42 @@ export type SwitcherSpace = {
   isPublished?: boolean;
   isPersonal?: boolean;
 };
+
+export const fromSpace = (s: ISpace): SwitcherSpace => ({
+  id: s.id,
+  slug: s.slug,
+  name: s.name,
+  logo: s.logo,
+  isArchived: !!s.archivedAt,
+  isPublished: s.isPublished,
+  isPersonal: s.isPersonal,
+});
+
+/** Favorites only carry a partial space; map what is available. */
+export const fromFavoriteSpace = (
+  s: Pick<ISpace, "id" | "slug" | "name" | "logo" | "archivedAt">,
+): SwitcherSpace => ({
+  id: s.id,
+  slug: s.slug,
+  name: s.name,
+  logo: s.logo,
+  isArchived: !!s.archivedAt,
+});
+
+/**
+ * Ids of every space the user can see, or undefined when that is not verifiable.
+ * It is only verifiable when ALL pages of the unfiltered list are loaded (no further page,
+ * no search query); otherwise a recent space missing from `all` may simply be on a later page.
+ * This is the single place that decides it - used to drop deleted/inaccessible recents.
+ */
+export function knownSpaceIds(
+  all: SwitcherSpace[],
+  opts: { loaded: boolean; hasNextPage: boolean; query: string },
+): Set<string> | undefined {
+  return opts.loaded && !opts.hasNextPage && !opts.query
+    ? new Set(all.map((s) => s.id))
+    : undefined;
+}
 
 export type RecentSpace = {
   id: string;
