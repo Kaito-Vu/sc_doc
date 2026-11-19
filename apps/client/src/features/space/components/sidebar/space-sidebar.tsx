@@ -141,7 +141,7 @@ export function SpaceSidebar() {
                   SpaceCaslAction.Manage,
                   SpaceCaslSubject.Page,
                 )}
-                onSpaceSettings={openSettings}
+                onSpaceSettings={space.isPersonal ? undefined : openSettings}
               />
 
               {spaceAbility.can(
@@ -181,7 +181,7 @@ export function SpaceSidebar() {
 interface SpaceMenuProps {
   spaceId: string;
   canManagePages: boolean;
-  onSpaceSettings: () => void;
+  onSpaceSettings?: () => void;
 }
 function SpaceMenu({
   spaceId,
@@ -320,12 +320,14 @@ function SpaceMenu({
 
               <Menu.Divider />
 
-              <Menu.Item
-                onClick={onSpaceSettings}
-                leftSection={<IconSettings size={16} />}
-              >
-                {t("Space settings")}
-              </Menu.Item>
+              {onSpaceSettings && (
+                <Menu.Item
+                  onClick={onSpaceSettings}
+                  leftSection={<IconSettings size={16} />}
+                >
+                  {t("Space settings")}
+                </Menu.Item>
+              )}
 
               <Menu.Item
                 component={Link}

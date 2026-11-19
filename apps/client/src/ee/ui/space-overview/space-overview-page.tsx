@@ -250,17 +250,19 @@ export function SpaceOverviewPage() {
                 )}
               </ActionIcon>
             </Tooltip>
-            <Tooltip label={t("Space settings")} withArrow>
-              <ActionIcon
-                variant="default"
-                color="gray"
-                size="lg"
-                aria-label={t("Space settings")}
-                onClick={() => openSpaceSettings("general")}
-              >
-                <IconSettings size={18} />
-              </ActionIcon>
-            </Tooltip>
+            {!space.isPersonal && (
+              <Tooltip label={t("Space settings")} withArrow>
+                <ActionIcon
+                  variant="default"
+                  color="gray"
+                  size="lg"
+                  aria-label={t("Space settings")}
+                  onClick={() => openSpaceSettings("general")}
+                >
+                  <IconSettings size={18} />
+                </ActionIcon>
+              </Tooltip>
+            )}
           </div>
         </section>
 
@@ -349,14 +351,16 @@ export function SpaceOverviewPage() {
               <section className={classes.card}>
                 <div className={classes.cardHeader}>
                   <h2 className={classes.cardTitle}>{t("Members")}</h2>
-                  <Button
-                    variant="subtle"
-                    size="compact-xs"
-                    aria-label={t("View all members")}
-                    onClick={() => openSpaceSettings("members")}
-                  >
-                    {t("View all")}
-                  </Button>
+                  {!space.isPersonal && (
+                    <Button
+                      variant="subtle"
+                      size="compact-xs"
+                      aria-label={t("View all members")}
+                      onClick={() => openSpaceSettings("members")}
+                    >
+                      {t("View all")}
+                    </Button>
+                  )}
                 </div>
 
                 {members.length === 0 ? (
@@ -432,17 +436,19 @@ export function SpaceOverviewPage() {
                     </span>
                     <span className={classes.quickLabel}>{t("Favorites")}</span>
                   </UnstyledButton>
-                  <UnstyledButton
-                    className={classes.quickItem}
-                    onClick={() => openSpaceSettings("general")}
-                  >
-                    <span className={classes.quickIcon}>
-                      <IconSettings size={15} />
-                    </span>
-                    <span className={classes.quickLabel}>
-                      {t("Space settings")}
-                    </span>
-                  </UnstyledButton>
+                  {!space.isPersonal && (
+                    <UnstyledButton
+                      className={classes.quickItem}
+                      onClick={() => openSpaceSettings("general")}
+                    >
+                      <span className={classes.quickIcon}>
+                        <IconSettings size={15} />
+                      </span>
+                      <span className={classes.quickLabel}>
+                        {t("Space settings")}
+                      </span>
+                    </UnstyledButton>
+                  )}
                   {isPublic && (
                     <UnstyledButton
                       component="a"

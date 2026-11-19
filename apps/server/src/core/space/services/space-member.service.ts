@@ -114,6 +114,9 @@ export class SpaceMemberService {
     if (!space) {
       throw new NotFoundException('Space not found');
     }
+    if (space.isPersonal) {
+      throw new BadRequestException('Personal spaces cannot have other members');
+    }
 
     // make sure we have valid workspace users
     const validUsersQuery = this.db
@@ -358,6 +361,9 @@ export class SpaceMemberService {
       );
       if (!space) {
         throw new NotFoundException('Space not found');
+      }
+      if (space.isPersonal) {
+        throw new BadRequestException('Roles in personal spaces cannot be changed');
       }
 
       const spaceMember = await this.spaceMemberRepo.getSpaceMemberByTypeId(

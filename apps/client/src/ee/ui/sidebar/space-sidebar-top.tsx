@@ -19,6 +19,7 @@ import { platformModifierLabel } from "@/lib";
 import { usePendingReviewCount } from "@/ee/page-verification/hooks/use-pending-review-count";
 import { commandPaletteOpenedAtom } from "@/ee/ui/experience/atoms";
 import { SidebarNavItem } from "./sidebar-components";
+import { useSpaceQuery } from "@/features/space/queries/space-query.ts";
 import classes from "./space-sidebar-top.module.css";
 
 type SpaceSidebarTopProps = {
@@ -51,6 +52,8 @@ export function SpaceSidebarTop({
 
   const active = location.pathname;
   const spaceUrl = getSpaceUrl(space.slug);
+  // Personal spaces have no settings (no members, no roles).
+  const isPersonal = !!useSpaceQuery(space.id).data?.isPersonal;
 
   return (
     <div className={classes.root}>
@@ -140,14 +143,16 @@ export function SpaceSidebarTop({
           active={active.startsWith("/documents")}
           onNavigate={onNavigate}
         />
-        <SidebarNavItem
-          icon={IconSettings}
-          label={t("Space settings")}
-          onClick={() => {
-            onOpenSettings();
-            onNavigate?.();
-          }}
-        />
+        {!isPersonal && (
+          <SidebarNavItem
+            icon={IconSettings}
+            label={t("Space settings")}
+            onClick={() => {
+              onOpenSettings();
+              onNavigate?.();
+            }}
+          />
+        )}
       </nav>
 
       <div className={classes.pagesDivider} />
