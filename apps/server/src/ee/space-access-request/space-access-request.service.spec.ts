@@ -26,7 +26,7 @@ const pendingRow = (over: any = {}) => ({
   ...over,
 });
 
-function build(over: { repo?: any; members?: any } = {}) {
+function build(over: { repo?: any; members?: any; enabled?: boolean } = {}) {
   const repo = {
     findPendingForSpaceAndUser: jest.fn().mockResolvedValue(undefined),
     findLatestForSpaceAndUser: jest.fn().mockResolvedValue(undefined),
@@ -48,9 +48,12 @@ function build(over: { repo?: any; members?: any } = {}) {
   const queue = { add: jest.fn().mockResolvedValue(undefined) };
   const events = { emit: jest.fn() };
   const audit = { log: jest.fn() };
+  const pluginConfig = {
+    getConfig: jest.fn().mockResolvedValue({ enabled: over.enabled ?? true }),
+  };
   const svc = new SpaceAccessRequestService(
     repo as any, spaceRepo as any, members as any, db, queue as any,
-    events as any, audit as any,
+    events as any, audit as any, pluginConfig as any,
   );
   return { svc, repo, members, queue, events, audit };
 }
@@ -237,5 +240,32 @@ describe('SpaceAccessRequestService.info', () => {
     withSpace(svc, { id: 's1', name: 'S', slug: 's' });
     const res: any = await svc.info('s', user() as any);
     expect(res.canRequest).toBe(true);
+  });
+});
+
+describe('SpaceAccessRequestService plugin switch (Settings > Plugins)', () => {
+  it.each(['create', 'approve', 'reject'])('%s throws Forbidden when disabled', async (m) => {
+    const { svc, repo } = build({ enabled: false });
+    const call: any = {
+      create: () => svc.create({ spaceId: 's1', role: 'reader' as any }, user() as any),
+      approve: () => svc.approve('r1', 'reader' as any, user({ role: 'admin' }) as any),
+      reject: () => svc.reject('r1', undefined, user({ role: 'admin' }) as any),
+    }[m];
+    await expect(call()).rejects.toBeInstanceOf(ForbiddenException);
+    expect(repo.insert).not.toHaveBeenCalled();
+    expect(repo.decide).not.toHaveBeenCalled();
+  });
+
+  it('info/list/count return empty results when disabled', async () => {
+    const { svc } = build({ enabled: false });
+    expect(await svc.info('s', user() as any)).toEqual({ space: null, request: null, canRequest: false });
+    expect((await svc.list(user() as any, { limit: 20 } as any)).items).toEqual([]);
+    expect(await svc.count(user() as any)).toBe(0);
+  });
+
+  it('a failing config lookup is treated as disabled', async () => {
+    const { svc } = build();
+    (svc as any).pluginConfig.getConfig = jest.fn().mockRejectedValue(new Error('x'));
+    expect(await svc.isEnabled('w1')).toBe(false);
   });
 });

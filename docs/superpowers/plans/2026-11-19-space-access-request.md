@@ -168,3 +168,17 @@
 - [ ] **Step 2: Run** → FAIL. **Step 3: Implement.** **Step 4: Run** `pnpm --filter ./apps/client exec vitest run src/ee/space-access-request` → PASS.
 - [ ] **Step 5: End-to-end manual check** with two users (member + space admin): request → bell+badge appear → approve → requester sees space; second approver's notification vanishes.
 - [ ] **Step 6: Run `pnpm --filter ./apps/client run lint`** and re-check the core-file diff (`git diff --stat` must show only the allowed core touches). Commit `feat(ee): access requests approver page`.
+
+---
+
+### Task 7: Settings → Plugins switch (added mid-run at user request)
+
+**Files:**
+- Create: `apps/server/src/ee/plugins/space-access-request/plugin.config.json` (id `space-access-request`, `configLocation: "plugin"`, default OFF — same pattern as `page-lock`)
+- Modify: `apps/server/src/ee/space-access-request/space-access-request.service.ts` (+ spec)
+- Client: `useSpaceAccessRequestEnabled()` in `queries/space-access-request-query.ts` (done in Task 6) gates the nav items; `info` returns `space: null` when disabled so the panel falls back to the plain 403.
+
+**Interfaces:** `SpaceAccessRequestService.isEnabled(workspaceId): Promise<boolean>`; `create/approve/reject` throw `ForbiddenException` when off; `info` → `{space:null,request:null,canRequest:false}`, `list` → empty page, `count` → 0.
+
+- [x] Tests: `create|approve|reject throws Forbidden when disabled`, `info/list/count return empty when disabled`, `failing config lookup is treated as disabled`.
+- [x] Verify manually: Settings → Plugins lists "Space access requests"; toggling it on/off changes behaviour.

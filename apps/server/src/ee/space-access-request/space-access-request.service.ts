@@ -25,6 +25,9 @@ import {
   IAuditService,
 } from '../../integrations/audit/audit.service';
 import { SpaceAccessRequestRepo, SpaceScope } from './space-access-request.repo';
+import { PluginConfigService } from '../plugins/services/plugin-config.service';
+
+export const PLUGIN_ID = 'space-access-request';
 
 export const REREQUEST_COOLDOWN_MS = 24 * 60 * 60 * 1000;
 
@@ -39,7 +42,23 @@ export class SpaceAccessRequestService {
     private readonly notificationQueue: Queue,
     private readonly eventEmitter: EventEmitter2,
     @Inject(AUDIT_SERVICE) private readonly auditService: IAuditService,
+    private readonly pluginConfig: PluginConfigService,
   ) {}
+
+  // Settings > Plugins switch (default off).
+  async isEnabled(workspaceId: string): Promise<boolean> {
+    try {
+      return !!(await this.pluginConfig.getConfig(workspaceId, PLUGIN_ID))?.enabled;
+    } catch {
+      return false;
+    }
+  }
+
+  private async assertEnabled(workspaceId: string): Promise<void> {
+    if (!(await this.isEnabled(workspaceId))) {
+      throw new ForbiddenException('Space access requests are disabled');
+    }
+  }
 
   private isWorkspaceAdmin(user: User) {
     return user.role === UserRole.OWNER || user.role === UserRole.ADMIN;
@@ -58,6 +77,7 @@ export class SpaceAccessRequestService {
     dto: { spaceId: string; role: SpaceRole; message?: string },
     user: User,
   ) {
+    await this.assertEnabled(user.workspaceId);
     if (!Object.values(SpaceRole).includes(dto.role)) {
       throw new BadRequestException('Invalid role');
     }
@@ -120,6 +140,9 @@ export class SpaceAccessRequestService {
 
   // Pre-request lookup for the 403 screen. Unknown slug -> `space: null`.
   async info(spaceSlug: string, user: User) {
+    if (!(await this.isEnabled(user.workspaceId))) {
+      return { space: null, request: null, canRequest: false };
+    }
     const space = await this.spaceRepo.findBySlug(spaceSlug, user.workspaceId);
     if (!space) return { space: null, request: null, canRequest: false };
 
@@ -177,6 +200,7 @@ export class SpaceAccessRequestService {
   }
 
   async approve(id: string, role: SpaceRole, user: User): Promise<void> {
+    await this.assertEnabled(user.workspaceId);
     if (!Object.values(SpaceRole).includes(role)) {
       throw new BadRequestException('Invalid role');
     }
@@ -238,6 +262,7 @@ export class SpaceAccessRequestService {
   }
 
   async reject(id: string, reason: string | undefined, user: User): Promise<void> {
+    await this.assertEnabled(user.workspaceId);
     const row = await executeTx(this.db, async (trx) => {
       const r = await this.repo.findByIdForUpdate(id, trx);
       if (!r || r.workspaceId !== user.workspaceId) {
@@ -276,10 +301,17 @@ export class SpaceAccessRequestService {
   }
 
   async list(user: User, pagination: PaginationOptions) {
+    if (!(await this.isEnabled(user.workspaceId))) {
+      return {
+        items: [],
+        meta: { limit: pagination.limit, hasNextPage: false, hasPrevPage: false, nextCursor: null, prevCursor: null },
+      };
+    }
     return this.repo.listPending(user.workspaceId, await this.scopeFor(user), pagination);
   }
 
   async count(user: User): Promise<number> {
+    if (!(await this.isEnabled(user.workspaceId))) return 0;
     return this.repo.countPending(user.workspaceId, await this.scopeFor(user));
   }
 
