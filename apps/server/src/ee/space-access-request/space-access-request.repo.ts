@@ -100,12 +100,21 @@ export class SpaceAccessRequestRepo {
       .execute();
   }
 
+  // Pending requests for live spaces from active requesters. 'all' (workspace
+  // admins) excludes personal spaces, which admins must not reach implicitly.
   private scoped(workspaceId: string, spaces: SpaceScope) {
     let qb = this.db
       .selectFrom('spaceAccessRequests')
+      .innerJoin('users', 'users.id', 'spaceAccessRequests.requesterId')
+      .innerJoin('spaces', 'spaces.id', 'spaceAccessRequests.spaceId')
       .where('spaceAccessRequests.workspaceId', '=', workspaceId)
-      .where('spaceAccessRequests.status', '=', 'pending');
-    if (spaces !== 'all') {
+      .where('spaceAccessRequests.status', '=', 'pending')
+      .where('users.deletedAt', 'is', null)
+      .where('users.deactivatedAt', 'is', null)
+      .where('spaces.deletedAt', 'is', null);
+    if (spaces === 'all') {
+      qb = qb.where('spaces.isPersonal', '=', false);
+    } else {
       // an empty list must match nothing, never produce `IN ()`
       qb = qb.where(
         'spaceAccessRequests.spaceId',
@@ -121,10 +130,7 @@ export class SpaceAccessRequestRepo {
     spaces: SpaceScope,
     pagination: PaginationOptions,
   ) {
-    const query = this.scoped(workspaceId, spaces)
-      .innerJoin('users', 'users.id', 'spaceAccessRequests.requesterId')
-      .innerJoin('spaces', 'spaces.id', 'spaceAccessRequests.spaceId')
-      .select([
+    const query = this.scoped(workspaceId, spaces).select([
         'spaceAccessRequests.id',
         'spaceAccessRequests.spaceId',
         'spaceAccessRequests.roleRequested',
@@ -166,6 +172,7 @@ export class SpaceAccessRequestRepo {
       .innerJoin('spaces', 'spaces.id', 'spaceMembers.spaceId')
       .select('spaceMembers.spaceId')
       .where('spaces.workspaceId', '=', workspaceId)
+      .where('spaces.deletedAt', 'is', null)
       .where('spaceMembers.role', '=', 'admin')
       .where('spaceMembers.userId', '=', userId)
       .unionAll(
@@ -175,6 +182,7 @@ export class SpaceAccessRequestRepo {
           .innerJoin('groupUsers', 'groupUsers.groupId', 'spaceMembers.groupId')
           .select('spaceMembers.spaceId')
           .where('spaces.workspaceId', '=', workspaceId)
+          .where('spaces.deletedAt', 'is', null)
           .where('spaceMembers.role', '=', 'admin')
           .where('groupUsers.userId', '=', userId),
       )
@@ -182,29 +190,52 @@ export class SpaceAccessRequestRepo {
     return [...new Set(rows.map((r) => r.spaceId))];
   }
 
-  // Active workspace owners/admins + Full access members of the space.
-  async findApproverIds(workspaceId: string, spaceId: string): Promise<string[]> {
-    const wsAdmins = await activeWorkspaceUsers(this.db, workspaceId)
+  async isActiveUser(
+    userId: string,
+    workspaceId: string,
+    trx?: KyselyTransaction,
+  ): Promise<boolean> {
+    const row = await activeWorkspaceUsers(dbOrTx(this.db, trx), workspaceId)
       .select('users.id')
-      .where('users.role', 'in', ['owner', 'admin'])
+      .where('users.id', '=', userId)
+      .executeTakeFirst();
+    return !!row;
+  }
+
+  // Active Full access members of the space (direct or via group), plus active
+  // workspace owners/admins - except in personal spaces, which they cannot reach.
+  async findApproverIds(workspaceId: string, spaceId: string): Promise<string[]> {
+    const space = await this.db
+      .selectFrom('spaces')
+      .select(['isPersonal'])
+      .where('id', '=', spaceId)
+      .where('workspaceId', '=', workspaceId)
+      .where('deletedAt', 'is', null)
+      .executeTakeFirst();
+    if (!space) return [];
+
+    const ids = new Set<string>();
+    if (!space.isPersonal) {
+      const wsAdmins = await activeWorkspaceUsers(this.db, workspaceId)
+        .select('users.id')
+        .where('users.role', 'in', ['owner', 'admin'])
+        .execute();
+      for (const u of wsAdmins) ids.add(u.id);
+    }
+    const direct = await activeWorkspaceUsers(this.db, workspaceId)
+      .innerJoin('spaceMembers', 'spaceMembers.userId', 'users.id')
+      .select('users.id')
+      .where('spaceMembers.spaceId', '=', spaceId)
+      .where('spaceMembers.role', '=', 'admin')
       .execute();
-    const direct = await this.db
-      .selectFrom('spaceMembers')
-      .select('userId')
-      .where('spaceId', '=', spaceId)
-      .where('role', '=', 'admin')
-      .where('userId', 'is not', null)
-      .unionAll(
-        this.db
-          .selectFrom('spaceMembers')
-          .innerJoin('groupUsers', 'groupUsers.groupId', 'spaceMembers.groupId')
-          .select('groupUsers.userId')
-          .where('spaceMembers.spaceId', '=', spaceId)
-          .where('spaceMembers.role', '=', 'admin'),
-      )
+    const viaGroup = await activeWorkspaceUsers(this.db, workspaceId)
+      .innerJoin('groupUsers', 'groupUsers.userId', 'users.id')
+      .innerJoin('spaceMembers', 'spaceMembers.groupId', 'groupUsers.groupId')
+      .select('users.id')
+      .where('spaceMembers.spaceId', '=', spaceId)
+      .where('spaceMembers.role', '=', 'admin')
       .execute();
-    const ids = new Set<string>(wsAdmins.map((u) => u.id));
-    for (const r of direct) if (r.userId) ids.add(r.userId);
+    for (const u of [...direct, ...viaGroup]) ids.add(u.id);
     return [...ids];
   }
 }

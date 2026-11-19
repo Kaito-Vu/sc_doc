@@ -10,6 +10,7 @@ import {
 import { QueueJob } from '../../integrations/queue/constants';
 
 const trx = {};
+const adminRoles = { getUserSpaceRoles: jest.fn().mockResolvedValue([{ role: 'admin' }]) };
 const user = (over: any = {}) => ({
   id: 'u1',
   workspaceId: 'w1',
@@ -33,6 +34,7 @@ function build(over: { repo?: any; members?: any; enabled?: boolean } = {}) {
     insert: jest.fn().mockResolvedValue({ id: 'r1' }),
     findByIdForUpdate: jest.fn().mockResolvedValue(pendingRow()),
     decide: jest.fn().mockResolvedValue(undefined),
+    isActiveUser: jest.fn().mockResolvedValue(true),
     ...over.repo,
   };
   const spaceRepo = { findById: jest.fn().mockResolvedValue({ id: 's1' }) };
@@ -123,7 +125,7 @@ describe('SpaceAccessRequestService.approve', () => {
   const admin = user({ id: 'a1', role: 'admin' });
 
   it('grants the (possibly different) role and marks approved in the trx', async () => {
-    const { svc, members, repo, events } = build();
+    const { svc, members, repo, events } = build({ members: adminRoles });
     await svc.approve('r1', 'writer' as any, admin as any);
     expect(members.insertSpaceMember).toHaveBeenCalledWith(
       expect.objectContaining({ spaceId: 's1', userId: 'u2', role: 'writer', addedById: 'a1' }),
@@ -134,12 +136,13 @@ describe('SpaceAccessRequestService.approve', () => {
   });
 
   it('does not insert a duplicate member when requester became a member meanwhile', async () => {
-    const { svc, members, repo } = build({
-      members: { getSpaceMemberByTypeId: jest.fn().mockResolvedValue({ id: 'm' }) },
+    const { svc, members, repo, events } = build({
+      members: { ...adminRoles, getSpaceMemberByTypeId: jest.fn().mockResolvedValue({ id: 'm', role: 'writer' }) },
     });
     await svc.approve('r1', 'reader' as any, admin as any);
     expect(members.insertSpaceMember).not.toHaveBeenCalled();
-    expect(repo.decide).toHaveBeenCalled();
+    expect(repo.decide).toHaveBeenCalledWith('r1', trx, expect.objectContaining({ roleGranted: 'writer' }));
+    expect(events.emit).not.toHaveBeenCalled();
   });
 
   it('throws Forbidden for a caller who is not an approver (e.g. demoted admin)', async () => {
@@ -163,6 +166,7 @@ describe('SpaceAccessRequestService.approve', () => {
     'throws Conflict when status is %s (concurrent decision or withdrawn)',
     async (status) => {
       const { svc, members, repo } = build({
+        members: adminRoles,
         repo: { findByIdForUpdate: jest.fn().mockResolvedValue(pendingRow({ status })) },
       });
       await expect(svc.approve('r1', 'reader' as any, admin as any))
@@ -175,7 +179,7 @@ describe('SpaceAccessRequestService.approve', () => {
 
 describe('SpaceAccessRequestService.reject / cancel', () => {
   it('reject stores reason and enqueues SPACE_ACCESS_DECIDED', async () => {
-    const { svc, repo, queue } = build();
+    const { svc, repo, queue } = build({ members: adminRoles });
     await svc.reject('r1', ' no ', user({ role: 'owner' }) as any);
     expect(repo.decide).toHaveBeenCalledWith('r1', trx, expect.objectContaining({ status: 'rejected', decisionReason: 'no' }));
     expect(queue.add).toHaveBeenCalledWith(QueueJob.SPACE_ACCESS_DECIDED, expect.anything());
@@ -267,5 +271,65 @@ describe('SpaceAccessRequestService plugin switch (Settings > Plugins)', () => {
     const { svc } = build();
     (svc as any).pluginConfig.getConfig = jest.fn().mockRejectedValue(new Error('x'));
     expect(await svc.isEnabled('w1')).toBe(false);
+  });
+});
+
+describe('SpaceAccessRequestService review fixes', () => {
+
+  it('create refuses personal spaces', async () => {
+    const { svc } = build();
+    (svc as any).spaceRepo.findById = jest.fn().mockResolvedValue({ id: 's1', isPersonal: true });
+    await expect(svc.create({ spaceId: 's1', role: 'reader' as any }, user() as any))
+      .rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('create refuses trashed spaces', async () => {
+    const { svc } = build();
+    (svc as any).spaceRepo.findById = jest.fn().mockResolvedValue({ id: 's1', deletedAt: new Date() });
+    await expect(svc.create({ spaceId: 's1', role: 'reader' as any }, user() as any))
+      .rejects.toThrow();
+  });
+
+  it('info hides personal spaces', async () => {
+    const { svc } = build();
+    (svc as any).spaceRepo.findBySlug = jest.fn().mockResolvedValue({ id: 's1', name: 'P', slug: 'p', isPersonal: true });
+    expect(await svc.info('p', user() as any)).toEqual({ space: null, request: null, canRequest: false });
+  });
+
+  it('a workspace admin without a space admin role cannot approve (personal space)', async () => {
+    const { svc, repo } = build(); // getUserSpaceRoles -> undefined, as for personal spaces
+    await expect(svc.approve('r1', 'reader' as any, user({ id: 'a1', role: 'admin' }) as any))
+      .rejects.toBeInstanceOf(ForbiddenException);
+    expect(repo.decide).not.toHaveBeenCalled();
+  });
+
+  it('approve/reject refuse the requester deciding their own request', async () => {
+    const { svc, repo } = build({
+      members: adminRoles,
+      repo: { findByIdForUpdate: jest.fn().mockResolvedValue(pendingRow({ requesterId: 'a1' })) },
+    });
+    const me = user({ id: 'a1', role: 'admin' }) as any;
+    await expect(svc.approve('r1', 'reader' as any, me)).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(svc.reject('r1', undefined, me)).rejects.toBeInstanceOf(ForbiddenException);
+    expect(repo.decide).not.toHaveBeenCalled();
+  });
+
+  it('approve throws Conflict when the requester is no longer an active user', async () => {
+    const { svc, members, repo } = build({
+      members: adminRoles,
+      repo: { isActiveUser: jest.fn().mockResolvedValue(false) },
+    });
+    await expect(svc.approve('r1', 'reader' as any, user({ id: 'a1', role: 'admin' }) as any))
+      .rejects.toBeInstanceOf(ConflictException);
+    expect(members.insertSpaceMember).not.toHaveBeenCalled();
+    expect(repo.decide).not.toHaveBeenCalled();
+  });
+
+  it('a unique-violation on member insert (concurrent add) maps to Conflict', async () => {
+    const { svc } = build({
+      members: { ...adminRoles, insertSpaceMember: jest.fn().mockRejectedValue({ code: '23505' }) },
+    });
+    await expect(svc.approve('r1', 'reader' as any, user({ id: 'a1', role: 'admin' }) as any))
+      .rejects.toBeInstanceOf(ConflictException);
   });
 });

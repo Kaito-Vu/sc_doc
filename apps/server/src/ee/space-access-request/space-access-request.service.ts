@@ -64,9 +64,9 @@ export class SpaceAccessRequestService {
     return user.role === UserRole.OWNER || user.role === UserRole.ADMIN;
   }
 
-  // Workspace owner/admin, or Full access (admin) member of the space.
+  // Full access (admin) on the space. Workspace owners/admins get that role
+  // implicitly for every non-personal, non-deleted space (so personal spaces stay private).
   async isApprover(user: User, spaceId: string): Promise<boolean> {
-    if (this.isWorkspaceAdmin(user)) return true;
     const roles = await this.spaceMemberRepo.getUserSpaceRoles(user.id, spaceId, {
       skipCache: true,
     });
@@ -82,7 +82,10 @@ export class SpaceAccessRequestService {
       throw new BadRequestException('Invalid role');
     }
     const space = await this.spaceRepo.findById(dto.spaceId, user.workspaceId);
-    if (!space) throw new NotFoundException('Space not found');
+    if (!space || space.deletedAt) throw new NotFoundException('Space not found');
+    if (space.isPersonal) {
+      throw new BadRequestException('Access to personal spaces cannot be requested');
+    }
 
     const roles = await this.spaceMemberRepo.getUserSpaceRoles(
       user.id,
@@ -144,7 +147,9 @@ export class SpaceAccessRequestService {
       return { space: null, request: null, canRequest: false };
     }
     const space = await this.spaceRepo.findBySlug(spaceSlug, user.workspaceId);
-    if (!space) return { space: null, request: null, canRequest: false };
+    if (!space || space.deletedAt || space.isPersonal) {
+      return { space: null, request: null, canRequest: false };
+    }
 
     const roles = await this.spaceMemberRepo.getUserSpaceRoles(
       user.id,
@@ -209,11 +214,14 @@ export class SpaceAccessRequestService {
       if (!r || r.workspaceId !== user.workspaceId) {
         throw new NotFoundException('Request not found');
       }
-      if (!(await this.isApprover(user, r.spaceId))) {
+      if (!(await this.isApprover(user, r.spaceId)) || r.requesterId === user.id) {
         throw new ForbiddenException();
       }
       if (r.status !== 'pending') {
         throw new ConflictException('Request was already handled');
+      }
+      if (!(await this.repo.isActiveUser(r.requesterId, r.workspaceId, trx))) {
+        throw new ConflictException('Requester is no longer an active user');
       }
       const existing = await this.spaceMemberRepo.getSpaceMemberByTypeId(
         r.spaceId,
@@ -221,32 +229,44 @@ export class SpaceAccessRequestService {
         trx,
       );
       if (!existing) {
-        await this.spaceMemberRepo.insertSpaceMember(
-          {
-            spaceId: r.spaceId,
-            userId: r.requesterId,
-            role,
-            addedById: user.id,
-          },
-          trx,
-        );
+        try {
+          await this.spaceMemberRepo.insertSpaceMember(
+            {
+              spaceId: r.spaceId,
+              userId: r.requesterId,
+              role,
+              addedById: user.id,
+            },
+            trx,
+          );
+        } catch (err: any) {
+          // concurrent add through the regular member API
+          if (err?.code === '23505') {
+            throw new ConflictException('User is already a member');
+          }
+          throw err;
+        }
       }
+      // Already a member: keep their real role, report it truthfully.
+      const granted = existing?.role ?? role;
       await this.repo.decide(id, trx, {
         status: 'approved',
         reviewerId: user.id,
-        roleGranted: role,
+        roleGranted: granted,
       });
-      return r;
+      return { ...r, granted, added: !existing };
     });
 
-    // Reuses the existing "added to a space" listener (notification to requester).
-    this.eventEmitter.emit(EventName.SPACE_MEMBER_ADDED, {
-      userIds: [row.requesterId],
-      groupIds: [],
-      spaceId: row.spaceId,
-      workspaceId: row.workspaceId,
-      actorId: user.id,
-    });
+    if (row.added) {
+      // Reuses the existing "added to a space" listener (notification to requester).
+      this.eventEmitter.emit(EventName.SPACE_MEMBER_ADDED, {
+        userIds: [row.requesterId],
+        groupIds: [],
+        spaceId: row.spaceId,
+        workspaceId: row.workspaceId,
+        actorId: user.id,
+      });
+    }
     await this.notificationQueue.add(QueueJob.SPACE_ACCESS_DECIDED, {
       requestId: row.id,
       spaceId: row.spaceId,
@@ -257,7 +277,7 @@ export class SpaceAccessRequestService {
       resourceType: AuditResource.SPACE,
       resourceId: row.spaceId,
       spaceId: row.spaceId,
-      changes: { after: { role, requesterId: row.requesterId } },
+      changes: { after: { role: row.granted, requesterId: row.requesterId } },
     });
   }
 
@@ -268,7 +288,7 @@ export class SpaceAccessRequestService {
       if (!r || r.workspaceId !== user.workspaceId) {
         throw new NotFoundException('Request not found');
       }
-      if (!(await this.isApprover(user, r.spaceId))) {
+      if (!(await this.isApprover(user, r.spaceId)) || r.requesterId === user.id) {
         throw new ForbiddenException();
       }
       if (r.status !== 'pending') {
