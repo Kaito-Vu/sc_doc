@@ -50,6 +50,14 @@ export class SpaceAccessRequestRepo {
       .executeTakeFirst();
   }
 
+  async findById(id: string) {
+    return this.db
+      .selectFrom('spaceAccessRequests')
+      .selectAll()
+      .where('id', '=', id)
+      .executeTakeFirst();
+  }
+
   async findLatestForSpaceAndUser(spaceId: string, userId: string) {
     return this.db
       .selectFrom('spaceAccessRequests')

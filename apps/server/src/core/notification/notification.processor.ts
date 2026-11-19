@@ -202,6 +202,16 @@ export class NotificationProcessor
           break;
         }
 
+        case QueueJob.SPACE_ACCESS_REQUESTED:
+        case QueueJob.SPACE_ACCESS_DECIDED:
+          // eslint-disable-next-line @typescript-eslint/no-require-imports
+          await require('../../ee/space-access-request/run-space-access-job').runSpaceAccessJob(
+            this.moduleRef,
+            job.name,
+            job.data,
+          );
+          break;
+
         default:
           this.logger.warn(`Unknown notification job: ${job.name}`);
       }

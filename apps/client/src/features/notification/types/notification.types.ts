@@ -24,7 +24,9 @@ export type NotificationType =
   | "siem_destination.recovered"
   | "docx_export.ready"
   | "base.import_completed"
-  | "base.import_failed";
+  | "base.import_failed"
+  | "space.access_requested"
+  | "space.access_decided";
 
 export type INotification = {
   id: string;
