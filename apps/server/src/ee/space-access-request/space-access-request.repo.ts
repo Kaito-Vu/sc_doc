@@ -5,6 +5,7 @@ import { dbOrTx } from '@docmost/db/utils';
 import { PaginationOptions } from '@docmost/db/pagination/pagination-options';
 import { executeWithCursorPagination } from '@docmost/db/pagination/cursor-pagination';
 import { sql } from 'kysely';
+import { activeWorkspaceUsers } from '../common/active-user';
 
 export type SpaceAccessRequestStatus =
   | 'pending'
@@ -148,5 +149,54 @@ export class SpaceAccessRequestRepo {
       .select((eb) => eb.fn.countAll<string>().as('count'))
       .executeTakeFirst();
     return Number(row?.count ?? 0);
+  }
+
+  // Space ids where the user is Full access (direct membership or via group).
+  async findAdminSpaceIds(userId: string, workspaceId: string): Promise<string[]> {
+    const rows = await this.db
+      .selectFrom('spaceMembers')
+      .innerJoin('spaces', 'spaces.id', 'spaceMembers.spaceId')
+      .select('spaceMembers.spaceId')
+      .where('spaces.workspaceId', '=', workspaceId)
+      .where('spaceMembers.role', '=', 'admin')
+      .where('spaceMembers.userId', '=', userId)
+      .unionAll(
+        this.db
+          .selectFrom('spaceMembers')
+          .innerJoin('spaces', 'spaces.id', 'spaceMembers.spaceId')
+          .innerJoin('groupUsers', 'groupUsers.groupId', 'spaceMembers.groupId')
+          .select('spaceMembers.spaceId')
+          .where('spaces.workspaceId', '=', workspaceId)
+          .where('spaceMembers.role', '=', 'admin')
+          .where('groupUsers.userId', '=', userId),
+      )
+      .execute();
+    return [...new Set(rows.map((r) => r.spaceId))];
+  }
+
+  // Active workspace owners/admins + Full access members of the space.
+  async findApproverIds(workspaceId: string, spaceId: string): Promise<string[]> {
+    const wsAdmins = await activeWorkspaceUsers(this.db, workspaceId)
+      .select('users.id')
+      .where('users.role', 'in', ['owner', 'admin'])
+      .execute();
+    const direct = await this.db
+      .selectFrom('spaceMembers')
+      .select('userId')
+      .where('spaceId', '=', spaceId)
+      .where('role', '=', 'admin')
+      .where('userId', 'is not', null)
+      .unionAll(
+        this.db
+          .selectFrom('spaceMembers')
+          .innerJoin('groupUsers', 'groupUsers.groupId', 'spaceMembers.groupId')
+          .select('groupUsers.userId')
+          .where('spaceMembers.spaceId', '=', spaceId)
+          .where('spaceMembers.role', '=', 'admin'),
+      )
+      .execute();
+    const ids = new Set<string>(wsAdmins.map((u) => u.id));
+    for (const r of direct) if (r.userId) ids.add(r.userId);
+    return [...ids];
   }
 }
