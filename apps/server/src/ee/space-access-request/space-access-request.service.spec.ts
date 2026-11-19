@@ -201,3 +201,41 @@ describe('SpaceAccessRequestService.reject / cancel', () => {
     expect(repo.decide).toHaveBeenCalledWith('r1', trx, { status: 'cancelled' });
   });
 });
+
+describe('SpaceAccessRequestService.info', () => {
+  const withSpace = (svc: any, space: any) => {
+    svc.spaceRepo.findBySlug = jest.fn().mockResolvedValue(space);
+  };
+
+  it('returns space:null for an unknown slug', async () => {
+    const { svc } = build();
+    withSpace(svc, undefined);
+    expect(await svc.info('nope', user() as any)).toEqual({
+      space: null,
+      request: null,
+      canRequest: false,
+    });
+  });
+
+  it('canRequest is false while a request is pending', async () => {
+    const { svc } = build({
+      repo: {
+        findLatestForSpaceAndUser: jest
+          .fn()
+          .mockResolvedValue({ id: 'r', status: 'pending' }),
+      },
+    });
+    withSpace(svc, { id: 's1', name: 'S', slug: 's' });
+    const res: any = await svc.info('s', user() as any);
+    expect(res.canRequest).toBe(false);
+    expect(res.space).toEqual({ id: 's1', name: 'S', slug: 's' });
+    expect(res.request.status).toBe('pending');
+  });
+
+  it('canRequest is true for a non-member with no history', async () => {
+    const { svc } = build();
+    withSpace(svc, { id: 's1', name: 'S', slug: 's' });
+    const res: any = await svc.info('s', user() as any);
+    expect(res.canRequest).toBe(true);
+  });
+});

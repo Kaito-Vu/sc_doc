@@ -118,6 +118,39 @@ export class SpaceAccessRequestService {
     return row;
   }
 
+  // Pre-request lookup for the 403 screen. Unknown slug -> `space: null`.
+  async info(spaceSlug: string, user: User) {
+    const space = await this.spaceRepo.findBySlug(spaceSlug, user.workspaceId);
+    if (!space) return { space: null, request: null, canRequest: false };
+
+    const roles = await this.spaceMemberRepo.getUserSpaceRoles(
+      user.id,
+      space.id,
+      { skipCache: true },
+    );
+    const latest = await this.repo.findLatestForSpaceAndUser(space.id, user.id);
+    const coolingDown =
+      latest?.status === 'rejected' &&
+      !!latest.decidedAt &&
+      Date.now() - new Date(latest.decidedAt).getTime() < REREQUEST_COOLDOWN_MS;
+
+    return {
+      space: { id: space.id, name: space.name, slug: space.slug },
+      request: latest
+        ? {
+            id: latest.id,
+            status: latest.status,
+            roleRequested: latest.roleRequested,
+            roleGranted: latest.roleGranted,
+            decisionReason: latest.decisionReason,
+            createdAt: latest.createdAt,
+          }
+        : null,
+      canRequest:
+        !roles?.length && latest?.status !== 'pending' && !coolingDown,
+    };
+  }
+
   async cancel(id: string, user: User): Promise<void> {
     const row = await executeTx(this.db, async (trx) => {
       const r = await this.repo.findByIdForUpdate(id, trx);
