@@ -1,0 +1,11 @@
+{
+  "id": "space-access-request",
+  "name": "Space access requests",
+  "version": "1.0.0",
+  "description": "Let members who open a space they cannot access request Can view / Can edit / Full access. Workspace owners/admins and space Full access members approve or reject.",
+  "author": "Internal",
+  "license": "MIT",
+  "hooks": [],
+  "configRequired": false,
+  "configLocation": "plugin"
+}

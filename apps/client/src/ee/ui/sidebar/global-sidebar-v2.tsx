@@ -27,6 +27,7 @@ import { useToggleSidebar } from "@/components/layouts/global/hooks/hooks/use-to
 import { useHasFeature } from "@/ee/hooks/use-feature";
 import { useUpgradeLabel } from "@/ee/hooks/use-upgrade-label";
 import { Feature } from "@/ee/features";
+import { AccessRequestsNavItem } from "@/ee/space-access-request/components/access-requests-nav";
 import { usePendingReviewCount } from "@/ee/page-verification/hooks/use-pending-review-count";
 import { usePersonalSpaceQuery } from "@/ee/personal-space/queries/personal-space-query";
 import CreatePersonalSpaceModal from "@/ee/personal-space/components/create-personal-space-modal";
@@ -141,6 +142,7 @@ export function GlobalSidebarV2() {
             badge={pendingReviews}
             onNavigate={handleNavClick}
           />
+          <AccessRequestsNavItem onNavigate={handleNavClick} />
           <SidebarNavItem
             icon={IconLibrary}
             label={t("Document library")}

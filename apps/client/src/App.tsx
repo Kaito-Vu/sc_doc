@@ -116,6 +116,11 @@ const ReviewQueuePage = lazyWithPrefetch(() =>
     default: m.ReviewQueuePage,
   })),
 );
+const AccessRequestsPage = lazyWithPrefetch(() =>
+  import("@/ee/space-access-request/pages/access-requests-page").then((m) => ({
+    default: m.AccessRequestsPage,
+  })),
+);
 const SearchPage = lazyWithPrefetch(() =>
   import("@/ee/ui/experience/search/search-page").then((m) => ({
     default: m.SearchPage,
@@ -219,6 +224,7 @@ export default function App() {
           <Route path={"/spaces"} element={<SpacesPage />} />
           <Route path={"/favorites"} element={<FavoritesPage />} />
           <Route path={"/reviews"} element={<ReviewQueuePage />} />
+          <Route path={"/access-requests"} element={<AccessRequestsPage />} />
           <Route path={"/search"} element={<SearchPage />} />
           <Route path={"/documents"} element={<DocumentLibraryPage />} />
           <Route path={"/labels/:labelName"} element={<LabelPage />} />

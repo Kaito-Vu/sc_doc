@@ -390,6 +390,21 @@ export interface Shares {
   workspaceId: string;
 }
 
+export interface SpaceAccessRequests {
+  createdAt: Generated<Timestamp>;
+  decidedAt: Timestamp | null;
+  decisionReason: string | null;
+  id: Generated<string>;
+  message: string | null;
+  requesterId: string;
+  reviewerId: string | null;
+  roleGranted: string | null;
+  roleRequested: string;
+  spaceId: string;
+  status: Generated<string>;
+  workspaceId: string;
+}
+
 export interface SpaceMembers {
   addedById: string | null;
   createdAt: Generated<Timestamp>;
@@ -848,6 +863,7 @@ export interface DB {
   scimTokens: ScimTokens;
   shares: Shares;
   siemDestinations: SiemDestinations;
+  spaceAccessRequests: SpaceAccessRequests;
   spaceMembers: SpaceMembers;
   spaces: Spaces;
   templates: Templates;

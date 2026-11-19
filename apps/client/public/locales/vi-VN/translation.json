@@ -2317,5 +2317,19 @@
   "Pages created this month": "Trang được tạo tháng này",
   "Pages edited this month": "Trang được chỉnh sửa tháng này",
   "Most edited pages this month": "Trang được chỉnh sửa nhiều nhất tháng này",
-  "{{count}} edits": "{{count}} lượt chỉnh sửa"
+  "{{count}} edits": "{{count}} lượt chỉnh sửa",
+  "You don't have access to this space": "Bạn chưa có quyền truy cập space này",
+  "Request pending": "Yêu cầu đang chờ duyệt",
+  "Waiting for approval to join as {{role}}.": "Đang chờ duyệt để tham gia với quyền {{role}}.",
+  "Withdraw request": "Rút lại yêu cầu",
+  "Request rejected": "Yêu cầu bị từ chối",
+  "Request approved": "Yêu cầu đã được duyệt",
+  "Permission": "Quyền",
+  "Message (optional)": "Lời nhắn (tuỳ chọn)",
+  "Access request sent": "Đã gửi yêu cầu truy cập",
+  "Failed to send request": "Gửi yêu cầu thất bại",
+  "Request withdrawn": "Đã rút lại yêu cầu",
+  "This request was already handled": "Yêu cầu này đã được xử lý",
+  "<bold>{{name}}</bold> requested access to a space": "<bold>{{name}}</bold> đã yêu cầu quyền truy cập một space",
+  "Your access request was rejected": "Yêu cầu truy cập của bạn đã bị từ chối"
 }

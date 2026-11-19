@@ -50,6 +50,10 @@ export const AuditEvent = {
   SPACE_MEMBER_ADDED: 'space.member_added',
   SPACE_MEMBER_REMOVED: 'space.member_removed',
   SPACE_MEMBER_ROLE_CHANGED: 'space.member_role_changed',
+  SPACE_ACCESS_REQUESTED: 'space.access_requested',
+  SPACE_ACCESS_APPROVED: 'space.access_approved',
+  SPACE_ACCESS_REJECTED: 'space.access_rejected',
+  SPACE_ACCESS_CANCELLED: 'space.access_cancelled',
 
   // Group
   GROUP_CREATED: 'group.created',

@@ -207,6 +207,7 @@ export default function AllSpacesList({
                             variant="subtle"
                             color="gray"
                             aria-label={t("Space menu")}
+                            display={space.isPersonal ? "none" : undefined}
                           >
                             <IconDots size={16} />
                           </ActionIcon>

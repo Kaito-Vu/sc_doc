@@ -23,6 +23,8 @@ export const NotificationType = {
   DOCX_EXPORT_READY: 'docx_export.ready',
   BASE_IMPORT_COMPLETED: 'base.import_completed',
   BASE_IMPORT_FAILED: 'base.import_failed',
+  SPACE_ACCESS_REQUESTED: 'space.access_requested',
+  SPACE_ACCESS_DECIDED: 'space.access_decided',
 } as const;
 
 export type NotificationType =
@@ -59,6 +61,8 @@ export const DIRECT_NOTIFICATION_TYPES: NotificationType[] = [
   NotificationType.DOCX_EXPORT_READY,
   NotificationType.BASE_IMPORT_COMPLETED,
   NotificationType.BASE_IMPORT_FAILED,
+  NotificationType.SPACE_ACCESS_REQUESTED,
+  NotificationType.SPACE_ACCESS_DECIDED,
 ];
 
 export const UPDATES_NOTIFICATION_TYPES: NotificationType[] = [

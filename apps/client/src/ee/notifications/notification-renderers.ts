@@ -7,6 +7,8 @@ const MESSAGE_KEYS: Partial<Record<INotification["type"], string>> = {
   "page.moved": "<bold>{{name}}</bold> moved a page to another space",
   "space.member_added": "<bold>{{name}}</bold> added you to a space",
   "space.member_removed": "You were removed from a space",
+  "space.access_requested": "<bold>{{name}}</bold> requested access to a space",
+  "space.access_decided": "Your access request was rejected",
 };
 
 export function getEeNotificationMessageKey(
@@ -28,6 +30,12 @@ export function getEeNotificationUrl(
         ? `/s/${notification.space.slug}/trash`
         : undefined;
     case "space.member_added":
+      return notification.space
+        ? `/s/${notification.space.slug}`
+        : undefined;
+    case "space.access_requested":
+      return "/access-requests";
+    case "space.access_decided":
       return notification.space
         ? `/s/${notification.space.slug}`
         : undefined;

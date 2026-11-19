@@ -92,6 +92,8 @@ export enum QueueJob {
   PAGE_APPROVAL_CLARIFICATION_NOTIFICATION = 'page-approval-clarification-notification',
   PAGE_REVERIFICATION_REQUIRED_NOTIFICATION = 'page-reverification-required-notification',
   PAGE_VERIFICATION_INVALIDATED = 'page-verification-invalidated',
+  SPACE_ACCESS_REQUESTED = 'space-access-requested',
+  SPACE_ACCESS_DECIDED = 'space-access-decided',
 
   AUDIT_LOG = 'audit-log',
   AUDIT_CLEANUP = 'audit-cleanup',

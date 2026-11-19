@@ -58,6 +58,8 @@ export default function SpaceSettingsModal({
     SpaceCaslSubject.Settings,
   );
 
+  if (space?.isPersonal) return null;
+
   return (
     <>
       <Modal.Root
