@@ -51,6 +51,8 @@ export class TemplateService {
   ) {
     const accessibleSpaceIds =
       await this.spaceMemberRepo.getUserSpaceIds(userId);
+    // body is not DTO-validated: clamp limit
+    pagination.limit = Math.min(Math.max(Number(pagination.limit) || 20, 1), 100);
     return this.templateRepo.findTemplates(
       workspaceId,
       accessibleSpaceIds,
@@ -231,6 +233,8 @@ export class TemplateService {
     if (!template) {
       throw new NotFoundException('Template not found');
     }
+    // must be able to view the template's source space
+    await this.assertCanView(template.spaceId, user.id);
 
     const ability = await this.spaceAbility.createForUser(user, data.spaceId);
     if (ability.cannot(SpaceCaslAction.Edit, SpaceCaslSubject.Page)) {

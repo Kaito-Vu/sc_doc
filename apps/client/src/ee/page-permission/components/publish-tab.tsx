@@ -107,6 +107,7 @@ export function PublishTab({ pageId, readOnly, isRestricted, workspaceSharingDis
           component="a"
           variant="default"
           target="_blank"
+          rel="noopener noreferrer"
           href={publicLink}
           size="sm"
         >
