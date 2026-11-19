@@ -3,6 +3,7 @@ import { IconClipboardCheck, IconLibrary } from "@tabler/icons-react";
 import { Link, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import classes from "@/components/layouts/global/global-sidebar.module.css";
+import { AccessRequestsNavLink } from "@/ee/space-access-request/components/access-requests-nav";
 import { usePendingReviewCount } from "@/ee/page-verification/hooks/use-pending-review-count";
 
 export function NavExtras() {
@@ -29,6 +30,7 @@ export function NavExtras() {
           </Badge>
         )}
       </Link>
+      <AccessRequestsNavLink />
       <Link
         className={classes.link}
         data-active={location.pathname.startsWith("/documents") || undefined}

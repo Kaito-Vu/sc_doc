@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { notifications } from "@mantine/notifications";
+import { getPlugins } from "@/ee/plugins/services/plugin-service";
 import { useTranslation } from "react-i18next";
 import {
   approveAccessRequest,
@@ -58,13 +59,26 @@ export function useAccessRequestListQuery() {
   });
 }
 
-export function useAccessRequestCountQuery() {
+export const SPACE_ACCESS_PLUGIN_ID = "space-access-request";
+
+// Settings > Plugins switch (default off); the feature is hidden while off.
+export function useSpaceAccessRequestEnabled(): boolean {
+  const { data } = useQuery({
+    queryKey: ["plugins", SPACE_ACCESS_PLUGIN_ID],
+    queryFn: getPlugins,
+    staleTime: 10_000,
+  });
+  return !!data?.some((p) => p.id === SPACE_ACCESS_PLUGIN_ID && p.enabled);
+}
+
+export function useAccessRequestCountQuery(enabled = true) {
   return useQuery({
     queryKey: [KEY, "count"],
     queryFn: countAccessRequests,
-    // 403/empty for non-approvers is fine: the nav link hides itself on 0.
+    enabled,
     retry: false,
     staleTime: 30_000,
+    refetchInterval: 60_000,
   });
 }
 
