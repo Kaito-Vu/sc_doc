@@ -12,14 +12,15 @@ import {
   IconMathFunction,
   IconPointFilled,
 } from "@tabler/icons-react";
+import { useTranslation } from "react-i18next";
 import { registry } from "@docmost/base-formula/client";
 import { FormulaInput } from "./formula-input";
 import { PropertyChipRow } from "./property-chip-row";
 import { FunctionPalette } from "./function-palette";
+import { RESULT_TYPE_LABELS } from "./formula-labels";
 import { useFormulaParser } from "@/ee/base/hooks/use-formula-parser";
 import type { IBaseProperty } from "@/ee/base/types/base.types";
 import classes from "@/ee/base/styles/formula.module.css";
-import { useTranslation } from "react-i18next";
 
 type Props = {
   properties: IBaseProperty[];
@@ -151,15 +152,14 @@ export function FormulaEditor({
               <Group gap={6} c="dimmed">
                 <IconPointFilled size={10} color="var(--mantine-color-teal-6)" />
                 <Text size="xs">
-                  {t("Returns")}{" "}
-                  <Text span fw={600} c="gray.8">
-                    {parseState.resultType}
-                  </Text>
+                  {t("Returns {{type}}", {
+                    type: t(RESULT_TYPE_LABELS[parseState.resultType]),
+                  })}
                 </Text>
               </Group>
             ) : (
               <Text size="xs" c="dimmed">
-                {t("Click a property or function below to insert.")}
+                Click a property or function below to insert.
               </Text>
             )}
           </Group>

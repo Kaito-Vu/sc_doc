@@ -17,6 +17,7 @@ import { IconInfoCircle } from "@tabler/icons-react";
 import { useAtom, useSetAtom } from "jotai";
 import { userAtom } from "@/features/user/atoms/current-user-atom.ts";
 import { CustomAvatar } from "@/components/ui/custom-avatar.tsx";
+import { UserProfilePopover } from "@/features/user/components/user-profile-popover";
 import {
   PageVerificationBadge,
   usePageEditLockSync,
@@ -200,23 +201,28 @@ function PageByline({ creator, contributors, readOnly, pageId }: PageBylineProps
           </Popover.Target>
           <Popover.Dropdown>
             <Stack gap="xs">
-              <Group gap="sm">
-                <CustomAvatar
-                  avatarUrl={creator.avatarUrl}
-                  name={creator.name}
-                  size={36}
-                />
-                <div>
-                  <Text size="sm" fw={500}>
-                    {creator.name}
-                  </Text>
-                  <Text size="xs" c="dimmed">
-                    {otherContributors.length === 0
-                      ? t("Owner, no contributors")
-                      : t("Owner")}
-                  </Text>
-                </div>
-              </Group>
+              {/* kept inside this dropdown so a click on the card doesn't close it */}
+              <UserProfilePopover userId={creator.id} withinPortal={false}>
+                <UnstyledButton className={classes.bylinePerson}>
+                  <Group gap="sm" wrap="nowrap">
+                    <CustomAvatar
+                      avatarUrl={creator.avatarUrl}
+                      name={creator.name}
+                      size={36}
+                    />
+                    <div>
+                      <Text size="sm" fw={500}>
+                        {creator.name}
+                      </Text>
+                      <Text size="xs" c="dimmed">
+                        {otherContributors.length === 0
+                          ? t("Owner, no contributors")
+                          : t("Owner")}
+                      </Text>
+                    </div>
+                  </Group>
+                </UnstyledButton>
+              </UserProfilePopover>
 
               {otherContributors.length > 0 && (
                 <>
@@ -224,16 +230,24 @@ function PageByline({ creator, contributors, readOnly, pageId }: PageBylineProps
                   <Text size="xs" fw={500} c="dimmed" tt="uppercase">
                     {t("Contributors")}
                   </Text>
-                  <Stack gap={6}>
+                  <Stack gap={0}>
                     {otherContributors.map((contributor) => (
-                      <Group gap="sm" key={contributor.id}>
-                        <CustomAvatar
-                          avatarUrl={contributor.avatarUrl}
-                          name={contributor.name}
-                          size={28}
-                        />
-                        <Text size="sm">{contributor.name}</Text>
-                      </Group>
+                      <UserProfilePopover
+                        key={contributor.id}
+                        userId={contributor.id}
+                        withinPortal={false}
+                      >
+                        <UnstyledButton className={classes.bylinePerson}>
+                          <Group gap="sm" wrap="nowrap">
+                            <CustomAvatar
+                              avatarUrl={contributor.avatarUrl}
+                              name={contributor.name}
+                              size={28}
+                            />
+                            <Text size="sm">{contributor.name}</Text>
+                          </Group>
+                        </UnstyledButton>
+                      </UserProfilePopover>
                     ))}
                   </Stack>
                 </>

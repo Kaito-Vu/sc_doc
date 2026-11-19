@@ -5,6 +5,7 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
+  IsTimeZone,
   MaxLength,
   MinLength,
 } from 'class-validator';
@@ -30,6 +31,10 @@ export class UpdateUserDto extends PartialType(
   @IsString()
   @IsIn(['en-US', 'vi-VN'])
   locale: string;
+
+  @IsOptional()
+  @IsTimeZone()
+  timezone: string;
 
   @IsOptional()
   @MinLength(8)

@@ -1,3 +1,4 @@
+import { getEditorUploadTarget } from "@/features/editor/utils/upload-target";
 import {
   IconBlockquote,
   IconCaretRightFilled,
@@ -11,6 +12,7 @@ import {
   IconH6,
   IconLetterH,
   IconInfoCircle,
+  IconForms,
   IconLayoutKanban,
   IconLayoutNavbar,
   IconList,
@@ -27,6 +29,7 @@ import {
   IconMenu4,
   IconPageBreak,
   IconCalendar,
+  IconCalendarMonth,
   IconClock,
   IconAppWindow,
   IconSitemap,
@@ -55,6 +58,7 @@ import IconDrawio from "@/components/icons/icon-drawio";
 import { IconColumns4 } from "@/components/icons/icon-columns-4";
 import { IconColumns5 } from "@/components/icons/icon-columns-5";
 import i18n from "@/i18n.ts";
+import { isBetaBaseForms } from "@/lib/config.ts";
 import {
   AirtableIcon,
   FigmaIcon,
@@ -352,6 +356,27 @@ const CommandGroups: SlashMenuGroupedItemsType = {
       },
     },
     {
+      title: "Calendar",
+      description: "Insert a calendar on this page",
+      searchTerms: ["calendar", "schedule", "events", "planner", "database"],
+      icon: IconCalendarMonth,
+      requiresBases: true,
+      command: ({ editor, range }: CommandProps) => {
+        insertBaseEmbedBlock(editor, { range, template: "calendar" });
+      },
+    },
+    {
+      title: "Form",
+      description: "Insert a form that collects responses into a base",
+      searchTerms: ["form", "survey", "questionnaire", "responses", "database"],
+      icon: IconForms,
+      requiresBases: true,
+      disable: () => !isBetaBaseForms(),
+      command: ({ editor, range }: CommandProps) => {
+        insertBaseEmbedBlock(editor, { range, template: "form" });
+      },
+    },
+    {
       title: "Toggle block",
       description: "Insert collapsible block.",
       searchTerms: ["collapsible", "block", "toggle", "details", "expand"],
@@ -458,23 +483,11 @@ const CommandGroups: SlashMenuGroupedItemsType = {
     },
     {
       title: "Date",
-      description: "Insert current date",
-      searchTerms: ["date", "today"],
+      description: "Pick a date",
+      searchTerms: ["Today", "Calendar"],
       icon: IconCalendar,
-      command: ({ editor, range }: CommandProps) => {
-        const currentDate = new Date().toLocaleDateString(i18n.language, {
-          year: "numeric",
-          month: "long",
-          day: "numeric",
-        });
-
-        editor
-          .chain()
-          .focus()
-          .deleteRange(range)
-          .insertContent(currentDate)
-          .run();
-      },
+      command: ({ editor, range }: CommandProps) =>
+        editor.chain().focus().deleteRange(range).insertDate().run(),
     },
     {
       title: "Time",
@@ -784,6 +797,10 @@ const CommandGroups: SlashMenuGroupedItemsType = {
   ],
 };
 
+// The editor can turn a typed apostrophe into a smart quote while searching.
+const normalizeSearchText = (value: string) =>
+  value.toLowerCase().replace(/[‘’]/g, "'");
+
 export const getSuggestionItems = ({
   query,
   editor,
@@ -793,13 +810,14 @@ export const getSuggestionItems = ({
   editor?: Editor;
   excludeItems?: Set<string>;
 }): SlashMenuGroupedItemsType => {
-  const search = query.toLowerCase();
+  const search = normalizeSearchText(query);
+  const containsSearch = (value: string) =>
+    normalizeSearchText(value).includes(search);
   const filteredGroups: SlashMenuGroupedItemsType = {};
 
   const fuzzyMatch = (query: string, target: string) => {
     let queryIndex = 0;
-    target = target.toLowerCase();
-    for (const char of target) {
+    for (const char of normalizeSearchText(target)) {
       if (query[queryIndex] === char) queryIndex++;
       if (queryIndex === query.length) return true;
     }
@@ -815,28 +833,22 @@ export const getSuggestionItems = ({
       return (
         fuzzyMatch(search, item.title) ||
         fuzzyMatch(search, translatedTitle) ||
-        item.description.toLowerCase().includes(search) ||
-        translatedDescription.toLowerCase().includes(search) ||
-        item.searchTerms?.some(
+        containsSearch(item.description) ||
+        containsSearch(translatedDescription) ||
+        (item.searchTerms &&
+          item.searchTerms.some(
             (term: string) =>
-              term.includes(search) ||
-              i18n.t(term).toLowerCase().includes(search),
-          )
+              containsSearch(term) || containsSearch(i18n.t(term)),
+          ))
       );
     });
 
     if (filteredItems.length) {
       const sortedItems = [...filteredItems].sort((a, b) => {
         const aTitle =
-          a.title.toLowerCase().includes(search) ||
-          i18n.t(a.title).toLowerCase().includes(search)
-            ? 0
-            : 1;
+          containsSearch(a.title) || containsSearch(i18n.t(a.title)) ? 0 : 1;
         const bTitle =
-          b.title.toLowerCase().includes(search) ||
-          i18n.t(b.title).toLowerCase().includes(search)
-            ? 0
-            : 1;
+          containsSearch(b.title) || containsSearch(i18n.t(b.title)) ? 0 : 1;
         return aTitle - bTitle;
       });
       filteredGroups[group] = sortedItems;

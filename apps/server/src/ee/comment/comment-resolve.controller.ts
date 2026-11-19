@@ -11,8 +11,6 @@ import { AuthUser } from '../../common/decorators/auth-user.decorator';
 import { AuthWorkspace } from '../../common/decorators/auth-workspace.decorator';
 import { User, Workspace } from '@docmost/db/types/entity.types';
 import { CommentResolveService } from './comment-resolve.service';
-import { RequireFeature } from '../common/decorators/require-feature.decorator';
-import { Feature } from '../../common/features';
 import { ResolveCommentDto } from './dto/resolve-comment.dto';
 
 @UseGuards(JwtAuthGuard)
@@ -22,7 +20,6 @@ export class CommentResolveController {
 
   @HttpCode(HttpStatus.OK)
   @Post('resolve')
-  @RequireFeature(Feature.COMMENT_RESOLUTION)
   async resolve(
     @Body() body: ResolveCommentDto,
     @AuthUser() user: User,

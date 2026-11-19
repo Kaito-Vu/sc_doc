@@ -22,6 +22,7 @@ import { WorkspaceUserListStatus } from '../../../core/workspace/workspace.const
 export class UserRepo {
   constructor(@InjectKysely() private readonly db: KyselyDB) {}
 
+  // timezone is private to its owner, see findById's includeTimezone
   public baseFields: Array<keyof Users> = [
     'id',
     'email',
@@ -31,8 +32,8 @@ export class UserRepo {
     'role',
     'workspaceId',
     'locale',
-    'timezone',
     'settings',
+    'lastLoginAt',
     'deactivatedAt',
     'createdAt',
     'updatedAt',
@@ -51,17 +52,20 @@ export class UserRepo {
     'avatarUrl',
     'role',
     'workspaceId',
-    'locale',
-    'timezone',
     'deactivatedAt',
-    'createdAt',
     'updatedAt',
     'deletedAt',
-    'hasGeneratedPassword',
   ];
 
   // added for admins and owners
-  public adminFields: Array<keyof Users> = ['lastLoginAt', 'emailVerifiedAt'];
+  public adminFields: Array<keyof Users> = [
+    'lastLoginAt',
+    'emailVerifiedAt',
+    'createdAt',
+  ];
+
+  // a user's own record also carries their timezone
+  private ownFields: Array<keyof Users> = [...this.baseFields, 'timezone'];
 
   async findById(
     userId: string,
@@ -70,6 +74,7 @@ export class UserRepo {
       includePassword?: boolean;
       includeUserMfa?: boolean;
       includeScimExternalId?: boolean;
+      includeTimezone?: boolean;
       trx?: KyselyTransaction;
     },
   ): Promise<User> {
@@ -80,6 +85,7 @@ export class UserRepo {
       .$if(opts?.includePassword, (qb) => qb.select('password'))
       .$if(opts?.includeUserMfa, (qb) => qb.select(this.withUserMfa))
       .$if(opts?.includeScimExternalId, (qb) => qb.select('scimExternalId'))
+      .$if(opts?.includeTimezone, (qb) => qb.select('timezone'))
       .where('id', '=', userId)
       .where('workspaceId', '=', workspaceId)
       .executeTakeFirst();
@@ -105,6 +111,21 @@ export class UserRepo {
       .where(sql`LOWER(email)`, '=', sql`LOWER(${email})`)
       .where('workspaceId', '=', workspaceId)
       .executeTakeFirst();
+  }
+
+  async findActiveNamesByIds(
+    userIds: string[],
+    workspaceId: string,
+  ): Promise<{ id: string; name: string }[]> {
+    if (userIds.length === 0) return [];
+    return this.db
+      .selectFrom('users')
+      .select(['id', 'name'])
+      .where('id', 'in', userIds)
+      .where('workspaceId', '=', workspaceId)
+      .where('deletedAt', 'is', null)
+      .where('deactivatedAt', 'is', null)
+      .execute();
   }
 
   async updateUser(
@@ -256,7 +277,7 @@ export class UserRepo {
         updatedAt: new Date(),
       })
       .where('id', '=', userId)
-      .returning(this.baseFields)
+      .returning(this.ownFields)
       .executeTakeFirst();
   }
 
@@ -274,7 +295,7 @@ export class UserRepo {
         updatedAt: new Date(),
       })
       .where('id', '=', userId)
-      .returning(this.baseFields)
+      .returning(this.ownFields)
       .executeTakeFirst();
   }
 

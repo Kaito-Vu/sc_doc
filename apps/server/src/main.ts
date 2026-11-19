@@ -8,6 +8,7 @@ import { Logger, NotFoundException, ValidationPipe } from '@nestjs/common';
 import { Logger as PinoLogger } from 'nestjs-pino';
 import { BUILD_VERSION } from './ee/versioning/build-version';
 import { TransformHttpResponseInterceptor } from './common/interceptors/http-response.interceptor';
+import { BodyDepthValidationPipe } from './common/pipes/body-depth-validation.pipe';
 import { WsRedisIoAdapter } from './ws/adapter/ws-redis.adapter';
 import fastifyMultipart from '@fastify/multipart';
 import fastifyCookie from '@fastify/cookie';
@@ -82,7 +83,13 @@ async function bootstrap() {
   //   /api/files/ - attachment controller sets its own CSP we'd overwrite
   //   /share/     - public share pages are safe to embed
   //   /docs/      - public space pages are safe to embed
-  const frameHeaderSkippedPrefixes = ['/api/files/', '/share/', '/docs/'];
+  //   /forms/     - public forms are safe to embed
+  const frameHeaderSkippedPrefixes = [
+    '/api/files/',
+    '/share/',
+    '/docs/',
+    ...(environmentService.isBetaBaseForms() ? ['/forms/'] : []),
+  ];
   app
     .getHttpAdapter()
     .getInstance()
@@ -154,6 +161,7 @@ async function bootstrap() {
     });
 
   app.useGlobalPipes(
+    new BodyDepthValidationPipe(),
     new ValidationPipe({
       whitelist: true,
       stopAtFirstError: true,
@@ -177,4 +185,9 @@ async function bootstrap() {
   });
 }
 
-bootstrap();
+bootstrap().catch((error) => {
+  new Logger('Bootstrap').error('Application failed to start', error);
+  // Redis and worker handles can keep a failed bootstrap alive without HTTP.
+  // Exit so the process supervisor can restart and resume pending upgrade work.
+  process.exit(1);
+});

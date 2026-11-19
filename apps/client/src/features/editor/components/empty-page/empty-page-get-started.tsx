@@ -5,6 +5,8 @@ import { notifications } from "@mantine/notifications";
 import {
   IconTable,
   IconLayoutKanban,
+  IconCalendar,
+  IconForms,
   IconTemplate,
 } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
@@ -19,8 +21,9 @@ import {
 import { useHasFeature } from "@/ee/hooks/use-feature";
 import { Feature } from "@/ee/features";
 import { ITemplate } from "@/ee/template/types/template.types";
-import { getTemplateById } from "@/ee/template/services/template-service.ts";
+import { applyTemplate } from "@/ee/template/services/template-service.ts";
 import { applyTemplateToPage } from "@/ee/template/template.utils";
+import { isBetaBaseForms } from "@/lib/config.ts";
 import classes from "./empty-page-get-started.module.css";
 
 const TemplatePickerModal = lazy(
@@ -64,9 +67,17 @@ export function EmptyPageGetStarted({
   }, [editor]);
 
   const handleUseTemplate = async (selected: ITemplate) => {
+    if (editor && !editor.isDestroyed && !editor.isEmpty) {
+      notifications.show({
+        message: t("This page is no longer empty"),
+        color: "red",
+      });
+      return;
+    }
+
     let template: ITemplate;
     try {
-      template = await getTemplateById(selected.id);
+      template = await applyTemplate({ templateId: selected.id, pageId });
     } catch {
       notifications.show({
         message: t("Failed to load template"),
@@ -112,6 +123,28 @@ export function EmptyPageGetStarted({
               convertMutation.mutate({ pageId, template: "kanban" }),
             disabled: convertMutation.isPending,
           },
+          {
+            key: "calendar",
+            label: t("Calendar"),
+            icon: IconCalendar,
+            color: "orange",
+            onClick: () =>
+              convertMutation.mutate({ pageId, template: "calendar" }),
+            disabled: convertMutation.isPending,
+          },
+          ...(isBetaBaseForms()
+            ? [
+                {
+                  key: "form",
+                  label: t("Form"),
+                  icon: IconForms,
+                  color: "green",
+                  onClick: () =>
+                    convertMutation.mutate({ pageId, template: "form" }),
+                  disabled: convertMutation.isPending,
+                },
+              ]
+            : []),
         ]
       : []),
     ...(hasTemplates

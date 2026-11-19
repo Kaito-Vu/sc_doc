@@ -4,12 +4,14 @@ import { autoUpdate, computePosition, flip, offset, shift } from "@floating-ui/d
 import { Button, Group, Paper, Text } from "@mantine/core";
 import { IconUpload } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
+import type { UploadTarget } from "@docmost/editor-ext";
+import { getEditorUploadTarget } from "@/features/editor/utils/upload-target";
 
 type UploadFn = (
   file: File,
   editor: Editor,
   pos: number,
-  pageId: string,
+  uploadTarget: UploadTarget,
   ...rest: any[]
 ) => void;
 
@@ -50,7 +52,7 @@ if (typeof navigator !== "undefined" && navigator.userAgent.includes("Windows"))
 
 function uploadFiles(
   editor: Editor,
-  pageId: string,
+  pageId: UploadTarget,
   files: FileList | null,
   opts: PickFileOptions,
 ) {
@@ -67,7 +69,7 @@ function uploadFiles(
 
 function openFilePicker(
   editor: Editor,
-  pageId: string,
+  pageId: UploadTarget,
   opts: PickFileOptions,
   onDone?: () => void,
 ) {
@@ -91,7 +93,7 @@ function openFilePicker(
 
 interface PopoverProps {
   editor: Editor;
-  pageId: string;
+  pageId: UploadTarget;
   opts: PickFileOptions;
   close: () => void;
 }
@@ -176,7 +178,7 @@ function FilePickerPopover({ editor, pageId, opts, close }: PopoverProps) {
 
 function showFilePickerPopover(
   editor: Editor,
-  pageId: string,
+  pageId: UploadTarget,
   opts: PickFileOptions,
 ) {
   const host = document.createElement("div");
@@ -229,8 +231,7 @@ function showFilePickerPopover(
  * dialog on the first mouse move (pointer visible), Enter, or accepts a drop.
  */
 export function pickFileFromSlash(editor: Editor, opts: PickFileOptions) {
-  // @ts-ignore — editor.storage.pageId is set by PageEditor.onCreate
-  const pageId = editor.storage?.pageId as string | undefined;
+  const pageId = getEditorUploadTarget(editor);
   if (!pageId) return;
 
   if (pointerMaybeHidden) {

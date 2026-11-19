@@ -28,6 +28,7 @@ export enum QueueJob {
   DELETE_PAGE_ATTACHMENTS = 'delete-page-attachments',
   DELETE_UNUSED_COVER = 'delete-unused-cover',
   DELETE_AI_CHAT_ATTACHMENTS = 'delete-ai-chat-attachments',
+  DELETE_TEMPLATE_ATTACHMENTS = 'delete-template-attachments',
 
   DELETE_USER_AVATARS = 'delete-user-avatars',
 
@@ -112,5 +113,6 @@ export enum QueueJob {
   BASE_TYPE_CONVERSION = 'base-type-conversion',
   BASE_CELL_GC = 'base-cell-gc',
   BASE_FORMULA_RECOMPUTE = 'base-formula-recompute',
+  BASE_FORMULA_REFRESH = 'base-formula-refresh',
   BASE_CSV_IMPORT = 'base-csv-import',
 }

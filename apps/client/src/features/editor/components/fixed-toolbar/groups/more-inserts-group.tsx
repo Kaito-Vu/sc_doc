@@ -1,11 +1,13 @@
 import { FC } from "react";
 import type { Editor } from "@tiptap/react";
-import { ActionIcon, Badge, Menu, Tooltip } from "@mantine/core";
+import { ActionIcon, Menu, Tooltip } from "@mantine/core";
 import {
   IconAppWindow,
   IconCalendar,
+  IconCalendarMonth,
   IconCaretRightFilled,
   IconChevronDown,
+  IconForms,
   IconInfoCircle,
   IconLayoutKanban,
   IconLayoutNavbar,
@@ -36,6 +38,8 @@ import { insertBaseEmbedBlock } from "@/features/editor/components/base-embed/in
 import { useHasFeature } from "@/ee/hooks/use-feature";
 import { Feature } from "@/ee/features";
 import { useUpgradeLabel } from "@/ee/hooks/use-upgrade-label";
+import { UpgradeBadge } from "@/ee/components/upgrade-badge";
+import { isBetaBaseForms } from "@/lib/config.ts";
 
 interface Props {
   editor: Editor;
@@ -43,21 +47,12 @@ interface Props {
 }
 
 export const MoreInsertsGroup: FC<Props> = ({ editor, templateMode }) => {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const hasBases = useHasFeature(Feature.BASES);
   const upgradeLabel = useUpgradeLabel();
 
   const setEmbed = (provider: string) =>
     editor.chain().focus().setEmbed({ provider }).run();
-
-  const insertDate = () => {
-    const currentDate = new Date().toLocaleDateString(i18n.language, {
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    });
-    editor.chain().focus().insertContent(currentDate).run();
-  };
 
   return (
     <Menu shadow="md" position="bottom-start" withArrow={false} width={240}>
@@ -125,13 +120,7 @@ export const MoreInsertsGroup: FC<Props> = ({ editor, templateMode }) => {
               aria-disabled={!hasBases}
               closeMenuOnClick={hasBases}
               style={{ opacity: hasBases ? undefined : 0.7 }}
-              rightSection={
-                !hasBases && (
-                  <Badge size="xs" variant="light" color="gray">
-                    {t("Upgrade")}
-                  </Badge>
-                )
-              }
+              rightSection={!hasBases && <UpgradeBadge />}
               onClick={() => {
                 if (hasBases) insertBaseEmbedBlock(editor);
               }}
@@ -147,18 +136,44 @@ export const MoreInsertsGroup: FC<Props> = ({ editor, templateMode }) => {
               aria-disabled={!hasBases}
               closeMenuOnClick={hasBases}
               style={{ opacity: hasBases ? undefined : 0.7 }}
-              rightSection={
-                !hasBases && (
-                  <Badge size="xs" variant="light" color="gray">
-                    {t("Upgrade")}
-                  </Badge>
-                )
-              }
+              rightSection={!hasBases && <UpgradeBadge />}
               onClick={() => {
                 if (hasBases) insertBaseEmbedBlock(editor, { template: "kanban" });
               }}
             >
               {t("Kanban")}
+            </Menu.Item>
+          </Tooltip>
+        )}
+        {!templateMode && (
+          <Tooltip label={upgradeLabel} disabled={hasBases} position="right">
+            <Menu.Item
+              leftSection={<IconCalendarMonth size={16} />}
+              aria-disabled={!hasBases}
+              closeMenuOnClick={hasBases}
+              style={{ opacity: hasBases ? undefined : 0.7 }}
+              rightSection={!hasBases && <UpgradeBadge />}
+              onClick={() => {
+                if (hasBases) insertBaseEmbedBlock(editor, { template: "calendar" });
+              }}
+            >
+              {t("Calendar")}
+            </Menu.Item>
+          </Tooltip>
+        )}
+        {!templateMode && isBetaBaseForms() && (
+          <Tooltip label={upgradeLabel} disabled={hasBases} position="right">
+            <Menu.Item
+              leftSection={<IconForms size={16} />}
+              aria-disabled={!hasBases}
+              closeMenuOnClick={hasBases}
+              style={{ opacity: hasBases ? undefined : 0.7 }}
+              rightSection={!hasBases && <UpgradeBadge />}
+              onClick={() => {
+                if (hasBases) insertBaseEmbedBlock(editor, { template: "form" });
+              }}
+            >
+              {t("Form")}
             </Menu.Item>
           </Tooltip>
         )}
@@ -178,22 +193,18 @@ export const MoreInsertsGroup: FC<Props> = ({ editor, templateMode }) => {
         >
           {t("Mermaid diagram")}
         </Menu.Item>
-        {!templateMode && (
-          <Menu.Item
-            leftSection={<IconDrawio size={16} />}
-            onClick={() => editor.chain().focus().setDrawio().run()}
-          >
-            Draw.io
-          </Menu.Item>
-        )}
-        {!templateMode && (
-          <Menu.Item
-            leftSection={<IconExcalidraw size={16} />}
-            onClick={() => editor.chain().focus().setExcalidraw().run()}
-          >
-            Excalidraw
-          </Menu.Item>
-        )}
+        <Menu.Item
+          leftSection={<IconDrawio size={16} />}
+          onClick={() => editor.chain().focus().setDrawio().run()}
+        >
+          Draw.io
+        </Menu.Item>
+        <Menu.Item
+          leftSection={<IconExcalidraw size={16} />}
+          onClick={() => editor.chain().focus().setExcalidraw().run()}
+        >
+          Excalidraw
+        </Menu.Item>
 
         <Menu.Divider />
         <Menu.Label>{t("Embeds")}</Menu.Label>
@@ -256,7 +267,7 @@ export const MoreInsertsGroup: FC<Props> = ({ editor, templateMode }) => {
         <Menu.Label>{t("Utility")}</Menu.Label>
         <Menu.Item
           leftSection={<IconCalendar size={16} />}
-          onClick={insertDate}
+          onClick={() => editor.chain().focus().insertDate().run()}
         >
           {t("Date")}
         </Menu.Item>

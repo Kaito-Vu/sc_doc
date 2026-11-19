@@ -10,9 +10,11 @@ import {
   Text,
   ScrollArea,
 } from "@mantine/core";
+import { notifications } from "@mantine/notifications";
 import { IconPlus, IconChevronRight } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
 import { DiscardConfirmPanel } from "./discard-confirm-panel";
+import { MAX_BASE_PROPERTIES } from "@/ee/base/constants/properties";
 import {
   BasePropertyType,
   IBaseProperty,
@@ -27,6 +29,7 @@ import {
   propertyTypes,
 } from "@/ee/base/property-types/property-type.registry";
 import { FormulaEditor } from "../formula/formula-editor";
+import { getAvailablePropertyName } from "@/ee/base/utils/property-name";
 import classes from "@/ee/base/styles/grid.module.css";
 
 type CreatePropertyPopoverProps = {
@@ -35,14 +38,17 @@ type CreatePropertyPopoverProps = {
   onPropertyCreated?: (property: IBaseProperty) => void;
   /** Custom trigger; must return a ref-forwarding element for Popover.Target.
    *  Defaults to the grid's + column button. */
-  renderTarget?: (open: () => void) => React.ReactElement;
+  renderTarget?: (
+    open: (trigger?: React.SyntheticEvent | HTMLElement) => void,
+  ) => React.ReactElement;
+  excludeTypes?: Set<BasePropertyType>;
 };
 
 type Panel = "typePicker" | "configure" | "confirmDiscard";
 
 const noop = () => {};
 
-export function CreatePropertyPopover({ pageId, properties, onPropertyCreated, renderTarget }: CreatePropertyPopoverProps) {
+export function CreatePropertyPopover({ pageId, properties, onPropertyCreated, renderTarget, excludeTypes }: CreatePropertyPopoverProps) {
   const { t } = useTranslation();
   const [opened, setOpened] = useState(false);
   const [panel, setPanel] = useState<Panel>("typePicker");
@@ -79,18 +85,10 @@ export function CreatePropertyPopover({ pageId, properties, onPropertyCreated, r
   }, [name, properties]);
 
   // Fall back to the type label when Name is blank, suffixing a counter if taken.
-  const fallbackName = useMemo(() => {
-    const base = selectedTypeLabel || "Property";
-    const existing = new Set(
-      (properties ?? []).map((p) => p.name.trim().toLowerCase()),
-    );
-    if (!existing.has(base.toLowerCase())) return base;
-    for (let i = 1; i < 1000; i++) {
-      const candidate = `${base} ${i}`;
-      if (!existing.has(candidate.toLowerCase())) return candidate;
-    }
-    return `${base} ${Date.now()}`;
-  }, [selectedTypeLabel, properties]);
+  const fallbackName = useMemo(
+    () => getAvailablePropertyName(selectedTypeLabel || "Property", properties),
+    [selectedTypeLabel, properties],
+  );
 
   const resetState = useCallback(() => {
     setPanel("typePicker");
@@ -99,19 +97,31 @@ export function CreatePropertyPopover({ pageId, properties, onPropertyCreated, r
     setTypeOptions({});
   }, []);
 
+  const atLimit = (properties?.length ?? 0) >= MAX_BASE_PROPERTIES;
+
   const handleOpen = useCallback(
-    (event?: React.SyntheticEvent) => {
+    (trigger?: React.SyntheticEvent | HTMLElement) => {
+      if (atLimit) {
+        notifications.show({
+          message: t("A base can have up to {{max}} properties.", { max: MAX_BASE_PROPERTIES }),
+          color: "red",
+        });
+        return;
+      }
       resetState();
-      const trigger = event?.currentTarget as HTMLElement | undefined;
-      if (trigger) {
-        const rect = trigger.getBoundingClientRect();
+      const anchor =
+        trigger instanceof HTMLElement
+          ? trigger
+          : (trigger?.currentTarget as HTMLElement | undefined);
+      if (anchor) {
+        const rect = anchor.getBoundingClientRect();
         const spaceAbove = rect.top;
         const spaceBelow = window.innerHeight - rect.bottom;
         setPosition(spaceAbove > spaceBelow ? "top-start" : "bottom-start");
       }
       setOpened(true);
     },
-    [resetState],
+    [atLimit, resetState, t],
   );
 
   const handleClose = useCallback(() => {
@@ -285,6 +295,7 @@ export function CreatePropertyPopover({ pageId, properties, onPropertyCreated, r
               >
                 <PropertyTypePicker
                   onSelect={handleTypeSelect}
+                  excludeTypes={excludeTypes}
                   showSearch
                 />
               </ScrollArea.Autosize>

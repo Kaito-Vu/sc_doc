@@ -67,6 +67,7 @@ import {
   Columns,
   Column,
   Status,
+  DateNode,
   TransclusionSource,
   TransclusionReference,
   TableView,
@@ -97,6 +98,7 @@ import MathBlockView from "@/features/editor/components/math/math-block.tsx";
 import ImageView from "@/features/editor/components/image/image-view.tsx";
 import CalloutView from "@/features/editor/components/callout/callout-view.tsx";
 import StatusView from "@/features/editor/components/status/status-view.tsx";
+import DateView from "@/features/editor/components/date/date-view";
 import VideoView from "@/features/editor/components/video/video-view.tsx";
 import AudioView from "@/features/editor/components/audio/audio-view.tsx";
 import AttachmentView from "@/features/editor/components/attachment/attachment-view.tsx";
@@ -114,6 +116,7 @@ import TabsView from "@/features/editor/components/tabs/tabs-view.tsx";
 import TransclusionView from "@/features/editor/components/transclusion/transclusion-view.tsx";
 import TransclusionReferenceView from "@/features/editor/components/transclusion/transclusion-reference-view.tsx";
 import { BaseEmbedView } from "@/features/editor/components/base-embed/base-embed-view.tsx";
+import { isCalendarEventDrag } from "@/ee/base/components/calendar/calendar-frame";
 import MicrosoftFileView from "@/features/editor/components/microsoft/microsoft-file-view.tsx";
 import MicrosoftFolderView from "@/features/editor/components/microsoft/microsoft-folder-view.tsx";
 import { common, createLowlight } from "lowlight";
@@ -436,6 +439,11 @@ export const mainExtensions = [
   Status.configure({
     view: StatusView,
   }),
+  DateNode.configure({ locale: () => i18n.resolvedLanguage || "en-US" }).extend({
+    addNodeView() {
+      return ReactNodeViewRenderer(DateView);
+    },
+  }),
   TransclusionSource.configure({
     view: TransclusionView,
   }),
@@ -444,7 +452,13 @@ export const mainExtensions = [
   }),
   BaseEmbedNode.extend({
     addNodeView() {
-      return ReactNodeViewRenderer(BaseEmbedView);
+      return (props) => {
+        const nodeView = ReactNodeViewRenderer(BaseEmbedView)(props);
+        const defaultStopEvent = nodeView.stopEvent?.bind(nodeView);
+        nodeView.stopEvent = (event) =>
+          isCalendarEventDrag(event) || !!defaultStopEvent?.(event);
+        return nodeView;
+      };
     },
   }),
   MarkdownClipboard.configure({
@@ -483,15 +497,11 @@ export const mainExtensions = [
 type CollabExtensions = (provider: HocuspocusProvider, user: IUser) => any[];
 
 const TEMPLATE_EXCLUDED_SLASH_ITEMS = new Set([
-  "Image",
-  "Video",
-  "File attachment",
-  "Draw.io (diagrams.net)",
-  "Excalidraw (Whiteboard)",
-  "Audio",
   "Synced block",
   "Base (Inline)",
   "Kanban",
+  "Calendar",
+  "Form",
   "SharePoint file"
 ]);
 

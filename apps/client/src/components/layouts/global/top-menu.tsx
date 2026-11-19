@@ -18,7 +18,7 @@ import {
   IconUsers,
 } from "@tabler/icons-react";
 import { useDisclosure } from "@mantine/hooks";
-import { getSpaceUrl } from "@/lib/config.ts";
+import { getSpaceUrl, getUserProfileUrl } from "@/lib/config.ts";
 import { useHasFeature } from "@/ee/hooks/use-feature";
 import { Feature } from "@/ee/features";
 import { usePersonalSpaceQuery } from "@/ee/personal-space/queries/personal-space-query";
@@ -87,7 +87,7 @@ export default function TopMenu() {
         )}
 
         <Menu.Label>{t("Account")}</Menu.Label>
-        <Menu.Item component={Link} to={APP_ROUTE.SETTINGS.ACCOUNT.PROFILE}>
+        <Menu.Item component={Link} to={getUserProfileUrl(user.id)}>
           <Group wrap={"nowrap"}>
             <CustomAvatar
               size={"sm"}

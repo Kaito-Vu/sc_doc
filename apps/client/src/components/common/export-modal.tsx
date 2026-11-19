@@ -7,7 +7,6 @@ import {
   Switch,
   Divider,
   Tooltip,
-  Badge,
   ScrollArea,
 } from "@mantine/core";
 import { exportPage } from "@/features/page/services/page-service.ts";
@@ -25,6 +24,7 @@ import { useTranslation } from "react-i18next";
 import { Feature } from "@/ee/features";
 import { useHasFeature } from "@/ee/hooks/use-feature";
 import { useUpgradeLabel } from "@/ee/hooks/use-upgrade-label";
+import { UpgradeBadge } from "@/ee/components/upgrade-badge";
 
 interface ExportModalProps {
   id: string;
@@ -237,9 +237,7 @@ function ExportFormatSelection({
             <Text size="sm" c="dimmed">
               {option.label}
             </Text>
-            <Badge size="xs" mt={4}>
-              {t("Enterprise")}
-            </Badge>
+            <UpgradeBadge mt={4} />
           </div>
         ) : (
           <Text size="sm">{option.label}</Text>

@@ -116,6 +116,9 @@ export const auditEventLabels: Record<string, string> = {
   "page.imported": "Imported page",
   "page.exported": "Exported page",
 
+  "base.property.updated": "Changed base property type",
+  "base.form_share.updated": "Changed base form sharing",
+
   // Sharing
   "share.created": "Created share link",
   "share.deleted": "Deleted share link",
@@ -190,6 +193,7 @@ export function getEventCategory(event: string): AuditEventCategory {
   if (
     event.startsWith("attachment.") ||
     event.startsWith("template.") ||
+    event.startsWith("base.") ||
     event.startsWith("doc_metadata.") ||
     event === "page.imported" ||
     event === "page.exported" ||
