@@ -2666,5 +2666,19 @@
   "Pages created this month": "Pages created this month",
   "Pages edited this month": "Pages edited this month",
   "Most edited pages this month": "Most edited pages this month",
-  "{{count}} edits": "{{count}} edits"
+  "{{count}} edits": "{{count}} edits",
+  "You don't have access to this space": "You don't have access to this space",
+  "Request pending": "Request pending",
+  "Waiting for approval to join as {{role}}.": "Waiting for approval to join as {{role}}.",
+  "Withdraw request": "Withdraw request",
+  "Request rejected": "Request rejected",
+  "Request approved": "Request approved",
+  "Permission": "Permission",
+  "Message (optional)": "Message (optional)",
+  "Access request sent": "Access request sent",
+  "Failed to send request": "Failed to send request",
+  "Request withdrawn": "Request withdrawn",
+  "This request was already handled": "This request was already handled",
+  "<bold>{{name}}</bold> requested access to a space": "<bold>{{name}}</bold> requested access to a space",
+  "Your access request was rejected": "Your access request was rejected"
 }
