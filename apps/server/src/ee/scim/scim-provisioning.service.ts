@@ -127,6 +127,14 @@ export class ScimProvisioningService {
     }
     const existing = await this.userRepo.findByEmail(email, workspaceId);
     if (existing) {
+      // Adopted by the IdP: disable local login.
+      if (!existing.hasGeneratedPassword) {
+        await this.userRepo.updateUser(
+          { hasGeneratedPassword: true },
+          existing.id,
+          workspaceId,
+        );
+      }
       return this.mapUser(existing);
     }
     // Same provisioning as signup/SSO: workspace default role + default group
@@ -191,6 +199,7 @@ export class ScimProvisioningService {
         email,
         name: body?.name?.formatted || user.name,
         scimExternalId: body?.externalId ?? user.scimExternalId,
+        hasGeneratedPassword: true,
       } as any,
       userId,
       workspaceId,

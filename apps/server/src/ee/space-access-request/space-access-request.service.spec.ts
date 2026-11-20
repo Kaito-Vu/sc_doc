@@ -51,7 +51,7 @@ function build(over: { repo?: any; members?: any; enabled?: boolean } = {}) {
   const events = { emit: jest.fn() };
   const audit = { log: jest.fn() };
   const pluginConfig = {
-    getConfig: jest.fn().mockResolvedValue({ enabled: over.enabled ?? true }),
+    isEnabled: jest.fn().mockResolvedValue(over.enabled ?? true),
   };
   const svc = new SpaceAccessRequestService(
     repo as any, spaceRepo as any, members as any, db, queue as any,
@@ -267,11 +267,6 @@ describe('SpaceAccessRequestService plugin switch (Settings > Plugins)', () => {
     expect(await svc.count(user() as any)).toBe(0);
   });
 
-  it('a failing config lookup is treated as disabled', async () => {
-    const { svc } = build();
-    (svc as any).pluginConfig.getConfig = jest.fn().mockRejectedValue(new Error('x'));
-    expect(await svc.isEnabled('w1')).toBe(false);
-  });
 });
 
 describe('SpaceAccessRequestService review fixes', () => {

@@ -5,12 +5,10 @@ import { LicenceModule } from './licence/licence.module';
 import { ApiKeyModule } from './api-key/api-key.module';
 import { AuditEeModule } from './audit/audit.module';
 import { MfaModule } from './mfa/mfa.module';
-import { PageLockModule } from './page-lock/page-lock.module';
 import { PagePermissionModule } from './page-permission/page-permission.module';
 import { TemplateModule } from './template/template.module';
 import { ScimModule } from './scim/scim.module';
 import { PageVerificationModule } from './page-verification/page-verification.module';
-import { SpaceAccessRequestModule } from './space-access-request/space-access-request.module';
 import { PersonalSpaceModule } from './personal-space/personal-space.module';
 import { StatisticsModule } from './statistics/statistics.module';
 import { PresenceModule } from './presence/presence.module';
@@ -30,8 +28,7 @@ import { DocxExportModule } from './docx-export/docx-export.module';
 import { PdfExportModule } from './pdf-export/pdf-export.module';
 import { McpModule } from './mcp/mcp.module';
 import { PluginsModule } from './plugins/plugins.module';
-import { SessionGuardModule } from './plugins/session-guard/session-guard.module';
-import { IpAllowlistModule } from './plugins/ip-allowlist/ip-allowlist.module';
+import { PLUGIN_MODULES } from './plugins/plugin-modules';
 import { WorkspaceLocaleModule } from './workspace-locale/workspace-locale.module';
 import { DocMetadataModule } from './docs/doc-metadata.module';
 import { ClientLogModule } from './logging/client-log.module';
@@ -50,11 +47,9 @@ import { FeatureGateGuard } from './common/guards/feature-gate.guard';
     ApiKeyModule,
     MfaModule,
     PagePermissionModule,
-    PageLockModule,
     TemplateModule,
     ScimModule,
     PageVerificationModule,
-    SpaceAccessRequestModule,
     PersonalSpaceModule,
     StatisticsModule,
     PresenceModule,
@@ -74,8 +69,7 @@ import { FeatureGateGuard } from './common/guards/feature-gate.guard';
     PdfExportModule,
     McpModule,
     PluginsModule,
-    SessionGuardModule,
-    IpAllowlistModule,
+    ...PLUGIN_MODULES,
     WorkspaceLocaleModule,
     DocMetadataModule,
     NotificationsModule,
@@ -102,4 +96,4 @@ import { FeatureGateGuard } from './common/guards/feature-gate.guard';
   ],
 })
 export class EeModule {}
-
+

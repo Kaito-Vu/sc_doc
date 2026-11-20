@@ -12,14 +12,8 @@ import {
 } from "@mantine/core";
 import { useWorkspaceMembersQuery } from "@/features/workspace/queries/workspace-query.ts";
 import { useGetGroupsQuery } from "@/features/group/queries/group-query.ts";
-import { notifications } from "@mantine/notifications";
 import { useTranslation } from "react-i18next";
-import { getApiErrorMessage } from "@/lib/api-error";
-import {
-  getPluginConfig,
-  getPlugins,
-  updatePluginConfig,
-} from "@/ee/plugins/services/plugin-service";
+import { usePluginConfig } from "@/ee/plugins/use-plugin-config";
 
 const SESSION_GUARD_PLUGIN_ID = "session-guard";
 const DEFAULT_GRACE_SECONDS = 10;
@@ -43,10 +37,8 @@ function clampGraceSeconds(value: unknown) {
 
 export default function SessionGuardSettings() {
   const { t } = useTranslation();
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [available, setAvailable] = useState(false);
-  const [enabled, setEnabled] = useState(false);
+  const { available, loading, saving, enabled, setEnabled, config, save } =
+    usePluginConfig(SESSION_GUARD_PLUGIN_ID);
   const [exemptUserIds, setExemptUserIds] = useState<string[]>([]);
   const [exemptGroupIds, setExemptGroupIds] = useState<string[]>([]);
   const [exemptRoles, setExemptRoles] = useState<string[]>([]);
@@ -58,79 +50,27 @@ export default function SessionGuardSettings() {
   );
 
   useEffect(() => {
-    let cancelled = false;
-
-    const loadSettings = async () => {
-      try {
-        setLoading(true);
-        const plugins = await getPlugins();
-        const plugin = plugins.find(
-          (candidate) => candidate.id === SESSION_GUARD_PLUGIN_ID,
-        );
-        if (!plugin) {
-          if (!cancelled) setAvailable(false);
-          return;
-        }
-        setAvailable(true);
-
-        const configData = await getPluginConfig(SESSION_GUARD_PLUGIN_ID);
-        if (cancelled) return;
-
-        const config = configData?.config ?? {};
-        setEnabled(Boolean(configData?.enabled ?? plugin?.enabled));
-        setGraceSeconds(clampGraceSeconds(config.graceSeconds));
-        setExemptUserIds(asStrings(config.exemptUserIds));
-        setExemptGroupIds(asStrings(config.exemptGroupIds));
-        setExemptRoles(asStrings(config.exemptRoles));
-        setTrustedIps(asStrings(config.trustedIps));
-      } catch (err) {
-        if (cancelled) return;
-        notifications.show({
-          message: getApiErrorMessage(err, t("Failed to load settings")),
-          color: "red",
-        });
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    };
-
-    void loadSettings();
-
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    if (!config) return;
+    setGraceSeconds(clampGraceSeconds(config.graceSeconds));
+    setExemptUserIds(asStrings(config.exemptUserIds));
+    setExemptGroupIds(asStrings(config.exemptGroupIds));
+    setExemptRoles(asStrings(config.exemptRoles));
+    setTrustedIps(asStrings(config.trustedIps));
+  }, [config]);
 
   const handleSave = async () => {
     const nextGraceSeconds = clampGraceSeconds(graceSeconds);
-    setSaving(true);
-    try {
-      const updated = await updatePluginConfig(SESSION_GUARD_PLUGIN_ID, {
-        enabled,
-        config: {
-          graceSeconds: nextGraceSeconds,
-          exemptUserIds,
-          exemptGroupIds,
-          exemptRoles,
-          trustedIps,
-        },
-      });
-      setEnabled(Boolean(updated?.enabled ?? enabled));
+    const updated = await save({
+      graceSeconds: nextGraceSeconds,
+      exemptUserIds,
+      exemptGroupIds,
+      exemptRoles,
+      trustedIps,
+    });
+    if (updated) {
       setGraceSeconds(
-        clampGraceSeconds(updated?.config?.graceSeconds ?? nextGraceSeconds),
+        clampGraceSeconds(updated.config?.graceSeconds ?? nextGraceSeconds),
       );
-      notifications.show({
-        message: t("Settings saved"),
-        color: "green",
-      });
-    } catch (err) {
-      notifications.show({
-        message: getApiErrorMessage(err, t("Failed to save settings")),
-        color: "red",
-      });
-    } finally {
-      setSaving(false);
     }
   };
 

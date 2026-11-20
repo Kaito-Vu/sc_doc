@@ -6,6 +6,7 @@ describe('ScimProvisioningService.createUser', () => {
   const userRepo: any = {
     findByEmail: jest.fn().mockResolvedValue(undefined),
     insertUser: jest.fn().mockResolvedValue({ id: 'u1', email: 'a@b.c' }),
+    updateUser: jest.fn(),
   };
   const groupUserRepo: any = { addUserToDefaultGroup: jest.fn() };
   const workspaceService: any = {
@@ -47,6 +48,12 @@ describe('ScimProvisioningService.createUser', () => {
     userRepo.insertUser.mockClear();
     await svc.createUser('w1', { userName: 'a@b.c' });
     expect(userRepo.insertUser).not.toHaveBeenCalled();
+    // adopted local account loses local login
+    expect(userRepo.updateUser).toHaveBeenCalledWith(
+      { hasGeneratedPassword: true },
+      'u2',
+      'w1',
+    );
   });
 });
 

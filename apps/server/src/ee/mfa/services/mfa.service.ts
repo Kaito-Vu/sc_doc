@@ -16,6 +16,7 @@ import { EnvironmentService } from '../../../integrations/environment/environmen
 import { LoginDto } from '../../../core/auth/dto/login.dto';
 import { User, Workspace } from '@docmost/db/types/entity.types';
 import { comparePasswordHash, isUserDisabled } from '../../../common/helpers';
+import { isExternallyManaged } from '../../sso-auth/external-user';
 import { FastifyReply } from 'fastify';
 import { JwtMfaTokenPayload, JwtType } from '../../../core/auth/dto/jwt-payload';
 import {
@@ -169,7 +170,7 @@ export class MfaService {
     });
 
     const errorMessage = 'Email or password does not match';
-    if (!user || isUserDisabled(user)) {
+    if (!user || isUserDisabled(user) || isExternallyManaged(user)) {
       this.auditService.log({
         event: AuditEvent.USER_LOGIN_FAILED,
         resourceType: AuditResource.USER,

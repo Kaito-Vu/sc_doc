@@ -1,8 +1,7 @@
-import AccountProfileSection from "@/ee/account-profile/account-profile-section";
+import AccountProfileGrid from "@/ee/account-profile/account-profile-grid";
 import ChangeEmail from "@/features/user/components/change-email";
-import ChangePassword from "@/features/user/components/change-password";
+import LocalPasswordSection from "@/ee/account/local-password-section";
 import { Divider } from "@mantine/core";
-import AccountAvatar from "@/features/user/components/account-avatar";
 import SettingsTitle from "@/components/settings/settings-title.tsx";
 import { useTranslation } from "react-i18next";
 import { AccountMfaSection } from "@/features/user/components/account-mfa-section";
@@ -17,9 +16,7 @@ export default function AccountSettings() {
       <DocumentTitle title={t("My Profile")} />
       <SettingsTitle title={t("My Profile")} />
 
-      <AccountAvatar />
-
-      <AccountProfileSection />
+      <AccountProfileGrid />
 
       <Divider my="lg" />
 
@@ -27,9 +24,7 @@ export default function AccountSettings() {
 
       <Divider my="lg" />
 
-      <ChangePassword />
-
-      <Divider my="lg" />
+      <LocalPasswordSection />
 
       <AccountMfaSection />
 

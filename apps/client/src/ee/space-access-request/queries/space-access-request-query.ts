@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { notifications } from "@mantine/notifications";
-import { getPlugins } from "@/ee/plugins/services/plugin-service";
+import { usePluginEnabled } from "@/ee/plugins/use-plugin-enabled";
 import { useTranslation } from "react-i18next";
 import {
   approveAccessRequest,
@@ -63,12 +63,7 @@ export const SPACE_ACCESS_PLUGIN_ID = "space-access-request";
 
 // Settings > Plugins switch (default off); the feature is hidden while off.
 export function useSpaceAccessRequestEnabled(): boolean {
-  const { data } = useQuery({
-    queryKey: ["plugins", SPACE_ACCESS_PLUGIN_ID],
-    queryFn: getPlugins,
-    staleTime: 10_000,
-  });
-  return !!data?.some((p) => p.id === SPACE_ACCESS_PLUGIN_ID && p.enabled);
+  return usePluginEnabled(SPACE_ACCESS_PLUGIN_ID);
 }
 
 export function useAccessRequestCountQuery(enabled = true) {

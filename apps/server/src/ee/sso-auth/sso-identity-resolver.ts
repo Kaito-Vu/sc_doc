@@ -118,6 +118,16 @@ export class SsoIdentityResolver {
       },
       trx,
     );
+    // Pre-existing local account now owned by the provider: disable local login.
+    if (!user.hasGeneratedPassword) {
+      await this.userRepo.updateUser(
+        { hasGeneratedPassword: true },
+        user.id,
+        workspaceId,
+        trx,
+      );
+      user = { ...user, hasGeneratedPassword: true };
+    }
     return this.syncProfile(user, name, profile, trx);
   }
 

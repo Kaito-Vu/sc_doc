@@ -46,12 +46,8 @@ export class SpaceAccessRequestService {
   ) {}
 
   // Settings > Plugins switch (default off).
-  async isEnabled(workspaceId: string): Promise<boolean> {
-    try {
-      return !!(await this.pluginConfig.getConfig(workspaceId, PLUGIN_ID))?.enabled;
-    } catch {
-      return false;
-    }
+  isEnabled(workspaceId: string): Promise<boolean> {
+    return this.pluginConfig.isEnabled(workspaceId, PLUGIN_ID);
   }
 
   private async assertEnabled(workspaceId: string): Promise<void> {

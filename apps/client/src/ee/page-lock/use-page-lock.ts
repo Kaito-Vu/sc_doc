@@ -13,7 +13,7 @@ import {
   SpaceCaslSubject,
 } from "@/features/space/permissions/permissions.type.ts";
 import { IPage } from "@/features/page/types/page.types";
-import { getPlugins } from "@/ee/plugins/services/plugin-service";
+import { usePluginEnabled } from "@/ee/plugins/use-plugin-enabled";
 import { getPageLockInfo, lockPage, unlockPage } from "./page-lock-service";
 
 const LOCK_TTL_MS = 24 * 60 * 60 * 1000;
@@ -38,12 +38,7 @@ export function usePageLock() {
   const spaceAbility = useSpaceAbility(space?.membership?.permissions);
 
   // Settings > Plugins switch; the whole feature is hidden while it is off.
-  const { data: plugins } = useQuery({
-    queryKey: ["plugins", "page-lock"],
-    queryFn: getPlugins,
-    staleTime: 10_000,
-  });
-  const enabled = plugins?.some((p) => p.id === "page-lock" && p.enabled);
+  const enabled = usePluginEnabled("page-lock");
 
   const locked = !!enabled && isLockActive(page);
   const lockedByMe = locked && page?.lockedById === me?.user?.id;

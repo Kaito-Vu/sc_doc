@@ -44,6 +44,7 @@ import {
 import { EnvironmentService } from '../../../integrations/environment/environment.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { EventName } from '../../../common/events/event.contants';
+import { isExternallyManaged } from '../../../ee/sso-auth/external-user';
 
 @Injectable()
 export class AuthService {
@@ -71,7 +72,7 @@ export class AuthService {
     });
 
     const errorMessage = 'Email or password does not match';
-    if (!user || isUserDisabled(user)) {
+    if (!user || isUserDisabled(user) || isExternallyManaged(user)) {
       this.auditService.log({
         event: AuditEvent.USER_LOGIN_FAILED,
         resourceType: AuditResource.USER,
@@ -148,7 +149,7 @@ export class AuthService {
       includePassword: true,
     });
 
-    if (!user || isUserDisabled(user)) {
+    if (!user || isUserDisabled(user) || isExternallyManaged(user)) {
       throw new NotFoundException('User not found');
     }
 
@@ -206,7 +207,7 @@ export class AuthService {
       workspace.id,
     );
 
-    if (!user || isUserDisabled(user)) {
+    if (!user || isUserDisabled(user) || isExternallyManaged(user)) {
       return;
     }
 
@@ -272,7 +273,7 @@ export class AuthService {
     const user = await this.userRepo.findById(userToken.userId, workspace.id, {
       includeUserMfa: true,
     });
-    if (!user || isUserDisabled(user)) {
+    if (!user || isUserDisabled(user) || isExternallyManaged(user)) {
       throw new NotFoundException('User not found');
     }
 

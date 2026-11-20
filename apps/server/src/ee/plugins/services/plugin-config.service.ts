@@ -116,6 +116,15 @@ export class PluginConfigService {
     return value
   }
 
+  // Settings > Plugins switch (default off; unknown plugin or DB error = off).
+  async isEnabled(workspaceId: string, pluginId: string): Promise<boolean> {
+    try {
+      return !!(await this.getConfig(workspaceId, pluginId)).enabled
+    } catch {
+      return false
+    }
+  }
+
   async updateConfig(
     workspaceId: string,
     pluginId: string,
