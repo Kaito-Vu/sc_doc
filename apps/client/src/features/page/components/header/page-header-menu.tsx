@@ -47,7 +47,7 @@ import { useDeletePageModal } from "@/features/page/hooks/use-delete-page-modal.
 import { PageWidthToggle } from "@/features/user/components/page-width-pref.tsx";
 import { Trans, useTranslation } from "react-i18next";
 import ExportModal from "@/components/common/export-modal";
-import { htmlToMarkdown } from "@docmost/editor-ext";
+import { getPageHTML, htmlToMarkdown } from "@docmost/editor-ext";
 import {
   pageEditorAtom,
   yjsConnectionStatusAtom,
@@ -261,7 +261,7 @@ function PageActionMenu({ readOnly }: PageActionMenuProps) {
 
   const handleCopyAsMarkdown = () => {
     if (!pageEditor || pageEditor.isDestroyed) return;
-    const html = pageEditor.getHTML();
+    const html = getPageHTML(pageEditor);
     const markdown = htmlToMarkdown(html);
     const title = page?.title ? `# ${page.title}\n\n` : "";
     clipboard.copy(`${title}${markdown}`);
@@ -488,10 +488,14 @@ function PageActionMenu({ readOnly }: PageActionMenuProps) {
           <>
             <Group px="sm" wrap="nowrap" style={{ cursor: "pointer" }}>
               <Tooltip
-                label={t("Edited by {{name}} {{time}}", {
-                  name: page.lastUpdatedBy.name,
-                  time: pageUpdatedAt,
-                })}
+                label={
+                  page.lastUpdatedBy
+                    ? t("Edited by {{name}} {{time}}", {
+                        name: page.lastUpdatedBy.name,
+                        time: pageUpdatedAt,
+                      })
+                    : t("Updated {{date}}", { date: pageUpdatedAt })
+                }
                 position="left-start"
               >
                 <div style={{ width: 210 }}>

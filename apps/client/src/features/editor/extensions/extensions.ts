@@ -1,4 +1,5 @@
 import { markInputRule, type Editor } from "@tiptap/core";
+import { EditableTemplateVariable } from "@/ee/template/components/template-variable-node";
 import { StarterKit } from "@tiptap/starter-kit";
 import { TiptapDocument } from "@/features/editor/extensions/document";
 import { Code } from "@tiptap/extension-code";
@@ -6,11 +7,11 @@ import { TextAlign } from "@tiptap/extension-text-align";
 import { TaskList } from "@tiptap/extension-list";
 import { CharacterCount, UndoRedo } from "@tiptap/extensions";
 import { Placeholder } from "@/features/editor/extensions/placeholder";
+import { TemplatePlaceholder } from "@/features/editor/extensions/template-placeholder";
 import { Superscript } from "@tiptap/extension-superscript";
 import SubScript from "@tiptap/extension-subscript";
 import { Typography } from "@tiptap/extension-typography";
 import { TextStyle } from "@tiptap/extension-text-style";
-import { Color } from "@tiptap/extension-color";
 import { Youtube } from "@tiptap/extension-youtube";
 import SlashCommand, {
   SlashCommandExtension as Command,
@@ -53,8 +54,12 @@ import {
   TableHeaderPin,
   TableReadonlySort,
   Subpages,
+  RecentlyUpdated,
+  ItemsByLabel,
   Heading,
+  SectionAnchor,
   Highlight,
+  Color,
   Indent,
   ListItem,
   TaskItem,
@@ -108,6 +113,8 @@ import ExcalidrawView from "@/features/editor/components/excalidraw/excalidraw-v
 import EmbedView from "@/features/editor/components/embed/embed-view.tsx";
 import PdfView from "@/features/editor/components/pdf/pdf-view.tsx";
 import SubpagesView from "@/features/editor/components/subpages/subpages-view.tsx";
+import RecentlyUpdatedView from "@/features/editor/components/recently-updated/recently-updated-view.tsx";
+import { PagesByLabelView } from "@/features/editor/components/pages-by-label/pages-by-label-view";
 import IntegrationCardView from "@/features/editor/components/integration-link/integration-card-view.tsx";
 import IntegrationMentionView from "@/features/editor/components/integration-link/integration-mention-view.tsx";
 import { IntegrationPasteMenuExtension } from "@/features/editor/extensions/integration-paste-menu";
@@ -214,9 +221,13 @@ export const mainExtensions = [
     },
   }),
   SharedStorage,
-  Heading.configure({ levels: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] } as any),
+  Heading.configure({
+    levels: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+    translate: (label) => i18n.t(label),
+  } as any),
+  SectionAnchor,
   UniqueID.configure({
-    types: ["heading", "paragraph", "transclusionSource"],
+    types: ["heading", "paragraph", "transclusionSource", "sectionAnchor"],
     filterTransaction: (transaction) => !isChangeOrigin(transaction),
   }),
   Placeholder.configure({
@@ -422,6 +433,13 @@ export const mainExtensions = [
   Subpages.configure({
     view: SubpagesView,
   }),
+  RecentlyUpdated.configure({
+    view: RecentlyUpdatedView,
+  }),
+  ItemsByLabel.configure({
+    defaultHeading: () => i18n.t("Pages by label"),
+    view: PagesByLabelView,
+  }),
   IntegrationCard.configure({
     view: IntegrationCardView,
   }),
@@ -439,6 +457,7 @@ export const mainExtensions = [
   Status.configure({
     view: StatusView,
   }),
+  TemplatePlaceholder,
   DateNode.configure({ locale: () => i18n.resolvedLanguage || "en-US" }).extend({
     addNodeView() {
       return ReactNodeViewRenderer(DateView);
@@ -520,8 +539,12 @@ const TemplateSlashCommand = Command.configure({
   },
 });
 
-export const templateExtensions = [
-  ...mainExtensions.filter((ext: any) => ext !== SlashCommand),
+export const getTemplateExtensions = (onEditPlaceholder: () => void) => [
+  ...mainExtensions.filter(
+    (ext: any) => ext !== SlashCommand && ext !== TemplatePlaceholder,
+  ),
+  TemplatePlaceholder.configure({ onEdit: onEditPlaceholder }),
+  EditableTemplateVariable,
   TemplateSlashCommand,
   TemplateSkeleton.configure({ view: TemplateSkeletonView }),
   UndoRedo,

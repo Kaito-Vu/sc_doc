@@ -7,7 +7,7 @@ import {
 } from "@/ee/editor/background-color/background-color-selector";
 
 interface Props {
-  editor: Editor;
+  editor: Editor | null;
 }
 
 export const ColorGroup: FC<Props> = ({ editor }) => {

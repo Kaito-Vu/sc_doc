@@ -11,9 +11,12 @@ import PersonalSpacesSetting from "@/ee/personal-space/components/personal-space
 import AllowPublicSpaces from "@/features/workspace/components/settings/components/allow-public-spaces.tsx";
 import { DocumentTitle } from "@/components/ui/document-title.tsx";
 import WorkspaceLanguageSetting from "@/ee/workspace-locale/workspace-language-setting.tsx";
+import useUserRole from "@/hooks/use-user-role.tsx";
 
 export default function WorkspaceSettings() {
   const { t } = useTranslation();
+  const { isAdmin } = useUserRole();
+
   return (
     <>
       <DocumentTitle title="Workspace Settings" />
@@ -21,28 +24,32 @@ export default function WorkspaceSettings() {
       <WorkspaceIcon />
       <WorkspaceNameForm />
 
-      <Divider my="md" />
-      <AllowMemberTemplates />
-
-      <Divider my="md" />
-      <PersonalSpacesSetting />
-
-      {isBetaPublicSpaces() && (
+      {isAdmin && (
         <>
           <Divider my="md" />
-          <AllowPublicSpaces />
-        </>
-      )}
+          <AllowMemberTemplates />
 
-      {isCloud() && (
-        <>
           <Divider my="md" />
-          <ManageHostname />
+          <PersonalSpacesSetting />
+
+          {isBetaPublicSpaces() && (
+            <>
+              <Divider my="md" />
+              <AllowPublicSpaces />
+            </>
+          )}
+
+          {isCloud() && (
+            <>
+              <Divider my="md" />
+              <ManageHostname />
+            </>
+          )}
+
+          <Divider my="md" />
+          <WorkspaceDefaultPageEditMode />
         </>
       )}
-
-      <Divider my="md" />
-      <WorkspaceDefaultPageEditMode />
 
       <Divider my="md" />
       <WorkspaceLanguageSetting />

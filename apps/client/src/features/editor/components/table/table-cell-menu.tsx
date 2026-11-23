@@ -17,7 +17,7 @@ import { TableBackgroundColor } from "./table-background-color";
 import { TableTextAlignment } from "./table-text-alignment";
 import { TableAutoNumberButton } from "@/ee/editor/table-auto-number";
 import { TableSplitButtons } from "@/ee/editor/table-split/table-split-controls";
-import { BubbleMenu } from "@tiptap/react/menus";
+import { NodeBubbleMenu } from "@/features/editor/components/bubble-menu/node-bubble-menu";
 import classes from "../common/toolbar-menu.module.css";
 
 export const TableCellMenu = React.memo(
@@ -55,7 +55,7 @@ export const TableCellMenu = React.memo(
     }, [editor]);
 
     return (
-      <BubbleMenu
+      <NodeBubbleMenu
         editor={editor}
         pluginKey="table-cell-menu"
         updateDelay={0}
@@ -140,7 +140,7 @@ export const TableCellMenu = React.memo(
             </ActionIcon>
           </Tooltip>
         </div>
-      </BubbleMenu>
+      </NodeBubbleMenu>
     );
   }
 );

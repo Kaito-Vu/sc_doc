@@ -1,4 +1,5 @@
 import {
+  infiniteQueryOptions,
   useInfiniteQuery,
   useMutation,
   useQuery,
@@ -7,6 +8,7 @@ import {
   InfiniteData,
   keepPreviousData,
 } from "@tanstack/react-query";
+import { queryClient as appQueryClient } from "@/main.tsx";
 import { useAtom, useStore } from "jotai";
 import {
   getTemplates,
@@ -32,12 +34,10 @@ import { IPage } from "@/features/page/types/page.types.ts";
 import { useQueryEmit } from "@/features/websocket/use-query-emit.ts";
 import { notifyError } from "../../lib/notify-error";
 
-export function useGetTemplatesQuery(params?: {
-  spaceId?: string;
-  currentSpaceId?: string;
-}) {
-  const { spaceId, currentSpaceId } = params ?? {};
-  return useInfiniteQuery({
+type TemplatesParams = { spaceId?: string; currentSpaceId?: string };
+
+const templatesQuery = ({ spaceId, currentSpaceId }: TemplatesParams = {}) =>
+  infiniteQueryOptions({
     queryKey: ["templates", { spaceId, currentSpaceId }],
     queryFn: ({ pageParam }) =>
       getTemplates({ spaceId, currentSpaceId, cursor: pageParam, limit: 30 }),
@@ -46,6 +46,13 @@ export function useGetTemplatesQuery(params?: {
       lastPage.meta.hasNextPage ? lastPage.meta.nextCursor : undefined,
     placeholderData: keepPreviousData,
   });
+
+export function useGetTemplatesQuery(params?: TemplatesParams) {
+  return useInfiniteQuery(templatesQuery(params));
+}
+
+export function prefetchTemplates(params?: TemplatesParams) {
+  void appQueryClient.prefetchInfiniteQuery(templatesQuery(params));
 }
 
 export function useGetTemplateByIdQuery(
@@ -167,7 +174,7 @@ export function useUseTemplateMutation() {
   return useMutation<
     IPage,
     Error,
-    { templateId: string; spaceId: string; parentPageId?: string }
+    Parameters<typeof useTemplate>[0]
   >({
     mutationFn: (data) => useTemplate(data),
     onSuccess: (page) => {

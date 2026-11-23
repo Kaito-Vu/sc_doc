@@ -1,8 +1,10 @@
 import "@/features/editor/styles/index.css";
+import "../components/template-variable.css";
 import {
   useCallback,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -30,7 +32,10 @@ import { useDisclosure, useWindowEvent } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import { Link, useParams } from "react-router-dom";
 import { useEditor, EditorContent, Editor } from "@tiptap/react";
-import { templateExtensions } from "@/features/editor/extensions/extensions";
+import { EditorSpaceContext } from "@/features/editor/components/recently-updated/editor-space-context";
+import { getTemplateExtensions } from "@/features/editor/extensions/extensions";
+import { PagesByLabelContext } from "@/features/editor/components/pages-by-label/pages-by-label-context";
+import { TemplatePlaceholderPopover } from "@/ee/template/components/template-placeholder-popover";
 import {
   useUpdateTemplateMutation,
   useGetTemplateByIdQuery,
@@ -100,6 +105,13 @@ export default function TemplateEditor() {
   );
   const [settingsOpened, { open: openSettings, close: closeSettings }] =
     useDisclosure(false);
+  const [placeholderOpened, { open: openPlaceholder, close: closePlaceholder }] =
+    useDisclosure(false);
+  const extensions = useMemo(
+    () => getTemplateExtensions(openPlaceholder),
+    [openPlaceholder],
+  );
+  const savePlaceholderRef = useRef<(() => void) | null>(null);
 
   useWindowEvent("keydown", (event) => {
     if (settingsOpened && event.key === "Escape") {
@@ -129,7 +141,7 @@ export default function TemplateEditor() {
   }, [setLightboxRequest]);
 
   const editor = useEditor({
-    extensions: templateExtensions,
+    extensions,
     content: "",
     textDirection: "auto",
     editorProps: {
@@ -198,6 +210,7 @@ export default function TemplateEditor() {
     ) {
       loadedTemplateIdRef.current = existingTemplate.id;
       loadedRef.current = false;
+      closePlaceholder();
       setTitle(existingTemplate.title || "");
       setIcon(existingTemplate.icon || null);
       setSpaceId(existingTemplate.spaceId || null);
@@ -211,7 +224,7 @@ export default function TemplateEditor() {
         loadedRef.current = true;
       });
     }
-  }, [existingTemplate, editor]);
+  }, [existingTemplate, editor, closePlaceholder]);
 
   const scopeSpaces = includeSpace(spaces?.items ?? [], templateSpace);
 
@@ -304,6 +317,7 @@ export default function TemplateEditor() {
   // If user leaves, the save is fire-and-forget.
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      savePlaceholderRef.current?.();
       if (isDirtyRef.current) {
         e.preventDefault();
         e.returnValue = "";
@@ -319,6 +333,7 @@ export default function TemplateEditor() {
   // Save on unmount if dirty
   useEffect(() => {
     return () => {
+      savePlaceholderRef.current?.();
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
       if (savedFadeTimerRef.current) clearTimeout(savedFadeTimerRef.current);
       if (isDirtyRef.current) {
@@ -483,11 +498,26 @@ export default function TemplateEditor() {
             <TemplateMeta template={existingTemplate} />
           )}
         </div>
-        <EditorContent editor={editor} />
+        <PagesByLabelContext.Provider value={{ spaceId }}>
+          <EditorSpaceContext.Provider value={spaceId ?? undefined}>
+            <EditorContent
+              editor={editor}
+              data-editing-placeholder={placeholderOpened || undefined}
+            />
+          </EditorSpaceContext.Provider>
+        </PagesByLabelContext.Provider>
         {editor && (
           <>
+            {placeholderOpened ? (
+              <TemplatePlaceholderPopover
+                editor={editor}
+                onClose={closePlaceholder}
+                saveRef={savePlaceholderRef}
+              />
+            ) : (
+              <EditorBubbleMenu editor={editor} templateMode />
+            )}
             <EditorAiMenu editor={editor} />
-            <EditorBubbleMenu editor={editor} templateMode />
             <EditorLinkMenu editor={editor} />
             <TableMenu editor={editor} />
             <TableHandlesLayer editor={editor} />

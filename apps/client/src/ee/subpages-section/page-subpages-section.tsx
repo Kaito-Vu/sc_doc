@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import clsx from "clsx";
@@ -13,6 +13,7 @@ export function PageSubpagesSection({ pageId }: { pageId: string }) {
   const { t } = useTranslation();
   const { spaceSlug } = useParams();
   const [collapsed, setCollapsed] = useState(false);
+  const expandedBranches = useRef(new Set<() => Promise<unknown>>()).current;
   const { subpages } = useSubpages(pageId, "default");
 
   if (!subpages.length) return null;
@@ -45,6 +46,7 @@ export function PageSubpagesSection({ pageId }: { pageId: string }) {
               showUpdatedAt
               isPublicSpaceRoute={false}
               spaceSlug={spaceSlug}
+              expandedBranches={expandedBranches}
             />
           ))}
         </div>

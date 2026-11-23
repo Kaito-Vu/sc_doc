@@ -516,6 +516,7 @@ export class FileImportTaskService {
               sourcePageId: page.id,
               workspaceId: fileTask.workspaceId,
               spaceSlug: space?.slug,
+              spaceId: fileTask.spaceId,
             });
 
             const pmState = getProsemirrorContent(

@@ -26,16 +26,20 @@ import {
   IconPhoto,
   IconTable,
   IconTypography,
+  IconCursorText,
   IconMenu4,
   IconPageBreak,
   IconCalendar,
   IconCalendarMonth,
   IconClock,
+  IconClockHour3,
   IconAppWindow,
   IconSitemap,
   IconColumns3,
   IconColumns2,
   IconTag,
+  IconTags,
+  IconVariable,
   IconMoodSmile,
   IconRotate2,
   IconSuperscript,
@@ -91,6 +95,26 @@ const CommandGroups: SlashMenuGroupedItemsType = {
           .deleteRange(range)
           .toggleNode("paragraph", "paragraph")
           .run();
+      },
+    },
+    {
+      title: "Placeholder text",
+      description: "Show an instruction until someone types here.",
+      searchTerms: ["placeholder", "instruction", "hint"],
+      icon: IconCursorText,
+      disable: (editor) => !editor.can().editTemplatePlaceholder?.(),
+      command: ({ editor, range }) => {
+        editor.chain().deleteRange(range).editTemplatePlaceholder().run();
+      },
+    },
+    {
+      title: "Variable",
+      description: "Fill in a named field when using this template.",
+      searchTerms: ["variable", "field", "prefill"],
+      icon: IconVariable,
+      disable: (editor) => !editor.can().insertTemplateVariable?.(),
+      command: ({ editor, range }) => {
+        editor.chain().deleteRange(range).insertTemplateVariable().run();
       },
     },
     {
@@ -545,6 +569,24 @@ const CommandGroups: SlashMenuGroupedItemsType = {
       icon: IconSitemap,
       command: ({ editor, range }: CommandProps) => {
         editor.chain().focus().deleteRange(range).insertSubpages().run();
+      },
+    },
+    {
+      title: "Recently updated",
+      description: "List recently updated pages",
+      searchTerms: ["recent pages", "updates", "activity", "recently-updated"],
+      icon: IconClockHour3,
+      command: ({ editor, range }: CommandProps) => {
+        editor.chain().focus().deleteRange(range).insertRecentlyUpdated().run();
+      },
+    },
+    {
+      title: "Pages by label",
+      description: "List pages that match selected labels.",
+      searchTerms: ["tags", "labels", "pages", "content by label"],
+      icon: IconTags,
+      command: ({ editor, range }) => {
+        editor.chain().focus().deleteRange(range).insertItemsByLabel().run();
       },
     },
     {

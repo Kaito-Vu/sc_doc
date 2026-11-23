@@ -7,6 +7,8 @@ import {
   IconCalendarMonth,
   IconCaretRightFilled,
   IconChevronDown,
+  IconClockHour3,
+  IconCursorText,
   IconForms,
   IconInfoCircle,
   IconLayoutKanban,
@@ -18,6 +20,8 @@ import {
   IconSuperscript,
   IconTable,
   IconTag,
+  IconTags,
+  IconVariable,
 } from "@tabler/icons-react";
 import IconExcalidraw from "@/components/icons/icon-excalidraw";
 import IconMermaid from "@/components/icons/icon-mermaid";
@@ -42,7 +46,7 @@ import { UpgradeBadge } from "@/ee/components/upgrade-badge";
 import { isBetaBaseForms } from "@/lib/config.ts";
 
 interface Props {
-  editor: Editor;
+  editor: Editor | null;
   templateMode?: boolean;
 }
 
@@ -54,22 +58,34 @@ export const MoreInsertsGroup: FC<Props> = ({ editor, templateMode }) => {
   const setEmbed = (provider: string) =>
     editor.chain().focus().setEmbed({ provider }).run();
 
+  const trigger = (
+    <Tooltip label={t("More inserts")} withArrow>
+      <ActionIcon
+        variant="subtle"
+        color="dark"
+        size="md"
+        aria-label={t("More inserts")}
+      >
+        <IconChevronDown size={16} />
+      </ActionIcon>
+    </Tooltip>
+  );
+  if (!editor) return trigger;
+
   return (
     <Menu shadow="md" position="bottom-start" withArrow={false} width={240}>
-      <Menu.Target>
-        <Tooltip label={t("More inserts")} withArrow>
-          <ActionIcon
-            variant="subtle"
-            color="dark"
-            size="md"
-            aria-label={t("More inserts")}
-          >
-            <IconChevronDown size={16} />
-          </ActionIcon>
-        </Tooltip>
-      </Menu.Target>
+      <Menu.Target>{trigger}</Menu.Target>
       <Menu.Dropdown mah={400} style={{ overflowY: "auto" }}>
         <Menu.Label>{t("Advanced")}</Menu.Label>
+        {templateMode && (
+          <Menu.Item
+            leftSection={<IconCursorText size={16} />}
+            disabled={!editor.can().editTemplatePlaceholder()}
+            onClick={() => editor.commands.editTemplatePlaceholder()}
+          >
+            {t("Placeholder text")}
+          </Menu.Item>
+        )}
         <Menu.Item
           leftSection={<IconInfoCircle size={16} />}
           onClick={() => editor.chain().focus().toggleCallout().run()}
@@ -102,6 +118,18 @@ export const MoreInsertsGroup: FC<Props> = ({ editor, templateMode }) => {
           onClick={() => editor.chain().focus().insertSubpages().run()}
         >
           {t("Subpages")}
+        </Menu.Item>
+        <Menu.Item
+          leftSection={<IconClockHour3 size={16} />}
+          onClick={() => editor.chain().focus().insertRecentlyUpdated().run()}
+        >
+          {t("Recently updated")}
+        </Menu.Item>
+        <Menu.Item
+          leftSection={<IconTags size={16} />}
+          onClick={() => editor.chain().focus().insertItemsByLabel().run()}
+        >
+          {t("Pages by label")}
         </Menu.Item>
         {!templateMode && (
           <Menu.Item
@@ -265,6 +293,15 @@ export const MoreInsertsGroup: FC<Props> = ({ editor, templateMode }) => {
 
         <Menu.Divider />
         <Menu.Label>{t("Utility")}</Menu.Label>
+        {templateMode && (
+          <Menu.Item
+            leftSection={<IconVariable size={16} />}
+            disabled={!editor.can().insertTemplateVariable?.()}
+            onClick={() => editor.commands.insertTemplateVariable()}
+          >
+            {t("Variable")}
+          </Menu.Item>
+        )}
         <Menu.Item
           leftSection={<IconCalendar size={16} />}
           onClick={() => editor.chain().focus().insertDate().run()}

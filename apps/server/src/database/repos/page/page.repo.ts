@@ -16,6 +16,8 @@ import { jsonArrayFrom, jsonObjectFrom } from 'kysely/helpers/postgres';
 import { SpaceMemberRepo } from '@docmost/db/repos/space/space-member.repo';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { EventName } from '../../../common/events/event.contants';
+import type { RecentlyUpdatedDto } from '../../../core/page/dto/recently-updated.dto';
+import { recentlyUpdatedFilter } from './recently-updated-filter';
 import { PagePermissionRepo } from './page-permission.repo';
 import { UserRecentPageActivity } from '../../../core/user/user.types';
 
@@ -143,6 +145,15 @@ export class PageRepo {
     trx?: KyselyTransaction,
   ) {
     return this.updatePages(updatablePage, [pageId], trx);
+  }
+
+  async saveYdocState(pageId: string, ydoc: Buffer, trx?: KyselyTransaction) {
+    await dbOrTx(this.db, trx)
+      .updateTable('pages')
+      .set({ ydoc })
+      .where(isValidUUID(pageId) ? 'id' : 'slugId', '=', pageId)
+      .where('ydoc', 'is distinct from', ydoc)
+      .executeTakeFirst();
   }
 
   async updatePages(
@@ -353,7 +364,7 @@ export class PageRepo {
     const query = this.db
       .selectFrom('pages')
       .select(this.baseFields)
-      .select((eb) => this.withSpace(eb))
+      .select((eb) => [this.withSpace(eb), this.withLastUpdatedBy(eb)])
       .where('spaceId', '=', spaceId)
       .where('deletedAt', 'is', null);
 
@@ -372,11 +383,42 @@ export class PageRepo {
     });
   }
 
+  async getRecentlyUpdatedPages(userId: string, workspaceId: string, options: RecentlyUpdatedDto) {
+    const hasNamedSpaces = options.spaceIds.length > 0;
+    if ((options.scope === 'spaces') !== hasNamedSpaces) return [];
+
+    return this.db
+      .selectFrom('pages')
+      .innerJoin('spaces', 'spaces.id', 'pages.spaceId')
+      .leftJoin('users', (join) => join
+        .onRef('users.id', '=', 'pages.lastUpdatedById')
+        .onRef('users.workspaceId', '=', 'pages.workspaceId'))
+      .select([
+        'pages.id', 'pages.slugId', 'pages.title', 'pages.icon', 'pages.isBase',
+        'pages.updatedAt', 'spaces.slug as spaceSlug', 'spaces.name as spaceName',
+        'users.name as lastEditorName', 'users.avatarUrl as lastEditorAvatarUrl',
+      ])
+      .where('pages.workspaceId', '=', workspaceId)
+      .whereRef('spaces.workspaceId', '=', 'pages.workspaceId')
+      .where('pages.deletedAt', 'is', null)
+      .where('spaces.deletedAt', 'is', null)
+      .where('pages.spaceId', 'in', this.spaceMemberRepo.getUserSpaceIdsQuery(userId, {
+        excludeArchived: true,
+        keepArchivedSpaceId: options.spaceId,
+      }))
+      .where(this.pagePermissionRepo.canUserAccessPageExpression(userId))
+      .where((eb) => recentlyUpdatedFilter(eb, options))
+      .orderBy('pages.updatedAt', 'desc')
+      .orderBy('pages.id', 'desc')
+      .limit(options.limit)
+      .execute();
+  }
+
   async getRecentPages(userId: string, pagination: PaginationOptions) {
     const query = this.db
       .selectFrom('pages')
       .select(this.baseFields)
-      .select((eb) => this.withSpace(eb))
+      .select((eb) => [this.withSpace(eb), this.withLastUpdatedBy(eb)])
       .where(
         'spaceId',
         'in',

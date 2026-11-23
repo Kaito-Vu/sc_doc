@@ -10,6 +10,7 @@ import { KyselyDB } from '@docmost/db/types/kysely.types';
 import { nanoIdGen } from '../../common/helpers';
 import { PageRepo } from '@docmost/db/repos/page/page.repo';
 import { TokenService } from '../auth/services/token.service';
+import { withoutTemplatePlaceholders } from '@docmost/editor-ext';
 import { jsonToNode } from '../../collaboration/collaboration.util';
 import {
   getAttachmentIds,
@@ -18,6 +19,7 @@ import {
   removeMarkTypeFromDoc,
 } from '../../common/helpers/prosemirror/utils';
 import { Node } from '@tiptap/pm/model';
+import { Transform } from '@tiptap/pm/transform';
 import { ShareRepo } from '@docmost/db/repos/share/share.repo';
 import { PagePermissionRepo } from '@docmost/db/repos/page/page-permission.repo';
 import { updateAttachmentAttr, updateAttachmentUrl } from './share.util';
@@ -430,7 +432,7 @@ export class ShareService {
       page.id,
       page.workspaceId,
     );
-    return doc?.toJSON() ?? page.content;
+    return doc.toJSON();
   }
 
   async updatePublicCoverPhoto(page: Page): Promise<string | null> {
@@ -461,7 +463,7 @@ export class ShareService {
           item.sourcePageId,
           workspaceId,
         );
-        return { ...item, content: doc?.toJSON() ?? item.content };
+        return { ...item, content: doc.toJSON() };
       }),
     );
 
@@ -479,7 +481,7 @@ export class ShareService {
 
   /**
    * Prepare a ProseMirror JSON doc for delivery to a public share viewer.
-   * Performs the two transforms required by the share threat model:
+   * Prepares attachments and removes private editor metadata.
    *
    * 1. Mint a per-attachment public token scoped to `attachmentOwnerPageId`
    *    and rewrite each attachment node's `src`/`url` to the public form
@@ -489,9 +491,8 @@ export class ShareService {
    *    content, the source page for transcluded source-block content
    *    (attachments in a sync block were uploaded onto the source page).
    *
-   * 2. Strip `comment` marks. Comments are internal-team metadata and must
-   *    not leak structure (existence, location, count, resolved state, or
-   *    comment ids) to public viewers.
+   * 2. Remove private page queries, template instructions and `comment` marks from the
+   *    surrounding page content.
    *
    * Both share-content paths — the host page (`updatePublicAttachments`) and
    * the share-scoped transclusion lookup (`lookupTransclusionForShare`) —
@@ -502,7 +503,7 @@ export class ShareService {
     content: unknown,
     attachmentOwnerPageId: string,
     workspaceId: string,
-  ): Promise<Node | null> {
+  ): Promise<Node> {
     const pmJson = getProsemirrorContent(content);
     const attachmentIds = getAttachmentIds(pmJson);
 
@@ -519,7 +520,16 @@ export class ShareService {
     );
 
     const doc = jsonToNode(pmJson);
-    doc?.descendants((node: Node) => {
+    const tr = new Transform(doc);
+    doc.descendants((node: Node, pos: number) => {
+      if (
+        node.type.name === 'recentlyUpdated' ||
+        node.type.name === 'itemsByLabel'
+      ) {
+        const from = tr.mapping.map(pos);
+        tr.delete(from, from + node.nodeSize);
+        return false;
+      }
       if (!isAttachmentNode(node.type.name)) return;
       const token = tokenMap.get(node.attrs.attachmentId);
       if (!token) return;
@@ -527,6 +537,7 @@ export class ShareService {
       updateAttachmentAttr(node, 'url', token);
     });
 
-    return doc ? removeMarkTypeFromDoc(doc, 'comment') : null;
+    const publicDoc = tr.doc.copy(withoutTemplatePlaceholders(tr.doc.content));
+    return removeMarkTypeFromDoc(publicDoc, 'comment');
   }
 }
