@@ -1,0 +1,4 @@
+# Everything deploy-hobby generates/clones lives here; keep only this README.
+*
+!.gitignore
+!README.md

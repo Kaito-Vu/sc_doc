@@ -6,7 +6,7 @@ import { IconCheck, IconX } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
 import { IFileTask } from "@/features/file-task/types/file-task.types.ts";
 import { getFileTaskById } from "@/features/file-task/services/file-task-service.ts";
-import { queryClient } from "@/main.tsx";
+import { useQueryClient } from "@tanstack/react-query";
 import { useQueryEmit } from "@/features/websocket/use-query-emit.ts";
 import { useRefreshSubPages } from "@/ee/import-subpage/use-refresh-sub-pages.ts";
 import { getErrorMessage } from "@/ee/ea-import/get-error-message.ts";
@@ -67,6 +67,7 @@ export function trackEaImport(task: IFileTask, file?: File) {
  */
 export function EaImportTracker() {
   const { t } = useTranslation();
+  const queryClient = useQueryClient();
   const emit = useQueryEmit();
   const refreshSubPages = useRefreshSubPages();
   const [ids, setIds] = useState<string[]>([]);

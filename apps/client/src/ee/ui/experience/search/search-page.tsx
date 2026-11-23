@@ -23,8 +23,6 @@ import {
   VisuallyHidden,
 } from "@mantine/core";
 import { useDebouncedValue } from "@mantine/hooks";
-import { modals } from "@mantine/modals";
-import { notifications } from "@mantine/notifications";
 import {
   IconBookmark,
   IconCopy,
@@ -35,10 +33,8 @@ import {
   IconTrash,
   IconX,
 } from "@tabler/icons-react";
-import { useAtom } from "jotai";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { useQueryClient } from "@tanstack/react-query";
 import DOMPurify from "dompurify";
 import { useUnifiedSearch } from "@/features/search/hooks/use-unified-search";
 import type {
@@ -47,26 +43,23 @@ import type {
 } from "@/features/search/types/search.types";
 import { useGetSpacesQuery } from "@/features/space/queries/space-query";
 import { useWorkspaceLabelsQuery } from "@/features/label/queries/label-query";
-import { addLabelsToPage } from "@/features/label/services/label-service";
-import { exportPage, deletePage } from "@/features/page/services/page-service";
-import { ExportFormat } from "@/features/page/types/page.types";
-import { buildPageUrl } from "@/features/page/page.utils";
 import { formattedDate } from "@/lib/time";
 import { DocumentTitle } from "@/components/ui/document-title";
 import { useHasFeature } from "@/ee/hooks/use-feature";
 import { Feature } from "@/ee/features";
+import type { SavedSearchView } from "../atoms";
 import {
-  savedSearchViewsAtom,
-  type SavedSearchView,
-} from "../atoms";
+  getSelectedPageIds,
+  hrefOf,
+  useBulkActions,
+} from "./use-bulk-actions";
+import { useSavedViews } from "./use-saved-views";
 import classes from "./search-page.module.css";
 
 export function SearchPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
-  const [storedViews, setViews] = useAtom(savedSearchViewsAtom);
-  const views = Array.isArray(storedViews) ? storedViews : [];
+  const { views, saveView: saveViewInternal, removeView } = useSavedViews();
   const [query, setQuery] = useState("");
   const [debouncedQuery] = useDebouncedValue(query, 300);
   const [spaceId, setSpaceId] = useState<string | null>(null);
@@ -78,7 +71,6 @@ export function SearchPage() {
   const [viewName, setViewName] = useState("");
   const [labelOpened, setLabelOpened] = useState(false);
   const [labelName, setLabelName] = useState("");
-  const [bulkLoading, setBulkLoading] = useState(false);
   const hasAttachmentIndexing = useHasFeature(Feature.ATTACHMENT_INDEXING);
 
   const { data: spacesData } = useGetSpacesQuery({ limit: 100 });
@@ -102,14 +94,19 @@ export function SearchPage() {
   const selectedResults = results.filter((result) =>
     selected.has(result.id),
   );
-  const selectedPageIds = selectedResults.map((result) =>
-    "fileName" in result ? result.pageId : result.id,
-  );
+  const selectedPageIds = getSelectedPageIds(results, selected);
 
   const canSearch =
     debouncedQuery.trim().length > 0 || labelIds.length > 0;
 
   const resetSelection = () => setSelected(new Set());
+  const { bulkLoading, bulkLabel, copyLinks, exportSelected, trashSelected } =
+    useBulkActions({
+      selected,
+      selectedPageIds,
+      results,
+      onDone: resetSelection,
+    });
 
   const applyView = (view: SavedSearchView) => {
     setQuery(view.query);
@@ -120,30 +117,10 @@ export function SearchPage() {
   };
 
   const saveView = () => {
-    const name = viewName.trim();
-    if (!name) return;
-    const view: SavedSearchView = {
-      id: `${Date.now()}`,
-      name,
-      query,
-      spaceId,
-      contentType,
-      titleOnly,
-    };
-    setViews((current) => [
-      view,
-      ...(Array.isArray(current) ? current : []),
-    ].slice(0, 12));
-    setViewName("");
-    setSaveOpened(false);
-  };
-
-  const removeView = (id: string) => {
-    setViews((current) =>
-      (Array.isArray(current) ? current : []).filter(
-        (view) => view.id !== id,
-      ),
-    );
+    if (saveViewInternal(viewName, { query, spaceId, contentType, titleOnly })) {
+      setViewName("");
+      setSaveOpened(false);
+    }
   };
 
   const toggleSelected = (id: string) => {
@@ -166,116 +143,11 @@ export function SearchPage() {
   const pageOf = (result: IPageSearch | IAttachmentSearch) =>
     "fileName" in result ? result.page : result;
 
-  const hrefOf = (result: IPageSearch | IAttachmentSearch) => {
-    if ("fileName" in result) {
-      return buildPageUrl(
-        result.space.slug,
-        result.page.slugId,
-        result.page.title,
-      );
-    }
-    return buildPageUrl(result.space.slug, result.slugId, result.title);
-  };
-
   const handleBulkLabel = async () => {
-    const name = labelName.trim();
-    if (!name || selectedPageIds.length === 0) return;
-    setBulkLoading(true);
-    try {
-      await Promise.all(
-        selectedPageIds.map((pageId) =>
-          addLabelsToPage({ pageId, names: [name] }),
-        ),
-      );
-      notifications.show({
-        message: t("Label added to {{count}} documents", {
-          count: selectedPageIds.length,
-        }),
-      });
+    if (await bulkLabel(labelName)) {
       setLabelName("");
       setLabelOpened(false);
-      resetSelection();
-    } catch {
-      notifications.show({
-        message: t("Failed to add label"),
-        color: "red",
-      });
-    } finally {
-      setBulkLoading(false);
     }
-  };
-
-  const handleBulkCopyLinks = async () => {
-    const links = [...selected]
-      .map((id) => results.find((result) => result.id === id))
-      .filter(Boolean)
-      .map((result) => {
-        const url = hrefOf(result as IPageSearch | IAttachmentSearch);
-        return `${window.location.origin}${url}`;
-      });
-    try {
-      await navigator.clipboard.writeText(links.join("\n"));
-      notifications.show({ message: t("Links copied") });
-    } catch {
-      notifications.show({
-        message: t("Failed to copy links"),
-        color: "red",
-      });
-    }
-  };
-
-  const handleBulkExport = async () => {
-    setBulkLoading(true);
-    try {
-      for (const pageId of selectedPageIds) {
-        await exportPage({ pageId, format: ExportFormat.Markdown });
-      }
-      notifications.show({
-        message: t("Export started for {{count}} documents", {
-          count: selectedPageIds.length,
-        }),
-      });
-    } catch {
-      notifications.show({ message: t("Export failed"), color: "red" });
-    } finally {
-      setBulkLoading(false);
-    }
-  };
-
-  const handleBulkTrash = () => {
-    const count = selected.size;
-    modals.openConfirmModal({
-      title: t("Move to trash"),
-      children: (
-        <Text size="sm">
-          {t("Move {{count}} documents to trash?", { count })}
-        </Text>
-      ),
-      labels: { confirm: t("Move to trash"), cancel: t("Cancel") },
-      confirmProps: { color: "red" },
-      onConfirm: async () => {
-        setBulkLoading(true);
-        try {
-          for (const pageId of selectedPageIds) {
-            await deletePage(pageId, false);
-          }
-          notifications.show({
-            message: t("Moved {{count}} documents to trash", {
-              count: selectedPageIds.length,
-            }),
-          });
-          queryClient.invalidateQueries({ queryKey: ["unified-search"] });
-          resetSelection();
-        } catch {
-          notifications.show({
-            message: t("Failed to move documents to trash"),
-            color: "red",
-          });
-        } finally {
-          setBulkLoading(false);
-        }
-      },
-    });
   };
 
   return (
@@ -562,7 +434,7 @@ export function SearchPage() {
               <Tooltip label={t("Copy links")} withArrow>
                 <ActionIcon
                   variant="default"
-                  onClick={handleBulkCopyLinks}
+                  onClick={copyLinks}
                   aria-label={t("Copy links")}
                 >
                   <IconCopy size={16} />
@@ -573,7 +445,7 @@ export function SearchPage() {
                   <Tooltip label={t("Export")} withArrow>
                     <ActionIcon
                       variant="default"
-                      onClick={handleBulkExport}
+                      onClick={exportSelected}
                       loading={bulkLoading}
                       aria-label={t("Export")}
                     >
@@ -584,7 +456,7 @@ export function SearchPage() {
                     <ActionIcon
                       variant="default"
                       color="red"
-                      onClick={handleBulkTrash}
+                      onClick={trashSelected}
                       aria-label={t("Move to trash")}
                     >
                       <IconTrash size={16} />

@@ -13,28 +13,17 @@ import {
   Text,
   ThemeIcon,
 } from "@mantine/core";
-import {
-  IconDots,
-  IconPuzzle,
-  IconSettings,
-  IconShieldCheck,
-} from "@tabler/icons-react";
+import { IconDots, IconSettings } from "@tabler/icons-react";
 import { notifications } from "@mantine/notifications";
 import { useTranslation } from "react-i18next";
 import { IPlugin, togglePlugin } from "../services/plugin-service";
+import { DEFAULT_PLUGIN_ICON, PLUGIN_UI } from "../plugin-registry";
 
 interface Props {
   plugins: IPlugin[];
   loading: boolean;
   onRefresh: (options?: { silent?: boolean }) => Promise<void>;
   onConfigClick?: (pluginId: string) => void;
-}
-
-function getPluginIcon(pluginId: string) {
-  if (pluginId === "recaptcha") {
-    return IconShieldCheck;
-  }
-  return IconPuzzle;
 }
 
 export function PluginList({
@@ -96,7 +85,7 @@ export function PluginList({
   return (
     <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
       {plugins.map((plugin) => {
-        const PluginIcon = getPluginIcon(plugin.id);
+        const PluginIcon = PLUGIN_UI[plugin.id]?.icon ?? DEFAULT_PLUGIN_ICON;
         const isToggling = toggling === plugin.id;
         const hasConfig =
           !!plugin.configSchema && plugin.configLocation !== "security";

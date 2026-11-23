@@ -1,32 +1,28 @@
 import { VerificationStatus } from "@/ee/page-verification/types/page-verification.types";
 
-const STATUS_COLORS: Record<VerificationStatus, string> = {
-  verified: "blue",
-  approved: "blue",
-  expiring: "orange",
-  invalidated: "orange",
-  in_approval: "orange",
-  needs_clarification: "orange",
-  expired: "red",
-  obsolete: "red",
-  draft: "gray",
-  none: "gray",
+// Badge color plus the Mantine shade used when the same color renders as text.
+const STATUS_META: Record<VerificationStatus, { color: string; shade: number }> = {
+  verified: { color: "blue", shade: 7 },
+  approved: { color: "blue", shade: 7 },
+  expiring: { color: "orange", shade: 8 },
+  invalidated: { color: "orange", shade: 8 },
+  in_approval: { color: "orange", shade: 8 },
+  needs_clarification: { color: "orange", shade: 8 },
+  expired: { color: "red", shade: 7 },
+  obsolete: { color: "red", shade: 7 },
+  draft: { color: "gray", shade: 6 },
+  none: { color: "gray", shade: 6 },
 };
 
-const TEXT_SHADES: Record<string, number> = {
-  blue: 7,
-  orange: 8,
-  red: 7,
-  gray: 6,
-};
+const FALLBACK_META = STATUS_META.none;
 
 export function getStatusBadgeColor(status: VerificationStatus): string {
-  return STATUS_COLORS[status] ?? "gray";
+  return (STATUS_META[status] ?? FALLBACK_META).color;
 }
 
 export function getStatusColor(status: VerificationStatus): string {
-  const color = getStatusBadgeColor(status);
-  return `${color}.${TEXT_SHADES[color]}`;
+  const { color, shade } = STATUS_META[status] ?? FALLBACK_META;
+  return `${color}.${shade}`;
 }
 
 export function getStatusCssColor(status: VerificationStatus): string {

@@ -85,11 +85,95 @@ function isValidUrl(value: string): boolean {
   }
 }
 
+type FormErrors = Partial<Record<keyof DestinationFormValues, string>>;
+
+function enteredSecret(key: string, value: string): Record<string, string> {
+  const trimmed = value.trim();
+  return trimmed && trimmed !== SECRET_MASK ? { [key]: trimmed } : {};
+}
+
+type Strategy = {
+  validate: (
+    values: DestinationFormValues,
+    hasSecrets: Record<string, boolean>,
+    errors: FormErrors,
+  ) => void;
+  toPayload: (values: DestinationFormValues) => {
+    config: Record<string, unknown>;
+    secrets: Record<string, string>;
+  };
+};
+
+const tlsOf = (values: DestinationFormValues) => ({
+  rejectUnauthorized: values.rejectUnauthorized,
+});
+
+const STRATEGIES: Record<SiemDestinationType, Strategy> = {
+  splunk_hec: {
+    validate(values, hasSecrets, errors) {
+      if (!values.token && !hasSecrets.token) {
+        errors.token = "HEC token is required";
+      }
+      try {
+        const url = new URL(values.url.trim());
+        const path = url.pathname.replace(/\/+$/, "");
+        if (path !== "" && path !== "/services/collector" && path !== "/services/collector/event") {
+          errors.url = "Enter the HEC base URL or the /services/collector/event endpoint";
+        }
+      } catch {}
+    },
+    toPayload: (values) => ({
+      config: {
+        url: values.url.trim(),
+        index: values.index.trim(),
+        source: values.source.trim() || "docmost",
+        sourcetype: values.sourcetype.trim() || "docmost:audit",
+        host: values.host.trim(),
+        tls: tlsOf(values),
+      },
+      secrets: enteredSecret("token", values.token),
+    }),
+  },
+  datadog: {
+    validate(values, hasSecrets, errors) {
+      if (!(DATADOG_SITES as readonly string[]).includes(values.site)) {
+        errors.site = "Select a Datadog site";
+      }
+      if (!values.apiKey && !hasSecrets.apiKey) errors.apiKey = "API key is required";
+    },
+    toPayload: (values) => ({
+      config: {
+        site: values.site,
+        service: values.service.trim() || "docmost",
+        tags: values.tags.trim(),
+      },
+      secrets: enteredSecret("apiKey", values.apiKey),
+    }),
+  },
+  http: {
+    validate(values, _hasSecrets, errors) {
+      if (!HEADER_NAME_RE.test(values.authHeaderName.trim())) {
+        errors.authHeaderName = "Use letters, digits and hyphens only";
+      }
+    },
+    toPayload: (values) => ({
+      config: {
+        url: values.url.trim(),
+        authHeaderName: values.authHeaderName.trim(),
+        authHeaderPrefix: values.authHeaderPrefix,
+        format: values.format,
+        tls: tlsOf(values),
+      },
+      secrets: enteredSecret("token", values.token),
+    }),
+  },
+};
+
 export function validateForm(
   values: DestinationFormValues,
   hasSecrets: Record<string, boolean> = {},
-): Partial<Record<keyof DestinationFormValues, string>> {
-  const errors: Partial<Record<keyof DestinationFormValues, string>> = {};
+): FormErrors {
+  const errors: FormErrors = {};
 
   if (!values.name.trim()) errors.name = "Name is required";
 
@@ -97,77 +181,14 @@ export function validateForm(
     errors.url = "Enter a valid http(s) URL";
   }
 
-  if (values.type === "splunk_hec") {
-    if (!values.token && !hasSecrets.token) {
-      errors.token = "HEC token is required";
-    }
-    try {
-      const url = new URL(values.url.trim());
-      const path = url.pathname.replace(/\/+$/, "");
-      if (path !== "" && path !== "/services/collector" && path !== "/services/collector/event") {
-        errors.url = "Enter the HEC base URL or the /services/collector/event endpoint";
-      }
-    } catch {}
-  }
-
-  if (values.type === "datadog") {
-    if (!(DATADOG_SITES as readonly string[]).includes(values.site)) {
-      errors.site = "Select a Datadog site";
-    }
-    if (!values.apiKey && !hasSecrets.apiKey) errors.apiKey = "API key is required";
-  }
-
-  if (values.type === "http") {
-    if (!HEADER_NAME_RE.test(values.authHeaderName.trim())) {
-      errors.authHeaderName = "Use letters, digits and hyphens only";
-    }
-  }
-
+  STRATEGIES[values.type]?.validate(values, hasSecrets, errors);
 
   return errors;
 }
 
-function enteredSecret(key: string, value: string): Record<string, string> {
-  const trimmed = value.trim();
-  return trimmed && trimmed !== SECRET_MASK ? { [key]: trimmed } : {};
-}
-
 export function toPayload(values: DestinationFormValues): ISiemDestinationInput {
-  const tls = { rejectUnauthorized: values.rejectUnauthorized };
-
-  let config: Record<string, unknown>;
-  let secrets: Record<string, string>;
-
-  switch (values.type) {
-    case "splunk_hec":
-      config = {
-        url: values.url.trim(),
-        index: values.index.trim(),
-        source: values.source.trim() || "docmost",
-        sourcetype: values.sourcetype.trim() || "docmost:audit",
-        host: values.host.trim(),
-        tls,
-      };
-      secrets = enteredSecret("token", values.token);
-      break;
-    case "datadog":
-      config = {
-        site: values.site,
-        service: values.service.trim() || "docmost",
-        tags: values.tags.trim(),
-      };
-      secrets = enteredSecret("apiKey", values.apiKey);
-      break;
-    default:
-      config = {
-        url: values.url.trim(),
-        authHeaderName: values.authHeaderName.trim(),
-        authHeaderPrefix: values.authHeaderPrefix,
-        format: values.format,
-        tls,
-      };
-      secrets = enteredSecret("token", values.token);
-  }
+  // Unknown types fall back to the generic http shape, as the old default branch did.
+  const { config, secrets } = (STRATEGIES[values.type] ?? STRATEGIES.http).toPayload(values);
 
   return {
     name: values.name.trim(),

@@ -8,6 +8,7 @@ import {
 import { InjectKysely } from 'nestjs-kysely';
 import { KyselyDB, KyselyTransaction } from '@docmost/db/types/kysely.types';
 import { BaseRepo } from './base.repo';
+import { mapDate, mapProperty, mapView, mapRow } from './base.mappers';
 import { PageRepo } from '@docmost/db/repos/page/page.repo';
 import { PageService } from '../../core/page/services/page.service';
 import { PagePermissionRepo } from '@docmost/db/repos/page/page-permission.repo';
@@ -61,56 +62,6 @@ export class BaseService {
     private readonly pagePermissionRepo: PagePermissionRepo,
   ) {}
 
-  private mapDate(d: unknown) {
-    return (d as Date)?.toISOString?.() ?? d;
-  }
-
-  private mapProperty(p: any) {
-    return {
-      id: p.id,
-      pageId: p.pageId,
-      name: p.name,
-      type: p.type,
-      position: p.position,
-      typeOptions: p.typeOptions ?? {},
-      pendingType: p.pendingType,
-      pendingTypeOptions: p.pendingTypeOptions,
-      isPrimary: p.isPrimary,
-      workspaceId: p.workspaceId,
-      createdAt: this.mapDate(p.createdAt),
-      updatedAt: this.mapDate(p.updatedAt),
-    };
-  }
-
-  private mapView(v: any) {
-    return {
-      id: v.id,
-      pageId: v.pageId,
-      name: v.name,
-      type: v.type,
-      config: v.config ?? {},
-      position: v.position,
-      workspaceId: v.workspaceId,
-      creatorId: v.creatorId,
-      createdAt: this.mapDate(v.createdAt),
-      updatedAt: this.mapDate(v.updatedAt),
-    };
-  }
-
-  private mapRow(r: any) {
-    return {
-      id: r.id,
-      pageId: r.pageId,
-      cells: r.cells ?? {},
-      position: r.position,
-      creatorId: r.creatorId,
-      lastUpdatedById: r.lastUpdatedById,
-      workspaceId: r.workspaceId,
-      createdAt: this.mapDate(r.createdAt),
-      updatedAt: this.mapDate(r.updatedAt),
-    };
-  }
-
   private async assertSpaceAction(
     user: User,
     spaceId: string,
@@ -163,10 +114,10 @@ export class BaseService {
       ? await Promise.all([
           this.baseRepo
             .getProperties(page.id)
-            .then((ps) => ps.map((p) => this.mapProperty(p))),
+            .then((ps) => ps.map((p) => mapProperty(p))),
           this.baseRepo
             .getViews(page.id)
-            .then((vs) => vs.map((v) => this.mapView(v))),
+            .then((vs) => vs.map((v) => mapView(v))),
         ])
       : [[], []];
 
@@ -181,8 +132,8 @@ export class BaseService {
       creatorId: page.creatorId,
       properties,
       views,
-      createdAt: this.mapDate(page.createdAt),
-      updatedAt: this.mapDate(page.updatedAt),
+      createdAt: mapDate(page.createdAt),
+      updatedAt: mapDate(page.updatedAt),
       baseSchemaVersion: page.baseSchemaVersion ?? 0,
       permissions,
     };
@@ -267,14 +218,26 @@ export class BaseService {
   async create(
     user: User,
     workspaceId: string,
-    data: {
-      name: string;
+    input: {
+      name?: string;
       description?: string;
       icon?: string;
-      spaceId: string;
+      spaceId?: string;
       pageId?: string;
+      parentPageId?: string;
     },
   ) {
+    const parentId = input.pageId ?? input.parentPageId;
+    let spaceId = input.spaceId;
+    if (!spaceId) {
+      if (!parentId) throw new BadRequestException('spaceId is required');
+      const parent = await loadLivePage(this.pageRepo, parentId, workspaceId, {
+        notFoundMessage: 'Parent page not found',
+      });
+      spaceId = parent.spaceId;
+    }
+    const data = { ...input, name: input.name ?? '', spaceId, pageId: parentId };
+
     if (data.pageId) {
       // Nested under a page: same rule as core page create (edit on parent).
       const parent = await loadLivePage(
@@ -428,7 +391,7 @@ export class BaseService {
       typeOptions: data.typeOptions,
       workspaceId,
     });
-    return this.mapProperty(property);
+    return mapProperty(property);
   }
 
   async updateProperty(
@@ -461,7 +424,7 @@ export class BaseService {
         typeOptions: data.typeOptions,
       },
     );
-    return { property: this.mapProperty(property), jobId: null };
+    return { property: mapProperty(property), jobId: null };
   }
 
   async deleteProperty(
@@ -519,7 +482,7 @@ export class BaseService {
       creatorId: user.id,
       workspaceId,
     });
-    return this.mapRow(row);
+    return mapRow(row);
   }
 
   async getRow(
@@ -533,7 +496,7 @@ export class BaseService {
     if (!row) {
       throw new NotFoundException('Row not found');
     }
-    return this.mapRow(row);
+    return mapRow(row);
   }
 
   async updateRow(
@@ -555,7 +518,7 @@ export class BaseService {
     if (!row) {
       throw new NotFoundException('Row not found');
     }
-    return this.mapRow(row);
+    return mapRow(row);
   }
 
   async deleteRow(
@@ -586,7 +549,7 @@ export class BaseService {
     const result = await this.baseRepo.listRows(pageId, pagination);
     return {
       ...result,
-      items: result.items.map((r) => this.mapRow(r)),
+      items: result.items.map((r) => mapRow(r)),
       references: { users: {}, pages: {} },
     };
   }
@@ -625,7 +588,7 @@ export class BaseService {
       creatorId: user.id,
       workspaceId,
     });
-    return this.mapView(view);
+    return mapView(view);
   }
 
   async updateView(
@@ -645,7 +608,7 @@ export class BaseService {
     if (!view) {
       throw new NotFoundException('View not found');
     }
-    return this.mapView(view);
+    return mapView(view);
   }
 
   async deleteView(
@@ -664,7 +627,7 @@ export class BaseService {
   async listViews(pageId: string, user: User, workspaceId: string) {
     await this.getViewableBase(pageId, user, workspaceId);
     const views = await this.baseRepo.getViews(pageId);
-    return views.map((v) => this.mapView(v));
+    return views.map((v) => mapView(v));
   }
 
   async expandPages(pageIds: string[], user: User, workspaceId: string) {

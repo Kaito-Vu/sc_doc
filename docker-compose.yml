@@ -31,6 +31,8 @@ services:
         condition: service_completed_successfully
       gotenberg:
         condition: service_healthy
+      markitdown:
+        condition: service_healthy
     environment:
       NODE_ENV: production
       APP_URL: ${APP_URL:?set APP_URL in .env}
@@ -53,8 +55,12 @@ services:
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
       SMTP_SECURE: "${SMTP_SECURE:-false}"
       GOTENBERG_URL: ${GOTENBERG_URL:-http://gotenberg:3000}
+      MARKITDOWN_URL: ${MARKITDOWN_URL:-http://markitdown:8000}
       # Public URL of draw.io via the gateway, e.g. https://doc.etc.vn/drawio
       DRAWIO_URL: ${DRAWIO_URL:-}
+      # PostHog analytics (optional; leave empty to disable)
+      POSTHOG_HOST: ${POSTHOG_HOST:-}
+      POSTHOG_KEY: ${POSTHOG_KEY:-}
       TZ: ${TZ:-Asia/Ho_Chi_Minh}
     restart: unless-stopped
     security_opt:
@@ -93,6 +99,21 @@ services:
     logging: *default-logging
     security_opt:
       - no-new-privileges:true
+
+  markitdown:
+    build: ./markitdown
+    image: sc_doc-markitdown:latest
+    restart: unless-stopped
+    # Internal only: PDF -> Markdown for PDF import.
+    logging: *default-logging
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://127.0.0.1:8000/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
   gotenberg:
     build: ./gotenberg

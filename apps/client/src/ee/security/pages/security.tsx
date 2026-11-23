@@ -24,7 +24,7 @@ import IpAllowlistSettings from "@/ee/security/components/ip-allowlist-settings.
 import DisablePublicSharing from "@/ee/security/components/disable-public-sharing.tsx";
 import DisableExport from "@/ee/security/components/disable-export.tsx";
 import TrashRetention from "@/ee/security/components/trash-retention.tsx";
-import RecaptchaSettings from "@/ee/security/components/recaptcha-settings.tsx";
+import { PLUGIN_UI } from "@/ee/plugins/plugin-registry.ts";
 import { useAtom } from "jotai";
 import { workspaceAtom } from "@/features/user/atoms/current-user-atom.ts";
 import { useHasFeature } from "@/ee/hooks/use-feature";
@@ -87,7 +87,7 @@ export default function Security() {
       <TrashRetention />
       <Divider my="lg" />
 
-      <RecaptchaSettings />
+      {Object.entries(PLUGIN_UI).map(([id, { SettingsComponent: Settings }]) => Settings && <Settings key={id} />)}
 
       <Title order={4} my="lg">
         {t("Single sign-on (SSO)")}

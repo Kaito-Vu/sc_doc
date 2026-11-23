@@ -3,6 +3,7 @@ import { InjectKysely } from 'nestjs-kysely';
 import { sql } from 'kysely';
 import * as bytes from 'bytes';
 import { KyselyDB } from '@docmost/db/types/kysely.types';
+import { WorkspaceSettingsRepo } from '../common/workspace-settings.repo';
 
 export const PERSONAL_SPACE_QUOTA = 'PERSONAL_SPACE_QUOTA';
 const DEFAULT_LIMIT = bytes('500mb');
@@ -14,6 +15,7 @@ const DEFAULT_LIMIT = bytes('500mb');
 export class PersonalSpaceQuotaService {
   constructor(
     @InjectKysely() private readonly db: KyselyDB,
+    private readonly settingsRepo: WorkspaceSettingsRepo,
   ) {}
 
   async getWorkspaceDefault(workspaceId: string): Promise<number> {
@@ -42,17 +44,20 @@ export class PersonalSpaceQuotaService {
     userId: string | null,
     limitBytes: number | null,
   ) {
-    const table = sql.table(userId ? 'users' : 'workspaces');
-    const where = userId
-      ? sql`id = ${userId} AND workspace_id = ${workspaceId}`
-      : sql`id = ${workspaceId}`;
-    const patch =
-      limitBytes === null
-        ? sql`settings - 'personalQuotaBytes'`
-        : sql`jsonb_set(coalesce(settings, '{}'::jsonb), '{personalQuotaBytes}', to_jsonb(${limitBytes}::bigint))`;
-    await sql`UPDATE ${table} SET settings = ${patch} WHERE ${where}`.execute(
-      this.db,
-    );
+    if (limitBytes === null) {
+      await this.settingsRepo.clearUserSetting(
+        workspaceId,
+        userId,
+        'personalQuotaBytes',
+      );
+    } else {
+      await this.settingsRepo.setUserSetting(
+        workspaceId,
+        userId,
+        'personalQuotaBytes',
+        limitBytes,
+      );
+    }
   }
 
   async getUsage(spaceId: string, userId: string, workspaceId: string) {

@@ -17,9 +17,10 @@ import { JsonValue } from '@docmost/db/types/db';
 // reflected as `Object` and bypass validation entirely.
 
 export class CreateBaseDto {
+  @IsOptional()
   @IsString()
   @MaxLength(255)
-  name: string;
+  name?: string;
 
   @IsOptional()
   @IsString()
@@ -29,12 +30,24 @@ export class CreateBaseDto {
   @IsString()
   icon?: string;
 
+  // Required unless parentPageId is given (spaceId is then taken from the parent).
+  @IsOptional()
   @IsUUID()
-  spaceId: string;
+  spaceId?: string;
 
   @IsOptional()
   @IsString()
   pageId?: string;
+
+  // Editor embed: create the base under this page. Alias of pageId.
+  @IsOptional()
+  @IsString()
+  parentPageId?: string;
+
+  // ponytail: accepted but ignored; seed kanban/calendar/form when needed.
+  @IsOptional()
+  @IsString()
+  template?: string;
 }
 
 export class UpdateBaseDto extends PageIdDto {

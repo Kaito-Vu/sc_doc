@@ -8,6 +8,8 @@ import {
 } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
+import { mapVerificationInfo } from './page-verification.mapper';
+import { PageVerificationAccessPolicy } from './page-verification-access.policy';
 import { PageVerificationRepo } from './page-verification.repo';
 import { loadLivePage } from '../common/load-page';
 import { PageRepo } from '@docmost/db/repos/page/page.repo';
@@ -52,61 +54,34 @@ export class PageVerificationService {
     @InjectQueue(QueueName.NOTIFICATION_QUEUE)
     private readonly notificationQueue: Queue,
     @Inject(AUDIT_SERVICE) private readonly auditService: IAuditService,
-  ) {}
+  ) {
+    this.access = new PageVerificationAccessPolicy(
+      pageRepo,
+      pageAccessService,
+      pageVerificationRepo,
+    );
+  }
 
   private getPageOrThrow(pageId: string, workspaceId: string) {
     return loadLivePage(this.pageRepo, pageId, workspaceId);
   }
 
-  private async getViewablePage(pageId: string, user: User) {
-    const page = await this.getPageOrThrow(pageId, user.workspaceId);
-    await this.pageAccessService.validateCanView(page, user);
-    return page;
+  private readonly access: PageVerificationAccessPolicy;
+
+  private getViewablePage(pageId: string, user: User) {
+    return this.access.getViewablePage(pageId, user);
   }
 
-  // Page-level edit rights (honours page restrictions; space-level
-  // Manage(Page) alone would let space writers manage restricted pages they
-  // cannot even open). The page creator keeps management while they can
-  // still view the page.
-  private async canManage(page: Page, user: User): Promise<boolean> {
-    try {
-      await this.pageAccessService.validateCanEdit(page, user, {
-        ignoreLock: true,
-      });
-      return true;
-    } catch {
-      // fall through
-    }
-    if (page.creatorId !== user.id) return false;
-    try {
-      await this.pageAccessService.validateCanView(page, user);
-      return true;
-    } catch {
-      return false;
-    }
+  private canManage(page: Page, user: User) {
+    return this.access.canManage(page, user);
   }
 
-  private async assertCanManage(page: Page, user: User): Promise<void> {
-    if (!(await this.canManage(page, user))) {
-      throw new ForbiddenException();
-    }
+  private assertCanManage(page: Page, user: User) {
+    return this.access.assertCanManage(page, user);
   }
 
-  // Verifiers must be active users of this workspace. Order is kept: the
-  // first verifier is the primary one.
-  private async assertWorkspaceVerifiers(
-    verifierIds: string[],
-    workspaceId: string,
-  ): Promise<string[]> {
-    const unique = [...new Set(verifierIds)];
-    const valid = await this.pageVerificationRepo.findWorkspaceUserIds(
-      unique,
-      workspaceId,
-    );
-    if (valid.length !== unique.length) {
-      throw new BadRequestException('Invalid verifier');
-    }
-    return unique;
+  private assertWorkspaceVerifiers(verifierIds: string[], workspaceId: string) {
+    return this.access.assertWorkspaceVerifiers(verifierIds, workspaceId);
   }
 
   private async buildInfo(pageId: string, user: User) {
@@ -124,37 +99,13 @@ export class PageVerificationService {
     ]);
     const status = resolveVerificationStatus(detail);
 
-    return {
-      id: detail.id,
-      pageId: detail.pageId,
-      type: detail.type,
-      mode: detail.mode,
-      periodAmount: detail.periodAmount,
-      periodUnit: detail.periodUnit,
+    return mapVerificationInfo(
+      detail,
       status,
-      verifiedAt: detail.verifiedAt?.toISOString() ?? null,
-      verifiedBy: detail.verifiedBy ?? null,
-      expiresAt: detail.expiresAt?.toISOString() ?? null,
-      requestedAt: detail.requestedAt?.toISOString() ?? null,
-      requestedBy: detail.requestedBy ?? null,
-      rejectedAt: detail.rejectedAt?.toISOString() ?? null,
-      rejectedBy: detail.rejectedBy ?? null,
-      rejectionComment: detail.rejectionComment,
-      verifiers: verifiers.map((v) => ({
-        id: v.id,
-        name: v.name,
-        email: v.email,
-        avatarUrl: v.avatarUrl,
-      })),
-      permissions: {
-        canVerify: isVerifier,
-        canManage,
-        canSubmitForApproval:
-          detail.type === 'qms' && status === 'draft' && canManage,
-        canMarkObsolete:
-          detail.type === 'qms' && status === 'approved' && canManage,
-      },
-    };
+      verifiers,
+      isVerifier,
+      canManage,
+    );
   }
 
   async getInfo(pageId: string, user: User) {

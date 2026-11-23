@@ -1,9 +1,8 @@
 import { useParams } from "react-router-dom";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { notifications } from "@mantine/notifications";
 import { useTranslation } from "react-i18next";
 import { extractPageSlugId } from "@/lib";
-import { queryClient } from "@/main.tsx";
 import { usePageQuery } from "@/features/page/queries/page-query.ts";
 import useCurrentUser from "@/features/user/hooks/use-current-user";
 import { useGetSpaceBySlugQuery } from "@/features/space/queries/space-query.ts";
@@ -31,6 +30,7 @@ export function getLockExpiresAt(page?: IPage): Date | null {
 
 export function usePageLock() {
   const { t } = useTranslation();
+  const queryClient = useQueryClient();
   const { pageSlug } = useParams();
   const { data: page } = usePageQuery({ pageId: extractPageSlugId(pageSlug) });
   const { data: me } = useCurrentUser();

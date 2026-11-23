@@ -3,8 +3,8 @@
 #
 # For servers without internet access:
 #   1. On a dev machine:  docker build --platform linux/amd64 -t sc_doc:latest .
-#                         docker compose build gateway db gotenberg drawio seaweedfs   (patched images -> sc_doc-gateway, sc_doc-db, sc_doc-gotenberg, sc_doc-drawio, sc_doc-seaweedfs)
-#                         docker save sc_doc:latest sc_doc-gateway:latest sc_doc-db:latest sc_doc-gotenberg:latest sc_doc-drawio:latest sc_doc-seaweedfs:latest | gzip > sc_doc.tar.gz
+#                         docker compose build gateway db gotenberg markitdown drawio seaweedfs   (patched images -> sc_doc-gateway, sc_doc-db, sc_doc-gotenberg, sc_doc-drawio, sc_doc-seaweedfs)
+#                         docker save sc_doc:latest sc_doc-gateway:latest sc_doc-db:latest sc_doc-gotenberg:latest sc_doc-markitdown:latest sc_doc-drawio:latest sc_doc-seaweedfs:latest | gzip > sc_doc.tar.gz
 #   2. On the server:     gunzip -c sc_doc.tar.gz | docker load
 #   3. Start:             docker compose -f docker-compose.run.yml up -d
 # Third-party images (redis) must be loaded the same way.
@@ -36,6 +36,8 @@ services:
         condition: service_completed_successfully
       gotenberg:
         condition: service_healthy
+      markitdown:
+        condition: service_healthy
     environment:
       NODE_ENV: production
       APP_URL: ${APP_URL:?set APP_URL in .env}
@@ -58,8 +60,12 @@ services:
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
       SMTP_SECURE: "${SMTP_SECURE:-false}"
       GOTENBERG_URL: ${GOTENBERG_URL:-http://gotenberg:3000}
+      MARKITDOWN_URL: ${MARKITDOWN_URL:-http://markitdown:8000}
       # Public URL of draw.io via the gateway, e.g. https://doc.etc.vn/drawio
       DRAWIO_URL: ${DRAWIO_URL:-}
+      # PostHog analytics (optional; leave empty to disable)
+      POSTHOG_HOST: ${POSTHOG_HOST:-}
+      POSTHOG_KEY: ${POSTHOG_KEY:-}
       TZ: ${TZ:-Asia/Ho_Chi_Minh}
     restart: unless-stopped
     security_opt:
@@ -73,6 +79,20 @@ services:
       timeout: 5s
       start_period: 30s
       retries: 5
+
+  markitdown:
+    image: sc_doc-markitdown:latest
+    restart: unless-stopped
+    # Internal only: PDF -> Markdown for PDF import.
+    logging: *default-logging
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://127.0.0.1:8000/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
   gotenberg:
     image: sc_doc-gotenberg:latest

@@ -6,6 +6,7 @@ import {
   PERSONAL_SPACE_QUOTA,
   PersonalSpaceQuotaService,
 } from './personal-space-quota.service';
+import { WorkspaceSettingsRepo } from '../common/workspace-settings.repo';
 import { SsoModule } from '../sso/sso.module';
 
 @Global()
@@ -14,6 +15,7 @@ import { SsoModule } from '../sso/sso.module';
   providers: [
     PersonalSpaceService,
     PersonalSpaceQuotaService,
+    WorkspaceSettingsRepo,
     { provide: PERSONAL_SPACE_QUOTA, useExisting: PersonalSpaceQuotaService },
   ],
   exports: [PERSONAL_SPACE_QUOTA],

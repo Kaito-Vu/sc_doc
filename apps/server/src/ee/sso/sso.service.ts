@@ -5,9 +5,9 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'crypto';
 import { InjectKysely } from 'nestjs-kysely';
 import { AuthProviderRepo } from './auth-provider.repo';
+import { decryptSecret, encryptSecret } from './secret-cipher';
 import { PaginationOptions } from '@docmost/db/pagination/pagination-options';
 import { User } from '@docmost/db/types/entity.types';
 import { KyselyDB } from '@docmost/db/types/kysely.types';
@@ -25,7 +25,6 @@ import {
 import { AuditEvent, AuditResource } from '../../common/events/audit-events';
 import { EnvironmentService } from '../../integrations/environment/environment.service';
 
-const SECRET_ENC_PREFIX = 'enc:';
 const SECRET_MASK = '********';
 const PROVIDER_TYPES = ['oidc', 'saml', 'ldap', 'google'];
 
@@ -65,43 +64,12 @@ export class SsoService {
       .execute();
   }
 
-  private getSecretEncryptionKey(): Buffer {
-    return createHash('sha256')
-      .update(this.environmentService.getAppSecret())
-      .digest();
-  }
-
   encryptSecret(plain: string): string {
-    const key = this.getSecretEncryptionKey();
-    const iv = randomBytes(12);
-    const cipher = createCipheriv('aes-256-gcm', key, iv);
-    const ciphertext = Buffer.concat([
-      cipher.update(plain, 'utf8'),
-      cipher.final(),
-    ]);
-    const tag = cipher.getAuthTag();
-    return (
-      SECRET_ENC_PREFIX +
-      Buffer.concat([iv, tag, ciphertext]).toString('base64')
-    );
+    return encryptSecret(plain, this.environmentService.getAppSecret());
   }
 
   decryptSecret(value: string): string {
-    if (!value.startsWith(SECRET_ENC_PREFIX)) {
-      // Tương thích ngược với secret đã lưu plaintext trước khi bật mã hoá.
-      return value;
-    }
-    const raw = Buffer.from(value.slice(SECRET_ENC_PREFIX.length), 'base64');
-    const iv = raw.subarray(0, 12);
-    const tag = raw.subarray(12, 28);
-    const ciphertext = raw.subarray(28);
-    const key = this.getSecretEncryptionKey();
-    const decipher = createDecipheriv('aes-256-gcm', key, iv);
-    decipher.setAuthTag(tag);
-    return Buffer.concat([
-      decipher.update(ciphertext),
-      decipher.final(),
-    ]).toString('utf8');
+    return decryptSecret(value, this.environmentService.getAppSecret());
   }
 
   private isEntraIdFlavor(settings: any): boolean {

@@ -1,7 +1,6 @@
 import { Indicator } from "@mantine/core";
-import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import api from "@/lib/api-client";
+import { usePresenceOnline } from "./use-presence-online";
 
 // Wraps children (the avatar) with an online/offline dot. All instances share
 // one cached query, so the table triggers a single request per interval.
@@ -13,11 +12,7 @@ export function OnlineDot({
   children: React.ReactNode;
 }) {
   const { t } = useTranslation();
-  const { data } = useQuery({
-    queryKey: ["presence-online"],
-    queryFn: async () => (await api.post<string[]>("/presence/online")).data,
-    refetchInterval: 30_000,
-  });
+  const { data } = usePresenceOnline();
   const online = data?.includes(userId);
 
   return (

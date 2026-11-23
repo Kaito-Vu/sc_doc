@@ -4,12 +4,13 @@ import { treeDataAtom } from "@/features/page/tree/atoms/tree-data-atom.ts";
 import { treeModel } from "@/features/page/tree/model/tree-model";
 import { spaceRoots, updateSpaceRoots } from "@/features/page/tree/utils/utils.ts";
 import type { SpaceTreeNode } from "@/features/page/tree/types.ts";
-import { queryClient } from "@/main.tsx";
+import { useQueryClient } from "@tanstack/react-query";
 import { fetchAllAncestorChildren } from "@/features/page/queries/page-query.ts";
 
 /** Pull newly imported children of `parentId` into the sidebar tree. */
 export function useRefreshSubPages() {
   const store = useStore();
+  const queryClient = useQueryClient();
 
   return useCallback(
     async (parentId: string, spaceId: string) => {
@@ -36,6 +37,6 @@ export function useRefreshSubPages() {
         treeModel.update(treeModel.appendChildren(prev, parentId, fetched), parentId, flag),
       );
     },
-    [store],
+    [store, queryClient],
   );
 }

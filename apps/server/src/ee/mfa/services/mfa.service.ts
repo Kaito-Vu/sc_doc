@@ -6,8 +6,6 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import * as OTPAuth from 'otpauth';
-import * as bcrypt from 'bcrypt';
-import { randomBytes } from 'crypto';
 import { UserMfaRepo } from '../repos/user-mfa.repo';
 import { UserRepo } from '@docmost/db/repos/user/user.repo';
 import { TokenService } from '../../../core/auth/services/token.service';
@@ -27,6 +25,7 @@ import { AuditEvent, AuditResource } from '../../../common/events/audit-events';
 import { throwIfEmailNotVerified } from '../../../core/auth/auth.util';
 import { setAuthCookie, setMfaCookie } from '../auth-cookies';
 import { resolveMfaState } from './mfa-gate.service';
+import { generateBackupCodes, verifyCode, verifyTotp } from './totp.util';
 import { WorkspaceRepo } from '@docmost/db/repos/workspace/workspace.repo';
 
 @Injectable()
@@ -367,49 +366,17 @@ export class MfaService {
     }
   }
 
-  private async verifyCode(mfa: any, rawCode: unknown): Promise<boolean> {
-    if (typeof rawCode !== 'string') {
-      return false;
-    }
-    const code = rawCode.trim();
-    if (/^\d{6}$/.test(code)) {
-      return this.verifyTotp(mfa.secret, code);
-    }
-
-    // Backup codes are 8 uppercase hex chars; anything else can't match, so
-    // skip the (expensive) bcrypt loop for it.
-    const backupCode = code.toUpperCase();
-    if (!/^[0-9A-F]{8}$/.test(backupCode) || !mfa.backupCodes?.length) {
-      return false;
-    }
-    for (const hash of mfa.backupCodes as string[]) {
-      if (await bcrypt.compare(backupCode, hash)) {
-        // Atomic removal: of two concurrent requests with the same code,
-        // only the one that actually removes it succeeds.
-        return this.userMfaRepo.consumeBackupCode(mfa.userId, hash);
-      }
-    }
-    return false;
+  private verifyCode(mfa: any, rawCode: unknown): Promise<boolean> {
+    return verifyCode(mfa, rawCode, (userId, hash) =>
+      this.userMfaRepo.consumeBackupCode(userId, hash),
+    );
   }
 
   private verifyTotp(secret: string, code: string): boolean {
-    const totp = new OTPAuth.TOTP({
-      algorithm: 'SHA1',
-      digits: 6,
-      period: 30,
-      secret: OTPAuth.Secret.fromBase32(secret),
-    });
-    const delta = totp.validate({ token: code, window: 1 });
-    return delta !== null;
+    return verifyTotp(secret, code);
   }
 
-  private async generateBackupCodes() {
-    const backupCodes = Array.from({ length: 10 }, () =>
-      randomBytes(4).toString('hex').toUpperCase(),
-    );
-    const hashedCodes = await Promise.all(
-      backupCodes.map((code) => bcrypt.hash(code, 10)),
-    );
-    return { backupCodes, hashedCodes };
+  private generateBackupCodes() {
+    return generateBackupCodes();
   }
 }
