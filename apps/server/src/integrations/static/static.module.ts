@@ -35,8 +35,6 @@ export class StaticModule implements OnModuleInit {
         ENV: this.environmentService.getNodeEnv(),
         APP_URL: this.environmentService.getAppUrl(),
         CLOUD: this.environmentService.isCloud(),
-        FILE_UPLOAD_SIZE_LIMIT:
-          this.environmentService.getFileUploadSizeLimit(),
         FILE_IMPORT_SIZE_LIMIT:
           this.environmentService.getFileImportSizeLimit(),
         DRAWIO_URL: this.environmentService.getDrawioUrl(),

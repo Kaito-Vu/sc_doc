@@ -19,6 +19,7 @@ import {
   IconShieldCheck,
   IconPackage,
   IconSpeakerphone,
+  IconPaperclip,
 } from "@tabler/icons-react";
 import { Link, useLocation } from "react-router-dom";
 import classes from "./settings.module.css";
@@ -121,6 +122,12 @@ const groupedData: DataGroup[] = [
         label: "Announcements",
         icon: IconSpeakerphone,
         path: "/settings/announcements",
+        role: "admin",
+      },
+      {
+        label: "Attachments",
+        icon: IconPaperclip,
+        path: "/settings/attachments",
         role: "admin",
       },
       {

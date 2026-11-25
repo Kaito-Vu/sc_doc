@@ -150,6 +150,7 @@ describe.each([
   let storage: StorageFixture;
   let app: FastifyInstance;
   let uploadLimit: string;
+  let allowedExtensions: string[] | undefined;
   // settles with the error the route ended on, once it finished
   let routeError: Promise<Error | undefined>;
   let markRouteDone: (done: Promise<Error | undefined>) => void;
@@ -189,6 +190,7 @@ describe.each([
   beforeEach(async () => {
     jest.clearAllMocks();
     uploadLimit = '2mb';
+    allowedExtensions = [];
     routeError = new Promise((resolve) => (markRouteDone = resolve));
     fileReceived = new Promise((resolve) => (markFileReceived = resolve));
 
@@ -230,7 +232,7 @@ describe.each([
         },
       } as any,
       attachmentRepo as any,
-      { getFileUploadSizeLimit: () => uploadLimit } as any,
+      {} as any,
       {} as any,
       { validateCanEdit: async () => undefined } as any,
       { getUrl: () => 'https://docs.example.com' } as any,
@@ -243,12 +245,15 @@ describe.each([
 
     app = await createMultipartApp({
       '/files/upload': (req, res) => {
-        const result = controller.uploadFile(
-          req,
-          res,
-          USER as any,
-          WORKSPACE as any,
-        );
+        const result = controller.uploadFile(req, res, USER as any, {
+          ...WORKSPACE,
+          settings: {
+            attachments: {
+              maxUploadBytes: bytes(uploadLimit),
+              allowedExtensions,
+            },
+          },
+        } as any);
         markRouteDone(
           result.then(
             () => undefined,
@@ -413,7 +418,7 @@ describe.each([
       expect(templateAccessService.findEditableTemplate).toHaveBeenCalledWith(
         TEMPLATE_ID,
         USER,
-        WORKSPACE,
+        expect.objectContaining(WORKSPACE),
       );
       expect(moduleRef.get).toHaveBeenCalledWith(
         jest.requireMock('../../ee/template/services/template-access.service')
@@ -686,6 +691,26 @@ describe.each([
       expect(auditService.log).toHaveBeenCalledTimes(1);
     });
 
+    it('rejects a disallowed extension with 400 and stores nothing', async () => {
+      allowedExtensions = ['.pdf'];
+
+      const response = await postFile('run.exe', randomBytes(1024), {});
+
+      expect(response.statusCode).toBe(400);
+      expect(response.json().message).toContain('run.exe');
+      expect(attachmentRepo.insertAttachment).not.toHaveBeenCalled();
+    });
+
+    it('applies the default allow-list when unconfigured', async () => {
+      allowedExtensions = undefined;
+
+      const bad = await postFile('run.sh', randomBytes(1024), {});
+      const ok = await postFile('diagram.pdf', randomBytes(1024), {});
+
+      expect(bad.statusCode).toBe(400);
+      expect(ok.statusCode).toBe(200);
+    });
+
     it.each([
       ['below the S3 part size', '2mb', bytes('3mb')],
       ['one byte over', '2mb', bytes('2mb') + 1],
@@ -697,7 +722,7 @@ describe.each([
 
       expect(response.statusCode).toBe(413);
       expect(response.json().message).toBe(
-        `File too large. Exceeds the ${limit} limit`,
+        `File too large. Exceeds the ${limit.toUpperCase()} limit`,
       );
       expect(await storage.leftovers()).toEqual([]);
       expect(attachmentRepo.insertAttachment).not.toHaveBeenCalled();
@@ -716,7 +741,7 @@ describe.each([
 
       expect(response.statusCode).toBe(413);
       expect(JSON.parse(response.body).message).toBe(
-        'File too large. Exceeds the 2mb limit',
+        'File too large. Exceeds the 2MB limit',
       );
       expect(await storage.leftovers()).toEqual([]);
     });
@@ -805,7 +830,7 @@ describe.each([
 
         expect(response.statusCode).toBe(413);
         expect(response.json().message).toBe(
-          `File too large. Exceeds the ${limit} limit`,
+          `File too large. Exceeds the ${limit.toUpperCase()} limit`,
         );
         expect(await storage.read(EXISTING_KEY)).toEqual(existing);
         expect(attachmentRepo.updateAttachment).not.toHaveBeenCalled();

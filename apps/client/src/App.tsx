@@ -97,6 +97,9 @@ const VerifiedPages = lazyWithPrefetch(
 const Announcements = lazyWithPrefetch(
   () => import("@/ee/announcement/pages/announcements"),
 );
+const AttachmentSettings = lazyWithPrefetch(
+  () => import("@/ee/attachment-settings/pages/attachment-settings"),
+);
 const TemplateList = lazyWithPrefetch(() => import("@/ee/template/pages/template-list"));
 const TemplateEditor = lazyWithPrefetch(
   () => import("@/ee/template/pages/template-editor"),
@@ -287,6 +290,7 @@ export default function App() {
             <Route path={"plugins"} element={<PluginsPage />} />
             <Route path={"integrations"} element={<Integrations />} />
             <Route path={"announcements"} element={<Announcements />} />
+            <Route path={"attachments"} element={<AttachmentSettings />} />
             {!isCloud() && <Route path={"license"} element={<License />} />}
             {isCloud() && <Route path={"billing"} element={<Billing />} />}
           </Route>

@@ -2,6 +2,7 @@ jest.mock('@sindresorhus/slugify', () => ({ default: (text: string) => text }));
 
 import {
   convertModelDocuments,
+  convertNodeDocuments,
   eaConvertConcurrency,
 } from './ea-convert.pool';
 import { readModelDocumentUncompressedSize } from './ea-content.builder';
@@ -32,6 +33,43 @@ describe('convertModelDocuments', () => {
       1024,
     );
     expect(result.get('bad')?.error).toBeTruthy();
+  });
+});
+
+describe('convertNodeDocuments total budget', () => {
+  const node = (name: string) =>
+    ({
+      name,
+      documents: [{ base64: VALID_MODEL_DOCUMENT, ownerName: name }],
+    }) as any;
+
+  it('skips documents beyond maxTotalRtfBytes with a warning naming the limit', async () => {
+    const size = (await readModelDocumentUncompressedSize(
+      VALID_MODEL_DOCUMENT,
+    )) as number;
+    const warnings: any[] = [];
+    const a = node('A');
+    const b = node('B');
+
+    const out = await convertNodeDocuments([a, b], warnings, size + 1);
+
+    expect(out.get(a)?.html).toContain('Theo dõi');
+    expect(out.get(b)?.html).toBe('<p></p>');
+    expect(warnings).toEqual([
+      {
+        page: 'B',
+        reason: `Model documents exceed the ${size + 1} byte total limit`,
+      },
+    ]);
+  });
+
+  it('converts everything when the budget is large enough', async () => {
+    const warnings: any[] = [];
+    const a = node('A');
+    const b = node('B');
+    const out = await convertNodeDocuments([a, b], warnings, 1024 * 1024);
+    expect(warnings).toEqual([]);
+    expect(out.get(b)?.html).toContain('Theo dõi');
   });
 });
 

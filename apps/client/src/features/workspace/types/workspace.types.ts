@@ -50,6 +50,12 @@ export interface IWorkspaceSettings {
   publicSpaces?: IWorkspacePublicSpacesSettings;
   defaultPageEditMode?: string;
   defaultLocale?: string;
+  attachments?: {
+    maxUploadBytes?: number;
+    maxTotalRtfBytes?: number;
+    allowedExtensions?: string[];
+    allowedMimeTypes?: string[];
+  };
 }
 
 export interface IWorkspaceApiSettings {

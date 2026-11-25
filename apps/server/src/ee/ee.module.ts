@@ -36,6 +36,7 @@ import { PlatformModule } from './platform/platform.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { PageLabelInheritModule } from './page-label-inherit/page-label-inherit.module';
 import { AnnouncementModule } from './announcement/announcement.module';
+import { AttachmentSettingsModule } from './attachment-settings/attachment-settings.module';
 import { FeatureGateGuard } from './common/guards/feature-gate.guard';
 
 @Module({
@@ -75,6 +76,7 @@ import { FeatureGateGuard } from './common/guards/feature-gate.guard';
     NotificationsModule,
     PageLabelInheritModule,
     AnnouncementModule,
+    AttachmentSettingsModule,
   ],
   providers: [
     FeatureGateGuard,

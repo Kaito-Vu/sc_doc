@@ -61,6 +61,7 @@ import {
   buildFlowHtml,
 } from './ea-content.builder';
 import { convertNodeDocuments } from './ea-convert.pool';
+import { resolveAttachmentSettings } from '../attachment-settings/attachment-settings';
 import {
   EaArchiveInspection,
   inspectEaArchive,
@@ -617,9 +618,15 @@ export class EaImportService {
       );
     }
 
+    const workspaceRow = await this.db
+      .selectFrom('workspaces')
+      .select('settings')
+      .where('id', '=', workspaceId)
+      .executeTakeFirst();
     const documentContent = await convertNodeDocuments(
       work.map((page) => page.node),
       warnings,
+      resolveAttachmentSettings(workspaceRow?.settings).maxTotalRtfBytes,
     );
     await this.checkpoint(taskId, 25);
     lap('documents converted');

@@ -75,6 +75,10 @@ import {
 import { PaginationOptions } from '@docmost/db/pagination/pagination-options';
 import { PageAccessService } from '../page/page-access/page-access.service';
 import { DomainService } from '../../integrations/environment/domain.service';
+import {
+  assertFileAllowed,
+  resolveAttachmentSettings,
+} from '../../ee/attachment-settings/attachment-settings';
 import { AuditEvent, AuditResource } from '../../common/events/audit-events';
 import {
   AUDIT_SERVICE,
@@ -118,7 +122,8 @@ export class AttachmentController {
     @AuthUser() user: User,
     @AuthWorkspace() workspace: Workspace,
   ) {
-    const maxFileSize = bytes(this.environmentService.getFileUploadSizeLimit());
+    const attachmentSettings = resolveAttachmentSettings(workspace.settings);
+    const maxFileSize = attachmentSettings.maxUploadBytes;
 
     let file = null;
     try {
@@ -129,7 +134,7 @@ export class AttachmentController {
       this.logger.error(err.message);
       if (err?.statusCode === 413) {
         throw new PayloadTooLargeException(
-          `File too large. Exceeds the ${this.environmentService.getFileUploadSizeLimit()} limit`,
+          `File too large. Exceeds the ${bytes(maxFileSize)} limit`,
         );
       }
     }
@@ -137,6 +142,7 @@ export class AttachmentController {
     if (!file) {
       throw new BadRequestException('Failed to upload file');
     }
+    assertFileAllowed(attachmentSettings, file.filename, file.mimetype);
 
     const pageId = file.fields?.pageId?.value || undefined;
     const templateId = file.fields?.templateId?.value || undefined;
@@ -227,7 +233,7 @@ export class AttachmentController {
         throw err;
       }
       if (err?.statusCode === 413) {
-        const errMessage = `File too large. Exceeds the ${this.environmentService.getFileUploadSizeLimit()} limit`;
+        const errMessage = `File too large. Exceeds the ${bytes(maxFileSize)} limit`;
         this.logger.error(errMessage);
         throw new PayloadTooLargeException(errMessage);
       }

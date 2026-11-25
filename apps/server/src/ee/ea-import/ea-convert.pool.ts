@@ -26,7 +26,6 @@ export interface EaConvertResult {
   error?: string;
 }
 
-const MAX_TOTAL_RTF_BYTES = 96 * 1024 * 1024;
 const MAX_SINGLE_DOC_BYTES = 32 * 1024 * 1024;
 
 export async function convertModelDocuments(
@@ -67,6 +66,7 @@ export async function convertModelDocuments(
 export async function convertNodeDocuments(
   nodes: EaPackageNode[],
   warnings: EaParseWarning[],
+  maxTotalRtfBytes: number,
 ): Promise<Map<EaPackageNode, { html: string; images: EaRtfImage[] }>> {
   const result = new Map<
     EaPackageNode,
@@ -98,9 +98,9 @@ export async function convertNodeDocuments(
         });
         continue;
       }
-      if (size !== null && totalBytes + size > MAX_TOTAL_RTF_BYTES) {
+      if (size !== null && totalBytes + size > maxTotalRtfBytes) {
         entries.push({
-          skipReason: `Model documents exceed the ${MAX_TOTAL_RTF_BYTES} byte total limit`,
+          skipReason: `Model documents exceed the ${maxTotalRtfBytes} byte total limit`,
           warningPage,
         });
         continue;

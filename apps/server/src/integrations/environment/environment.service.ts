@@ -93,10 +93,6 @@ export class EnvironmentService {
     return this.getConfigValue('STORAGE_DRIVER', 'local');
   }
 
-  getFileUploadSizeLimit(): string {
-    return this.getConfigValue('FILE_UPLOAD_SIZE_LIMIT', '50mb');
-  }
-
   getFileImportSizeLimit(): string {
     return this.getConfigValue('FILE_IMPORT_SIZE_LIMIT', '200mb');
   }

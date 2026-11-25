@@ -13,8 +13,7 @@ describe("config", () => {
 
   it("falls back to the default when a value is blank", () => {
     vi.stubEnv("DRAWIO_URL", "");
-    vi.stubEnv("FILE_UPLOAD_SIZE_LIMIT", "");
     expect(getDrawioUrl()).toBe("https://embed.diagrams.net");
-    expect(getFileUploadSizeLimit()).toBe(50 * 1024 * 1024);
+    expect(getFileUploadSizeLimit()).toBe(10 * 1024 * 1024);
   });
 });

@@ -2,6 +2,7 @@ import bytes from "bytes";
 import { castToBoolean } from "@/lib/utils.tsx";
 import { AvatarIconType } from "@/features/attachments/types/attachment.types.ts";
 import { sanitizeUrl } from "@docmost/editor-ext";
+import { getWorkspaceUploadLimit } from "@/ee/attachment-settings/lib/upload-limit.ts";
 
 declare global {
   interface Window {
@@ -95,8 +96,7 @@ export function getFileUrl(src: string) {
 }
 
 export function getFileUploadSizeLimit() {
-  const limit = getConfigValue("FILE_UPLOAD_SIZE_LIMIT", "50mb");
-  return bytes(limit);
+  return getWorkspaceUploadLimit();
 }
 
 export function getFileImportSizeLimit() {
