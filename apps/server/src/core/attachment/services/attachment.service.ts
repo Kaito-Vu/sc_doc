@@ -20,6 +20,8 @@ import { AttachmentType, validImageExtensions } from '../attachment.constants';
 import { KyselyDB, KyselyTransaction } from '@docmost/db/types/kysely.types';
 import { Attachment, User, Workspace } from '@docmost/db/types/entity.types';
 import { InjectKysely } from 'nestjs-kysely';
+import { relocatePageAttachments } from '../../../ee/attachment-path/relocate-page-attachments';
+import { getUploadFilePath } from '../../../ee/attachment-path/upload-file-path';
 import { executeTx } from '@docmost/db/utils';
 import { UserRepo } from '@docmost/db/repos/user/user.repo';
 import { WorkspaceRepo } from '@docmost/db/repos/workspace/workspace.repo';
@@ -78,6 +80,7 @@ export class AttachmentService {
 
     let isUpdate = false;
     let attachmentId = null;
+    let existingFilePath: string | undefined;
 
     // passing attachmentId to allow for updating diagrams
     // instead of creating new files for each save
@@ -100,12 +103,20 @@ export class AttachmentService {
         throw new BadRequestException('File attachment does not match');
       }
       attachmentId = opts.attachmentId;
+      existingFilePath = existingAttachment.filePath;
       isUpdate = true;
     } else {
       attachmentId = uuid7();
     }
 
-    const filePath = `${getAttachmentFolderPath(AttachmentType.File, workspaceId)}/${attachmentId}/${preparedFile.fileName}`;
+    const filePath =
+      existingFilePath ??
+      (await getUploadFilePath(
+        this.db,
+        { pageId, spaceId, workspaceId },
+        attachmentId,
+        preparedFile.fileName,
+      ));
 
     // Update fileSize from the consumed stream
     const isCover = type === AttachmentType.PageCover;
@@ -482,6 +493,7 @@ export class AttachmentService {
         );
       }
     }
+    await relocatePageAttachments(this.db, this.storageService, [page.id]);
   }
 
   private async queueIndexContent(attachmentId: string) {

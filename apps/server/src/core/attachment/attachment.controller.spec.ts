@@ -25,6 +25,12 @@ import {
   postInChunks,
 } from '../../../test/multipart.helper';
 
+// path building is covered in page-attachment-path.spec.ts; keep this spec DB-free
+jest.mock('../../ee/attachment-path/upload-file-path', () => ({
+  getUploadFilePath: async (_db, scope, id, name) =>
+    `${scope.workspaceId}/files/${id}/${name}`,
+}));
+
 jest.mock(
   '../../ee/template/services/template-access.service',
   () => ({ TemplateAccessService: class TemplateAccessService {} }),

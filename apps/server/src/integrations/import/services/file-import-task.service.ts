@@ -1,3 +1,4 @@
+import { relocatePageAttachments } from '../../../ee/attachment-path/relocate-page-attachments';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import * as path from 'path';
 import { jsonToText } from '../../../collaboration/collaboration.util';
@@ -589,6 +590,12 @@ export class FileImportTaskService {
           `Successfully imported ${totalPagesProcessed} pages with ${filteredBacklinks.length} backlinks`,
         );
       });
+
+      await relocatePageAttachments(
+        this.db,
+        this.storageService,
+        Array.from(validPageIds),
+      );
 
       if (validPageIds.size > 0) {
         const auditPayloads = Array.from(validPageIds).map((pageId) => ({

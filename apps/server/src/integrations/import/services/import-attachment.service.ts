@@ -74,6 +74,7 @@ export class ImportAttachmentService {
       completed: 0,
       failed: 0,
       failedFiles: [] as string[],
+      failedIds: [] as string[],
     };
 
     /**
@@ -166,6 +167,7 @@ export class ImportAttachmentService {
           } catch (error) {
             uploadStats.failed++;
             uploadStats.failedFiles.push(fileName);
+            uploadStats.failedIds.push(attachmentId);
             this.logger.error(
               `Failed to upload Draw.io SVG ${fileName}:`,
               error,
@@ -638,6 +640,11 @@ export class ImportAttachmentService {
           `Failed to upload ${uploadStats.failed} files:`,
           uploadStats.failedFiles,
         );
+        // Don't leave nodes pointing at attachments that were never stored
+        // (they would 404 on /api/files/:id/:name forever).
+        for (const id of uploadStats.failedIds) {
+          $(`[data-attachment-id="${id}"]`).remove();
+        }
       }
     }
 
@@ -907,6 +914,7 @@ export class ImportAttachmentService {
       completed: number;
       failed: number;
       failedFiles: string[];
+      failedIds: string[];
     };
   }): Promise<void> {
     const {
@@ -1003,6 +1011,7 @@ export class ImportAttachmentService {
 
     uploadStats.failed++;
     uploadStats.failedFiles.push(fileNameWithExt);
+    uploadStats.failedIds.push(attachmentId);
     this.logger.error(
       `Failed to upload ${fileNameWithExt} after ${this.MAX_RETRIES} attempts:`,
       lastError,

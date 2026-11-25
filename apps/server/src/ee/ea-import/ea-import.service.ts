@@ -44,6 +44,7 @@ import {
   getFileTaskFolderPath,
 } from '../../integrations/import/utils/file.utils';
 import { StorageService } from '../../integrations/storage/storage.service';
+import { relocatePageAttachments } from '../attachment-path/relocate-page-attachments';
 import { generateJitteredKeyBetween } from 'fractional-indexing-jittered';
 import { runEaCpuJobs } from './ea-cpu.pool';
 import {
@@ -653,6 +654,7 @@ export class EaImportService {
     }
     const { pageIds, rootPageIds, filledIds } = committed;
     lap('pages inserted');
+    await relocatePageAttachments(this.db, this.storageService, pageIds);
 
     // Pages are committed: a listener failure must not flip the task to failed.
     try {

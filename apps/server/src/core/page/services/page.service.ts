@@ -1,3 +1,4 @@
+import { relocatePageAttachments } from '../../../ee/attachment-path/relocate-page-attachments';
 import { isDeepStrictEqual } from 'node:util';
 import {
   BadRequestException,
@@ -1107,6 +1108,8 @@ export class PageService {
         }
       }
     }
+
+    void relocatePageAttachments(this.db, this.storageService, insertedPageIds);
 
     const newPageId = pageMap.get(rootPage.id).newPageId;
     const duplicatedPage = await this.pageRepo.findById(newPageId, {
