@@ -22,6 +22,7 @@ import { Attachment, User, Workspace } from '@docmost/db/types/entity.types';
 import { InjectKysely } from 'nestjs-kysely';
 import { relocatePageAttachments } from '../../../ee/attachment-path/relocate-page-attachments';
 import { getUploadFilePath } from '../../../ee/attachment-path/upload-file-path';
+import { keepReferencedAttachments } from '../../../ee/attachment-path/keep-referenced-attachments';
 import { executeTx } from '@docmost/db/utils';
 import { UserRepo } from '@docmost/db/repos/user/user.repo';
 import { WorkspaceRepo } from '@docmost/db/repos/workspace/workspace.repo';
@@ -511,7 +512,7 @@ export class AttachmentService {
   }
 
   async handleDeleteSpaceAttachments(spaceId: string) {
-    const attachments = await this.attachmentRepo.findBySpaceId(spaceId);
+    const attachments = await keepReferencedAttachments(this.db, await this.attachmentRepo.findBySpaceId(spaceId));
     if (!attachments || attachments.length === 0) {
       return;
     }
@@ -596,11 +597,11 @@ export class AttachmentService {
   async handleDeletePageAttachments(pageId: string) {
     try {
       // Fetch attachments for this page from database
-      const attachments = await this.db
+      const attachments = await keepReferencedAttachments(this.db, await this.db
         .selectFrom('attachments')
         .select(['id', 'filePath'])
         .where('pageId', '=', pageId)
-        .execute();
+        .execute());
 
       if (!attachments || attachments.length === 0) {
         return;

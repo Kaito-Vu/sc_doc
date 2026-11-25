@@ -16,6 +16,13 @@ export class MailService {
     @InjectQueue(QueueName.EMAIL_QUEUE) private emailQueue: Queue,
   ) {}
 
+  // ee hook (ee/mail-settings): workspace-managed config; null/unset = env driver
+  resolveConfig?: () => Promise<{
+    driver: MailDriver;
+    from: string;
+    fromName: string;
+  } | null>;
+
   async sendEmail(message: MailMessage): Promise<void> {
     if (this.isRecipientBlocked(message.to)) {
       return;
@@ -29,13 +36,14 @@ export class MailService {
       message.text = await render(message.template, { plainText: true });
     }
 
-    let from = this.environmentService.getMailFromAddress();
+    const cfg = await this.resolveConfig?.();
+    let from = cfg?.from ?? this.environmentService.getMailFromAddress();
     if (message.from) {
       from = message.from;
     }
 
-    const sender = `${this.environmentService.getMailFromName()} <${from}> `;
-    await this.mailDriver.sendMail({ from: sender, ...message });
+    const sender = `${cfg?.fromName ?? this.environmentService.getMailFromName()} <${from}> `;
+    await (cfg?.driver ?? this.mailDriver).sendMail({ from: sender, ...message });
   }
 
   async sendToQueue(message: MailMessage): Promise<void> {

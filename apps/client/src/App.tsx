@@ -97,6 +97,9 @@ const VerifiedPages = lazyWithPrefetch(
 const Announcements = lazyWithPrefetch(
   () => import("@/ee/announcement/pages/announcements"),
 );
+const MailSettings = lazyWithPrefetch(
+  () => import("@/ee/mail-settings/pages/mail-settings"),
+);
 const AttachmentSettings = lazyWithPrefetch(
   () => import("@/ee/attachment-settings/pages/attachment-settings"),
 );
@@ -291,6 +294,7 @@ export default function App() {
             <Route path={"integrations"} element={<Integrations />} />
             <Route path={"announcements"} element={<Announcements />} />
             <Route path={"attachments"} element={<AttachmentSettings />} />
+            <Route path={"mail"} element={<MailSettings />} />
             {!isCloud() && <Route path={"license"} element={<License />} />}
             {isCloud() && <Route path={"billing"} element={<Billing />} />}
           </Route>

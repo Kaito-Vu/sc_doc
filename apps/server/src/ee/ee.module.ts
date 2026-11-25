@@ -37,6 +37,7 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { PageLabelInheritModule } from './page-label-inherit/page-label-inherit.module';
 import { AnnouncementModule } from './announcement/announcement.module';
 import { AttachmentSettingsModule } from './attachment-settings/attachment-settings.module';
+import { MailSettingsModule } from './mail-settings/mail-settings.module';
 import { FeatureGateGuard } from './common/guards/feature-gate.guard';
 
 @Module({
@@ -77,6 +78,7 @@ import { FeatureGateGuard } from './common/guards/feature-gate.guard';
     PageLabelInheritModule,
     AnnouncementModule,
     AttachmentSettingsModule,
+    MailSettingsModule,
   ],
   providers: [
     FeatureGateGuard,
