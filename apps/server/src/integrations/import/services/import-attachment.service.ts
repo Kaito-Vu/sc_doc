@@ -10,8 +10,7 @@ import { Readable } from 'stream';
 import { getMimeType, sanitizeFileName } from '../../../common/helpers';
 import { v7 } from 'uuid';
 import { FileTask } from '@docmost/db/types/entity.types';
-import { getAttachmentFolderPath } from '../../../core/attachment/attachment.utils';
-import { AttachmentType } from '../../../core/attachment/attachment.constants';
+import { buildPageAttachmentDir, buildPageAttachmentPath } from '../../../ee/attachment-path/page-attachment-path';
 import { unwrapFromParagraph } from '../utils/import-formatter';
 import { resolveRelativeAttachmentPath } from '../utils/import.utils';
 import { imageDimensionsFromData } from 'image-dimensions';
@@ -67,6 +66,8 @@ export class ImportAttachmentService {
       isConfluenceImport,
     } = opts;
 
+    // page folder => the page's space bucket (relocation later adds the parent chain)
+    const storageDir = buildPageAttachmentDir({ workspaceId: fileTask.workspaceId, spaceId: fileTask.spaceId, pageChainIds: [pageId] });
     const attachmentTasks: (() => Promise<void>)[] = [];
     const limit = pLimit(this.CONCURRENT_UPLOADS);
     const uploadStats = {
@@ -129,10 +130,7 @@ export class ImportAttachmentService {
         // Generate file details - always use "diagram.drawio.svg" as filename
         const attachmentId = v7();
         const fileName = 'diagram.drawio.svg';
-        const storageFilePath = `${getAttachmentFolderPath(
-          AttachmentType.File,
-          fileTask.workspaceId,
-        )}/${attachmentId}/${fileName}`;
+        const storageFilePath = buildPageAttachmentPath(storageDir, attachmentId, fileName);
         const apiFilePath = `/api/files/${attachmentId}/${fileName}`;
 
         // Upload the SVG file
@@ -228,10 +226,7 @@ export class ImportAttachmentService {
       const fileNameWithExt =
         sanitizeFileName(path.basename(baseName, ext)) + ext.toLowerCase();
 
-      const storageFilePath = `${getAttachmentFolderPath(
-        AttachmentType.File,
-        fileTask.workspaceId,
-      )}/${attachmentId}/${fileNameWithExt}`;
+      const storageFilePath = buildPageAttachmentPath(storageDir, attachmentId, fileNameWithExt);
 
       const apiFilePath = `/api/files/${attachmentId}/${fileNameWithExt}`;
 

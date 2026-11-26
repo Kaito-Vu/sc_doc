@@ -4,7 +4,7 @@
 # For servers without internet access:
 #   1. On a dev machine:  docker build --platform linux/amd64 -t sc_doc:latest .
 #                         docker compose build gateway db gotenberg markitdown drawio seaweedfs   (patched images -> sc_doc-gateway, sc_doc-db, sc_doc-gotenberg, sc_doc-drawio, sc_doc-seaweedfs)
-#                         docker save sc_doc:latest sc_doc-gateway:latest sc_doc-db:latest sc_doc-gotenberg:latest sc_doc-markitdown:latest sc_doc-drawio:latest sc_doc-seaweedfs:latest | gzip > sc_doc.tar.gz
+#                         docker save sc_doc:latest sc_doc-gateway:latest sc_doc-db:latest sc_doc-gotenberg:latest sc_doc-markitdown:latest sc_doc-drawio:latest sc_doc-seaweedfs:latest pgsty/silo:RELEASE.2026-11-12T00-00-00Z | gzip > sc_doc.tar.gz
 #   2. On the server:     gunzip -c sc_doc.tar.gz | docker load
 #   3. Start:             docker compose -f docker-compose.run.yml up -d
 # Third-party images (redis) must be loaded the same way.
@@ -49,6 +49,12 @@ services:
       AWS_S3_BUCKET: ${AWS_S3_BUCKET:-docmost}
       AWS_S3_REGION: ${AWS_S3_REGION:-us-east-1}
       AWS_S3_FORCE_PATH_STYLE: "${AWS_S3_FORCE_PATH_STYLE:-true}"
+      # AWS_S3_BUCKET is the "system" bucket; each space gets a bucket named after its slug
+      AWS_S3_BUCKET_PER_SPACE: "${AWS_S3_BUCKET_PER_SPACE:-false}"
+      # bucket names a space slug may never take (e.g. the old single bucket)
+      AWS_S3_RESERVED_BUCKETS: "${OLD_BUCKET:-}"
+      # one-off: move legacy page files into their space bucket, then set back to false
+      AWS_S3_RELOCATE_ON_BOOT: "${AWS_S3_RELOCATE_ON_BOOT:-false}"
       AWS_S3_ACCESS_KEY_ID: ${SEAWEEDFS_ACCESS_KEY:?set SEAWEEDFS_ACCESS_KEY in .env}
       AWS_S3_SECRET_ACCESS_KEY: ${SEAWEEDFS_SECRET_KEY:?set SEAWEEDFS_SECRET_KEY in .env}
       MAIL_DRIVER: ${MAIL_DRIVER:-smtp}
@@ -220,6 +226,52 @@ services:
     command:
       - |
         weed shell -master=seaweedfs:9333 -c "s3.bucket.create -name ${AWS_S3_BUCKET:-docmost}" || true
+    logging: *default-logging
+
+  # Silo (MinIO fork) — replacement for SeaweedFS. Runs side by side during the
+  # migration; Docmost keeps using SeaweedFS until AWS_S3_ENDPOINT is switched
+  # to http://silo:9000 (S3 keys are shared with SeaweedFS, see silo-init).
+  silo:
+    image: pgsty/silo:RELEASE.2026-11-12T00-00-00Z
+    restart: unless-stopped
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: ${SILO_ROOT_USER:?set SILO_ROOT_USER in .env}
+      MINIO_ROOT_PASSWORD: ${SILO_ROOT_PASSWORD:?set SILO_ROOT_PASSWORD in .env}
+      MINIO_UPDATE: "off"
+      TZ: ${TZ:-Asia/Ho_Chi_Minh}
+    # Loopback only, for administration (S3 API + web console).
+    ports:
+      - "127.0.0.1:${SILO_S3_PORT:-9000}:9000"
+      - "127.0.0.1:${SILO_CONSOLE_PORT:-9001}:9001"
+    volumes:
+      - ./data/silo:/data
+    logging: *default-logging
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "/usr/bin/silo", "healthcheck", "ready"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  # Creates the bucket and a non-root S3 user for Docmost with the SAME keys as
+  # SeaweedFS, so the cutover only changes AWS_S3_ENDPOINT. Idempotent.
+  silo-init:
+    image: pgsty/silo:RELEASE.2026-11-12T00-00-00Z
+    restart: "no"
+    depends_on:
+      silo:
+        condition: service_healthy
+    entrypoint: ["sh", "-c"]
+    command:
+      - |
+        set -e
+        mcli alias set local http://silo:9000 '${SILO_ROOT_USER}' '${SILO_ROOT_PASSWORD}'
+        mcli mb --ignore-existing 'local/${AWS_S3_BUCKET:-docmost}'
+        mcli admin user add local '${SEAWEEDFS_ACCESS_KEY}' '${SEAWEEDFS_SECRET_KEY}'
+        mcli admin policy attach local readwrite --user '${SEAWEEDFS_ACCESS_KEY}' || true
     logging: *default-logging
 
 volumes:

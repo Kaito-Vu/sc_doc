@@ -215,10 +215,13 @@ export class UserRepo {
     opts?: { status?: WorkspaceUserListStatus; adminView?: boolean },
   ) {
     const status = opts?.status ?? 'active';
+    // Vietnamese names: sort by given name (last word), ignoring accents
+    const nameSortKey = sql<string>`lower(f_unaccent(substring(trim(users.name) from '[^ ]+$')))`;
 
     let query = this.db
       .selectFrom('users')
       .select(this.memberFields)
+      .select(nameSortKey.as('nameSortKey'))
       .$if(opts?.adminView, (qb) => qb.select(this.adminFields))
       .where('workspaceId', '=', workspaceId)
       .$if(status === 'deleted', (qb) => qb.where('deletedAt', 'is not', null))
@@ -256,10 +259,15 @@ export class UserRepo {
       cursor: pagination.cursor,
       beforeCursor: pagination.beforeCursor,
       fields: [
+        { expression: nameSortKey, key: 'nameSortKey', direction: 'asc' },
         { expression: 'name', direction: 'asc' },
         { expression: 'id', direction: 'asc' },
       ],
-      parseCursor: (cursor) => ({ name: cursor.name, id: cursor.id }),
+      parseCursor: (cursor: any) => ({
+        nameSortKey: cursor.nameSortKey,
+        name: cursor.name,
+        id: cursor.id,
+      }),
     });
   }
 

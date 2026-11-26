@@ -39,9 +39,11 @@ import { AnnouncementModule } from './announcement/announcement.module';
 import { AttachmentSettingsModule } from './attachment-settings/attachment-settings.module';
 import { MailSettingsModule } from './mail-settings/mail-settings.module';
 import { FeatureGateGuard } from './common/guards/feature-gate.guard';
+import { StorageBucketsModule } from './storage-buckets/storage-buckets.module';
 
 @Module({
   imports: [
+    StorageBucketsModule,
     PlatformModule,
     ClientLogModule,
     LicenceModule,

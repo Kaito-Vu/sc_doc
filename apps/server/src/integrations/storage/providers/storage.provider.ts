@@ -11,7 +11,8 @@ import {
   StorageDriver,
   StorageOption,
 } from '../interfaces';
-import { AzureDriver, LocalDriver, S3Driver } from '../drivers';
+import { AzureDriver, LocalDriver } from '../drivers';
+import { createS3Driver } from '../../../ee/storage-buckets/bucket-routing';
 import * as process from 'node:process';
 import { LOCAL_STORAGE_PATH } from '../../../common/helpers';
 import path from 'path';
@@ -21,7 +22,7 @@ function createStorageDriver(disk: StorageConfig): StorageDriver {
     case StorageOption.LOCAL:
       return new LocalDriver(disk.config as LocalStorageConfig);
     case StorageOption.S3:
-      return new S3Driver(disk.config as S3StorageConfig);
+      return createS3Driver(disk.config as S3StorageConfig);
     case StorageOption.AZURE:
       return new AzureDriver(disk.config as AzureStorageConfig);
     default:

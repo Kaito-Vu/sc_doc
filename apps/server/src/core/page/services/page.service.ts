@@ -792,6 +792,7 @@ export class PageService {
       workspaceId: rootPage.workspaceId,
     });
 
+    void relocatePageAttachments(this.db, this.storageService, [rootPage.id]);
     await this.collabAccessService.recheckAccess({ pageIds: [rootPage.id] });
     await this.wsService.invalidateSpaceRestrictionCache(spaceId);
     await this.wsService.removeBaseSubscribersWithoutAccess([rootPage.id]);

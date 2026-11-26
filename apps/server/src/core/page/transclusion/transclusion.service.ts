@@ -7,6 +7,7 @@ import {
 import { isDeepStrictEqual } from 'node:util';
 import { v7 as uuid7 } from 'uuid';
 import { InjectKysely } from 'nestjs-kysely';
+import { relocatePageAttachments } from '../../../ee/attachment-path/relocate-page-attachments';
 import { KyselyDB, KyselyTransaction } from '@docmost/db/types/kysely.types';
 import { PageTransclusionsRepo } from '@docmost/db/repos/page-transclusions/page-transclusions.repo';
 import { PageTransclusionReferencesRepo } from '@docmost/db/repos/page-transclusions/page-transclusion-references.repo';
@@ -507,6 +508,7 @@ export class TransclusionService {
       }
     }
 
+    await relocatePageAttachments(this.db, this.storageService, [referencePageId]);
     await this.pageTransclusionReferencesRepo.deleteOne(
       referencePageId,
       sourcePageId,

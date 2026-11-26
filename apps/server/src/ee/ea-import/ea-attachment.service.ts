@@ -6,8 +6,7 @@ import * as path from 'path';
 import { Readable } from 'stream';
 import { imageDimensionsFromData } from 'image-dimensions';
 import { sanitizeFileName } from '../../common/helpers';
-import { getAttachmentFolderPath } from '../../core/attachment/attachment.utils';
-import { AttachmentType } from '../../core/attachment/attachment.constants';
+import { getUploadFilePath } from '../attachment-path/upload-file-path';
 import { StorageService } from '../../integrations/storage/storage.service';
 import { escapeHtml } from './ea-import.util';
 
@@ -40,10 +39,13 @@ export class EaAttachmentService {
 
     const fileName = sanitizeFileName(opts.fileName) || 'diagram.png';
     const attachmentId = v7();
-    const storageFilePath = `${getAttachmentFolderPath(
-      AttachmentType.File,
-      workspaceId,
-    )}/${attachmentId}/${fileName}`;
+    // page folder => the page's space bucket
+    const storageFilePath = await getUploadFilePath(
+      this.db,
+      { pageId, spaceId, workspaceId },
+      attachmentId,
+      fileName,
+    );
     const apiFilePath = `/api/files/${attachmentId}/${fileName}`;
 
     await this.storageService.uploadStream(

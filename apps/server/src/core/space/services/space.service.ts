@@ -33,6 +33,7 @@ import {
   IAuditService,
 } from '../../../integrations/audit/audit.service';
 import { WsService } from '../../../ws/ws.service';
+import { createBucketForNewSpace } from '../../../ee/storage-buckets/space-bucket-name';
 
 @Injectable()
 export class SpaceService {
@@ -116,7 +117,7 @@ export class SpaceService {
       );
     }
 
-    return await this.spaceRepo.insertSpace(
+    const space = await this.spaceRepo.insertSpace(
       {
         name: createSpaceDto.name ?? 'untitled space',
         description: createSpaceDto.description ?? '',
@@ -127,6 +128,8 @@ export class SpaceService {
       },
       trx,
     );
+    await createBucketForNewSpace(trx ?? this.db, space.id);
+    return space;
   }
 
   async updateSpace(
