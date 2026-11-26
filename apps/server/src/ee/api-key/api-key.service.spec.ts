@@ -16,10 +16,12 @@ describe('ApiKeyService scopes', () => {
     { log: jest.fn() } as any,
   );
 
+  beforeEach(() => jest.clearAllMocks());
+
   it('create without expiresAt stores no expiry and signs a ~100 year token', async () => {
     await service.create('w1', { id: 'u1' } as any, { name: 'n', expiresAt: '' });
-    expect(apiKeyRepo.insert.mock.calls.at(-1)[0].expiresAt).toBeNull();
-    expect(tokenService.generateApiToken.mock.calls.at(-1)[0].expiresIn).toBe(NO_EXPIRY_SECONDS);
+    expect(apiKeyRepo.insert.mock.calls[0][0].expiresAt).toBeNull();
+    expect(tokenService.generateApiToken.mock.calls[0][0].expiresIn).toBe(NO_EXPIRY_SECONDS);
   });
 
   it('validateApiKey exposes the key scopes to the guard', async () => {
