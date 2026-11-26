@@ -36,6 +36,7 @@ import { IPage } from "@/features/page/types/page.types.ts";
 import { extractPageSlugId } from "@/lib";
 import { DocTree, type RenderRowProps } from "./doc-tree";
 import { SpaceTreeRow } from "./space-tree-row";
+import { useRevealCurrentPage } from "@/ee/page-tree/use-reveal-current-page";
 
 interface SpaceTreeProps {
   spaceId: string;
@@ -65,6 +66,7 @@ export default function SpaceTree({ spaceId, readOnly }: SpaceTreeProps) {
   spaceIdRef.current = spaceId;
   const pageId = extractPageSlugId(pageSlug);
   const { data: currentPage } = usePageQuery({ pageId });
+  useRevealCurrentPage(isDataLoaded);
 
   useEffect(() => {
     if (!pressedId) return;

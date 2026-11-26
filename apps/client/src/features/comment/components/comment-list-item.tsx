@@ -20,6 +20,7 @@ import { IComment } from "@/features/comment/types/comment.types";
 import { CustomAvatar } from "@/components/ui/custom-avatar.tsx";
 import { currentUserAtom } from "@/features/user/atoms/current-user-atom.ts";
 import { useTranslation } from "react-i18next";
+import { UserLink } from "@/ee/user-profile/user-link";
 
 interface CommentListItemProps {
   comment: IComment;
@@ -134,7 +135,7 @@ function CommentListItem({
         <div style={{ flex: 1 }}>
           <Group justify="space-between" wrap="nowrap">
             <Text size="sm" fw={500} lineClamp={1}>
-              {comment.creator.name}
+              <UserLink userId={comment.creator.id}>{comment.creator.name}</UserLink>
             </Text>
 
             <div style={{ visibility: hovered ? "visible" : "hidden" }}>

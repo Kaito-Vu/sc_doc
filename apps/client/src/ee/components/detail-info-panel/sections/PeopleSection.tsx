@@ -2,6 +2,7 @@ import React from 'react';
 import { Avatar } from '@mantine/core';
 import { IconEdit, IconFolder, IconUser, IconUsers } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
+import { UserLink } from '@/ee/user-profile/user-link';
 import StarButton from '@/features/favorite/components/star-button';
 import type { SectionProps } from '../detail-info-panel.types';
 import classes from '../DetailInfoPanel.module.css';
@@ -50,7 +51,7 @@ const PeopleSectionComponent: React.FC<SectionProps> = ({ page }) => {
           </span>
           <div className={classes.personRight}>
             <Avatar src={creator.avatarUrl} name={creator.name} size="xs" color="blue" />
-            <span className={classes.personName}>{creator.name}</span>
+            <span className={classes.personName}><UserLink userId={creator.id}>{creator.name}</UserLink></span>
           </div>
         </div>
       )}
@@ -63,7 +64,7 @@ const PeopleSectionComponent: React.FC<SectionProps> = ({ page }) => {
           </span>
           <div className={classes.personRight}>
             <Avatar src={lastUpdatedBy.avatarUrl} name={lastUpdatedBy.name} size="xs" color="blue" />
-            <span className={classes.personName}>{lastUpdatedBy.name}</span>
+            <span className={classes.personName}><UserLink userId={lastUpdatedBy.id}>{lastUpdatedBy.name}</UserLink></span>
           </div>
         </div>
       )}

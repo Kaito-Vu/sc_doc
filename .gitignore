@@ -48,3 +48,7 @@ samples/
 # Docker image exports / large artifacts
 *.tar
 *.tar.gz
+
+# Local tooling: code-intelligence index, personal Claude settings
+.gitnexus
+.claude/settings.local.json

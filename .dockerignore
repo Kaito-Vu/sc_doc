@@ -20,6 +20,11 @@ docs
 samples
 _ee_dist_extract/
 
+# --- Dev-only helpers & large artifacts (not part of the image) ------------
+tools
+**/*.tar
+**/*.tar.gz
+
 # --- Dependencies & build output -------------------------------------------
 **/node_modules
 **/dist

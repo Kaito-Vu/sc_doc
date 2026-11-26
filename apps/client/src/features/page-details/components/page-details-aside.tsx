@@ -20,6 +20,7 @@ import { BacklinksModal } from "./backlinks-modal";
 import { formattedDate } from "@/lib/time.ts";
 import { useTimeAgo } from "@/hooks/use-time-ago.tsx";
 import { CustomAvatar } from "@/components/ui/custom-avatar.tsx";
+import { UserLink } from "@/ee/user-profile/user-link";
 import { LabelsSection } from "@/features/label/components/labels-section.tsx";
 
 export function PageDetailsAside() {
@@ -119,7 +120,7 @@ function PersonRow({
             radius="xl"
           />
           <Text size="sm" lineClamp={1}>
-            {person.name}
+            <UserLink userId={person.id}>{person.name}</UserLink>
           </Text>
         </Group>
       ) : (

@@ -3029,5 +3029,9 @@
   "Recently updated settings": "Recently updated settings",
   "Refresh recently updated pages": "Refresh recently updated pages",
   "Updated by {{name}}": "Updated by {{name}}",
-  "Use up to {{maxValues}} values per filter and {{maxLength}} characters per value.": "Use up to {{maxValues}} values per filter and {{maxLength}} characters per value."
+  "Use up to {{maxValues}} values per filter and {{maxLength}} characters per value.": "Use up to {{maxValues}} values per filter and {{maxLength}} characters per value.",
+  "Contributions": "Contributions",
+  "{{count}} in the last year": "{{count}} in the last year",
+  "Less": "Less",
+  "More": "More"
 }

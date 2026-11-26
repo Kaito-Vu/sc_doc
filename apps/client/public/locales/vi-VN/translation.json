@@ -2345,5 +2345,9 @@
   "Request withdrawn": "Đã rút lại yêu cầu",
   "This request was already handled": "Yêu cầu này đã được xử lý",
   "<bold>{{name}}</bold> requested access to a space": "<bold>{{name}}</bold> đã yêu cầu quyền truy cập một space",
-  "Your access request was rejected": "Yêu cầu truy cập của bạn đã bị từ chối"
+  "Your access request was rejected": "Yêu cầu truy cập của bạn đã bị từ chối",
+  "Contributions": "Đóng góp",
+  "{{count}} in the last year": "{{count}} trong năm qua",
+  "Less": "Ít",
+  "More": "Nhiều"
 }

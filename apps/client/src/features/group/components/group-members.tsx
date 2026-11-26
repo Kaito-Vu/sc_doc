@@ -13,6 +13,7 @@ import {
 } from "@/features/group/queries/group-query";
 import { Link, useParams } from "react-router-dom";
 import { getUserProfileUrl } from "@/lib/config.ts";
+import { UserHoverCard } from "@/features/user/components/user-hover-card";
 import React from "react";
 import { IconDots } from "@tabler/icons-react";
 import { modals } from "@mantine/modals";
@@ -91,6 +92,7 @@ export default function GroupMembersList() {
                             {user.name}
                           </Text>
                         ) : (
+                          <UserHoverCard userId={user.id}>
                           <Anchor
                             component={Link}
                             to={getUserProfileUrl(user.id)}
@@ -103,6 +105,7 @@ export default function GroupMembersList() {
                           >
                             {user.name}
                           </Anchor>
+                          </UserHoverCard>
                         )}
                         <Text fz="xs" c="dimmed">
                           {user.email}

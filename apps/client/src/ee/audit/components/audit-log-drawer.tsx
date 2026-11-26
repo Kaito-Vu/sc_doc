@@ -1,3 +1,4 @@
+import { UserLink } from "@/ee/user-profile/user-link";
 import React from "react";
 import {
   Badge,
@@ -221,7 +222,7 @@ export function AuditLogDrawer({
                     />
                     <div>
                       <Text size="sm" fw={500}>
-                        {log.actor.name}
+                        <UserLink userId={log.actor.id}>{log.actor.name}</UserLink>
                       </Text>
                       <Text size="xs" c="dimmed">
                         {log.actor.email}

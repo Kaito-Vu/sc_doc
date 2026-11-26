@@ -5,6 +5,7 @@ import { Link } from "react-router-dom";
 import { CustomAvatar } from "@/components/ui/custom-avatar";
 import { useUserProfileQuery } from "@/features/user/queries/user-query";
 import { getUserProfileUrl } from "@/lib/config";
+import { UserCardExtras } from "@/ee/user-profile/user-card-extras";
 import classes from "./user-card.module.css";
 
 type UserCardContentProps = {
@@ -80,6 +81,8 @@ export function UserCardContent({ userId }: UserCardContentProps) {
           </div>
         </div>
       )}
+
+      <UserCardExtras userId={profile.id} />
 
       <Button
         variant="default"

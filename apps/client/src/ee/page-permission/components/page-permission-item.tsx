@@ -1,3 +1,4 @@
+import { UserLink } from "@/ee/user-profile/user-link";
 import { Menu, Text, UnstyledButton, Group } from "@mantine/core";
 import { IconChevronDown, IconCheck } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
@@ -49,7 +50,7 @@ export function PagePermissionItem({
             fw={500}
             tooltipLabel={isCurrentUser ? `${member.name} (${t("You")})` : member.name}
           >
-            {member.name}
+            <UserLink userId={member.type === "user" ? member.id : null}>{member.name}</UserLink>
             {isCurrentUser && <Text span c="dimmed"> ({t("You")})</Text>}
           </AutoTooltipText>
           <AutoTooltipText fz="xs" c="dimmed">

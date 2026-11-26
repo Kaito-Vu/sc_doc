@@ -1,3 +1,4 @@
+import { UserLink } from "@/ee/user-profile/user-link";
 import { Group, Table, Text } from "@mantine/core";
 import { CredentialRowMenu } from "@/ee/components/credential-row-menu";
 import { useTranslation } from "react-i18next";
@@ -67,7 +68,7 @@ export function ScimTokenTable({
                         size="sm"
                       />
                       <Text fz="sm" lineClamp={1}>
-                        {token.creator.name}
+                        <UserLink userId={token.creator.id}>{token.creator.name}</UserLink>
                       </Text>
                     </Group>
                   </Table.Td>

@@ -40,10 +40,12 @@ import { AttachmentSettingsModule } from './attachment-settings/attachment-setti
 import { MailSettingsModule } from './mail-settings/mail-settings.module';
 import { FeatureGateGuard } from './common/guards/feature-gate.guard';
 import { StorageBucketsModule } from './storage-buckets/storage-buckets.module';
+import { UserProfileExtrasModule } from './user-profile-extras/user-profile-extras.module';
 
 @Module({
   imports: [
     StorageBucketsModule,
+    UserProfileExtrasModule,
     PlatformModule,
     ClientLogModule,
     LicenceModule,

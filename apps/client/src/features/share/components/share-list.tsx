@@ -14,6 +14,7 @@ import { getPageIcon } from "@/lib";
 import { CustomAvatar } from "@/components/ui/custom-avatar.tsx";
 import { EmptyState } from "@/components/ui/empty-state.tsx";
 import classes from "./share.module.css";
+import { UserLink } from "@/ee/user-profile/user-link";
 import rowClasses from "@/components/ui/clickable-table-row.module.css";
 
 export default function ShareList() {
@@ -76,7 +77,7 @@ export default function ShareList() {
                       size="sm"
                     />
                     <Text fz="sm" lineClamp={1}>
-                      {share.creator.name}
+                      <UserLink userId={share.creator.id}>{share.creator.name}</UserLink>
                     </Text>
                   </Group>
                 </Table.Td>

@@ -1,3 +1,4 @@
+import { UserLink } from "@/ee/user-profile/user-link";
 import {
   Anchor,
   Badge,
@@ -74,7 +75,7 @@ function ActorCell({ entry }: { entry: IAuditLog }) {
         />
         <div style={{ minWidth: 0 }}>
           <Text fz="sm" fw={500} lineClamp={1}>
-            {entry.actor.name}
+            <UserLink userId={entry.actor.id}>{entry.actor.name}</UserLink>
           </Text>
           <Text fz="xs" c="dimmed" lineClamp={1}>
             {entry.actor.email}

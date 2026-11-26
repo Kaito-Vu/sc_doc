@@ -1,3 +1,4 @@
+import { UserLink } from "@/ee/user-profile/user-link";
 import {
   Center,
   Group,
@@ -163,7 +164,7 @@ export default function SpaceMembersList({
 
                       <div style={{ minWidth: 0, overflow: "hidden", maxWidth: 260 }}>
                         <AutoTooltipText fz="sm" fw={500}>
-                          {member?.name}
+                          <UserLink userId={member.type === "user" ? member.id : null}>{member?.name}</UserLink>
                         </AutoTooltipText>
                         <Text fz="xs" c="dimmed">
                           {member.type == "user" && member?.email}

@@ -10,6 +10,7 @@ import {
   Checkbox,
 } from "@mantine/core";
 import { CustomAvatar } from "@/components/ui/custom-avatar.tsx";
+import { UserLink } from "@/ee/user-profile/user-link";
 import classes from "./css/history.module.css";
 import clsx from "clsx";
 import { IPageHistory } from "@/features/page-history/types/page.types";
@@ -190,7 +191,7 @@ const HistoryItem = memo(function HistoryItem({
               </Tooltip.Group>
               {contributors.length === 1 && (
                 <Text size="sm" c="dimmed" lineClamp={1}>
-                  {contributors[0].name}
+                  <UserLink userId={contributors[0].id}>{contributors[0].name}</UserLink>
                 </Text>
               )}
             </>
@@ -202,7 +203,7 @@ const HistoryItem = memo(function HistoryItem({
                 name={historyItem.lastUpdatedBy?.name}
               />
               <Text size="sm" c="dimmed" lineClamp={1}>
-                {historyItem.lastUpdatedBy?.name}
+                <UserLink userId={historyItem.lastUpdatedBy?.id}>{historyItem.lastUpdatedBy?.name}</UserLink>
               </Text>
             </>
           ) : null}

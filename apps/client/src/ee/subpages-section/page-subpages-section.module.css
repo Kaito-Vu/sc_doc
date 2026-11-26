@@ -48,6 +48,26 @@
   max-height: rem(280px);
   overflow-y: auto;
 
+  /* Outside the core `.block` wrapper the core row styles don't apply, so
+     lay out toggle · icon · title · time on a single line here. */
+  [class*="_treeRow_"] > a {
+    display: flex;
+    align-items: center;
+    flex: 1;
+    gap: rem(8px);
+    min-width: 0;
+    color: inherit;
+    text-decoration: none;
+  }
+
+  [class*="_icon_"] {
+    align-self: center;
+  }
+
+  [class*="_details_"] {
+    align-items: center;
+  }
+
   [class*="_row_"] {
     min-height: rem(30px);
     padding-inline-end: rem(8px);

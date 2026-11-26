@@ -1,3 +1,4 @@
+import { UserLink } from "@/ee/user-profile/user-link";
 import { ActionIcon, Group, Text, Tooltip } from "@mantine/core";
 import { IconX } from "@tabler/icons-react";
 import { CustomAvatar } from "@/components/ui/custom-avatar";
@@ -42,7 +43,7 @@ export function VerifierList({
             />
             <div style={{ minWidth: 0 }}>
               <Text size="sm" truncate="end">
-                {verifier.name}
+                <UserLink userId={verifier.id}>{verifier.name}</UserLink>
               </Text>
               {verifier.email && (
                 <Text size="xs" c="dimmed" truncate="end">

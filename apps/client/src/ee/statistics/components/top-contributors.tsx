@@ -1,3 +1,4 @@
+import { UserLink } from "@/ee/user-profile/user-link";
 import { Group, Paper, Stack, Text } from "@mantine/core";
 import { useTranslation } from "react-i18next";
 import { CustomAvatar } from "@/components/ui/custom-avatar.tsx";
@@ -51,7 +52,7 @@ export default function TopContributors({
                 name={contributor.name}
               />
               <Text size="sm" lineClamp={1}>
-                {contributor.name}
+                <UserLink userId={contributor.userId}>{contributor.name}</UserLink>
               </Text>
             </Group>
             <Text size="sm" c="dimmed" style={{ whiteSpace: "nowrap" }}>

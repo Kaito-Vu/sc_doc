@@ -25,6 +25,7 @@ import MemberStatusFilter from "@/features/workspace/components/members/componen
 import { MemberListStatus } from "@/features/workspace/types/workspace.types.ts";
 import { Link } from "react-router-dom";
 import { getUserProfileUrl } from "@/lib/config.ts";
+import { UserHoverCard } from "@/features/user/components/user-hover-card";
 import { formatLocalized, useDateFnsLocale } from "@/lib/date-locale.ts";
 import rowClasses from "@/components/ui/clickable-table-row.module.css";
 
@@ -128,6 +129,7 @@ export default function WorkspaceMembersTable() {
                               {user.name}
                             </Text>
                           ) : (
+                            <UserHoverCard userId={user.id}>
                             <Anchor
                               component={Link}
                               to={getUserProfileUrl(user.id)}
@@ -140,6 +142,7 @@ export default function WorkspaceMembersTable() {
                             >
                               {user.name}
                             </Anchor>
+                            </UserHoverCard>
                           )}
                           <Text fz="xs" c="dimmed">
                             {user.deletedAt

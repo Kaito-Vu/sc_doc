@@ -32,6 +32,9 @@ try {
   const page = await call('get_page', { pageId: slug });
   console.log(`\nget_page ${slug}:\n${head(page, 500)}`);
 
+  const branch = await call('get_page', { pageId: slug, includeChildren: true });
+  console.log(`\nget_page ${slug} includeChildren:\n${head(branch, 900)}`);
+
   const word = page.match(/^# (\S+)/)?.[1];
   console.log(`\nsearch "${word}":\n${head(await call('search', { query: word, limit: 3 }), 600)}`);
   console.log('\nALL OK');

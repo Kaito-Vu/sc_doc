@@ -22,6 +22,7 @@ import { getSpaceUrl } from "@/lib/config.ts";
 import { useTranslation } from "react-i18next";
 import { getInitialsColor } from "@/lib/get-initials-color.ts";
 import { userAtom } from "@/features/user/atoms/current-user-atom";
+import { UserLink } from "@/ee/user-profile/user-link";
 import rowClasses from "@/components/ui/clickable-table-row.module.css";
 
 interface Props {
@@ -97,7 +98,7 @@ export default function RecentChanges({ spaceId }: Props) {
                         <Text size="sm" lineClamp={1}>
                           {page.lastUpdatedBy.id === currentUser?.id
                             ? t("You")
-                            : page.lastUpdatedBy.name}
+                            : <UserLink userId={page.lastUpdatedBy.id}>{page.lastUpdatedBy.name}</UserLink>}
                         </Text>
                       )}
                       <Text c="dimmed" size="xs" fw={500} style={{ whiteSpace: "nowrap" }}>
