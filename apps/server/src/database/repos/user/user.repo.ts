@@ -215,8 +215,8 @@ export class UserRepo {
     opts?: { status?: WorkspaceUserListStatus; adminView?: boolean },
   ) {
     const status = opts?.status ?? 'active';
-    // Vietnamese names: sort by given name (last word), ignoring accents
-    const nameSortKey = sql<string>`lower(f_unaccent(substring(trim(users.name) from '[^ ]+$')))`;
+    // Vietnamese names: sort by given name (last word, trailing digits/symbols dropped), ignoring accents
+    const nameSortKey = sql<string>`lower(f_unaccent(trim(substring(regexp_replace(translate(users.name, chr(160), ' '), '[^[:alpha:]]+$', '') from '[^[:space:]]+[[:space:]]*$'))))`;
 
     let query = this.db
       .selectFrom('users')

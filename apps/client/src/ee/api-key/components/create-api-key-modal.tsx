@@ -84,6 +84,7 @@ export function CreateApiKeyModal({
   });
 
   const getExpirationDate = (): string => {
+    if (expirationOption === "never") return ""; // server: "" = no expiry
     if (expirationOption === "custom") {
       return form.values.expiresAt;
     }
@@ -109,6 +110,7 @@ export function CreateApiKeyModal({
     { value: "60", label: getExpirationLabel(60) },
     { value: "90", label: getExpirationLabel(90) },
     { value: "365", label: getExpirationLabel(365) },
+    { value: "never", label: t("Never") },
     { value: "custom", label: t("Custom") },
   ];
 

@@ -1,0 +1,11 @@
+{
+  "name": "docmost-mcp",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": "index.mjs",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.2",
+    "zod": "^3.25.0"
+  }
+}

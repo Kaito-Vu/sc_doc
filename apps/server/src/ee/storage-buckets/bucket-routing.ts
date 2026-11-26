@@ -3,6 +3,7 @@ import {
   CopyObjectCommand,
   CreateBucketCommand,
   HeadBucketCommand,
+  PutBucketVersioningCommand,
   S3Client,
 } from '@aws-sdk/client-s3';
 import { Readable } from 'stream';
@@ -22,6 +23,15 @@ const SPACE_KEY = new RegExp(`^${UUID}/(${UUID})/`, 'i');
 /** Space an object key belongs to, or null for system files. */
 export function spaceIdOfKey(key: string): string | null {
   return key.match(SPACE_KEY)?.[1]?.toLowerCase() ?? null;
+}
+
+/**
+ * Key inside the space's bucket: the {workspaceId}/{spaceId}/ prefix only
+ * routes (the bucket already is the space), so it is not stored in Silo.
+ * System files keep their full key.
+ */
+export function objectKey(key: string): string {
+  return spaceIdOfKey(key) ? key.replace(SPACE_KEY, '') : key;
 }
 
 export function isBucketPerSpaceEnabled(): boolean {
@@ -128,6 +138,19 @@ export class BucketRoutedS3Driver implements StorageDriver {
   }
 
   private async createIfMissing(bucket: string): Promise<void> {
+    await this.createBucket(bucket);
+    // space buckets are versioned (idempotent, so existing buckets get it too)
+    if (bucket !== this.config.bucket) {
+      await this.getDriver().send(
+        new PutBucketVersioningCommand({
+          Bucket: bucket,
+          VersioningConfiguration: { Status: 'Enabled' },
+        }),
+      );
+    }
+  }
+
+  private async createBucket(bucket: string): Promise<void> {
     const client = this.getDriver();
     try {
       await client.send(new HeadBucketCommand({ Bucket: bucket }));
@@ -147,7 +170,7 @@ export class BucketRoutedS3Driver implements StorageDriver {
   }
 
   async upload(filePath: string, file: Buffer | Readable): Promise<void> {
-    return (await this.writer(filePath)).upload(filePath, file);
+    return (await this.writer(filePath)).upload(objectKey(filePath), file);
   }
 
   async uploadStream(
@@ -155,25 +178,33 @@ export class BucketRoutedS3Driver implements StorageDriver {
     file: Readable,
     options?: { recreateClient?: boolean },
   ): Promise<void> {
-    return (await this.writer(filePath)).uploadStream(filePath, file, options);
+    return (await this.writer(filePath)).uploadStream(objectKey(filePath), file, options);
   }
 
   async copy(fromFilePath: string, toFilePath: string): Promise<void> {
     const from = await this.bucket(fromFilePath);
     const to = await this.bucket(toFilePath);
     if (from === to) {
-      return (await this.writer(toFilePath)).copy(fromFilePath, toFilePath);
+      // S3Driver.exists() throws on Silo's HEAD 404 instead of returning false
+      if (!(await this.exists(fromFilePath))) {
+        logger.warn(`copy skipped, source missing: ${from}/${objectKey(fromFilePath)}`);
+        return;
+      }
+      return (await this.writer(toFilePath)).copy(
+        objectKey(fromFilePath),
+        objectKey(toFilePath),
+      );
     }
     // cross-bucket (e.g. page moved to another space); same semantics as S3Driver.copy
     try {
       if (!(await this.exists(fromFilePath))) return;
       await this.ensureBucket(to);
-      const encodedPath = fromFilePath.split('/').map(encodeURIComponent).join('/');
+      const encodedPath = objectKey(fromFilePath).split('/').map(encodeURIComponent).join('/');
       await this.getDriver().send(
         new CopyObjectCommand({
           Bucket: to,
           CopySource: `${from}/${encodedPath}`,
-          Key: toFilePath,
+          Key: objectKey(toFilePath),
         }),
       );
     } catch (err) {
@@ -182,22 +213,27 @@ export class BucketRoutedS3Driver implements StorageDriver {
   }
 
   async read(filePath: string): Promise<Buffer> {
-    return (await this.reader(filePath)).read(filePath);
+    return (await this.reader(filePath)).read(objectKey(filePath));
   }
 
   async readStream(filePath: string): Promise<Readable> {
-    return (await this.reader(filePath)).readStream(filePath);
+    return (await this.reader(filePath)).readStream(objectKey(filePath));
   }
 
   async readRangeStream(
     filePath: string,
     range: { start: number; end: number },
   ): Promise<Readable> {
-    return (await this.reader(filePath)).readRangeStream(filePath, range);
+    return (await this.reader(filePath)).readRangeStream(objectKey(filePath), range);
   }
 
   async exists(filePath: string): Promise<boolean> {
-    return (await this.reader(filePath)).exists(filePath);
+    try {
+      return await (await this.reader(filePath)).exists(objectKey(filePath));
+    } catch (err: any) {
+      if (err?.$metadata?.httpStatusCode === 404) return false;
+      throw err;
+    }
   }
 
   /** Sync API: only works for system files or spaces already resolved. */
@@ -205,15 +241,15 @@ export class BucketRoutedS3Driver implements StorageDriver {
     const spaceId = spaceIdOfKey(filePath);
     const bucket = spaceId ? this.spaceBuckets.get(spaceId) : this.config.bucket;
     if (!bucket) throw new Error(`Bucket of ${filePath} not resolved yet`);
-    return this.driver(bucket).getUrl(filePath);
+    return this.driver(bucket).getUrl(objectKey(filePath));
   }
 
   async getSignedUrl(filePath: string, expireIn: number): Promise<string> {
-    return (await this.reader(filePath)).getSignedUrl(filePath, expireIn);
+    return (await this.reader(filePath)).getSignedUrl(objectKey(filePath), expireIn);
   }
 
   async delete(filePath: string): Promise<void> {
-    return (await this.reader(filePath)).delete(filePath);
+    return (await this.reader(filePath)).delete(objectKey(filePath));
   }
 
   getDriver(): S3Client {

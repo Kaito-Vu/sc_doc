@@ -1,6 +1,7 @@
 import {
   BucketRoutedS3Driver,
   setSpaceBucketResolver,
+  objectKey,
   spaceIdOfKey,
 } from './bucket-routing';
 
@@ -18,6 +19,13 @@ describe('spaceIdOfKey', () => {
     [`${WS}/exports/${PAGE}/export.pdf`, null],
   ])('%s -> %s', (key, spaceId) => {
     expect(spaceIdOfKey(key)).toBe(spaceId);
+  });
+});
+
+describe('objectKey', () => {
+  it('drops {workspaceId}/{spaceId}/ from space keys only', () => {
+    expect(objectKey(SPACE_KEY)).toBe(`${PAGE}/att-image.png`);
+    expect(objectKey(`${WS}/avatars/a.png`)).toBe(`${WS}/avatars/a.png`);
   });
 });
 
@@ -65,7 +73,7 @@ describe('BucketRoutedS3Driver', () => {
     expect(calls().find(([n]) => n === 'CopyObjectCommand')?.[1]).toEqual({
       Bucket: 'phong-ke-toan',
       CopySource: `system/${WS}/files/x/${encodeURIComponent('ảnh.png')}`,
-      Key: SPACE_KEY,
+      Key: `${PAGE}/att-image.png`,
     });
   });
 
@@ -83,5 +91,28 @@ describe('BucketRoutedS3Driver', () => {
 
     const deletes = calls().filter(([n]) => n === 'DeleteObjectCommand');
     expect(deletes.map(([, i]) => i.Bucket)).toEqual(['system', 'phong-ke-toan']);
+  });
+
+  it('exists() is false on HEAD 404 (any error name); copy of a missing source is skipped', async () => {
+    const { driver, calls } = setup();
+    driver.getDriver().send = jest.fn(async () => {
+      throw Object.assign(new Error('UnknownError'), { $metadata: { httpStatusCode: 404 } });
+    }) as any;
+    await expect(driver.exists(SPACE_KEY)).resolves.toBe(false);
+    await expect(driver.copy(SPACE_KEY, SPACE_KEY.replace('att-', 'new-'))).resolves.toBeUndefined();
+    expect(calls()).toEqual([]);
+  });
+
+  it('enables versioning on space buckets (new or existing), not on system', async () => {
+    const { driver, calls } = setup(200); // bucket already exists
+    await driver.ensureSpaceBucket(SPACE);
+    await driver.upload(`${WS}/avatars/a.png`, Buffer.from('x'));
+    const versioning = calls().filter(([n]) => n === 'PutBucketVersioningCommand');
+    expect(versioning).toEqual([
+      [
+        'PutBucketVersioningCommand',
+        { Bucket: 'phong-ke-toan', VersioningConfiguration: { Status: 'Enabled' } },
+      ],
+    ]);
   });
 });

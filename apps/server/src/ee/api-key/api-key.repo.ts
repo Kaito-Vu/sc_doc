@@ -22,6 +22,7 @@ export class ApiKeyRepo {
     'name',
     'creatorId',
     'workspaceId',
+    'scopes',
     'expiresAt',
     'lastUsedAt',
     'createdAt',

@@ -11,7 +11,6 @@ import { TokenService } from '../../core/auth/services/token.service';
 import { UserRepo } from '@docmost/db/repos/user/user.repo';
 import { WorkspaceRepo } from '@docmost/db/repos/workspace/workspace.repo';
 import { JwtApiKeyPayload } from '../../core/auth/dto/jwt-payload';
-import { EnvironmentService } from '../../integrations/environment/environment.service';
 import {
   AUDIT_SERVICE,
   IAuditService,
@@ -20,7 +19,8 @@ import { AuditEvent, AuditResource } from '../../common/events/audit-events';
 import { PaginationOptions } from '@docmost/db/pagination/pagination-options';
 import { User, Workspace } from '@docmost/db/types/entity.types';
 import { isUserDisabled } from '../../common/helpers';
-import { StringValue } from 'ms';
+
+export const NO_EXPIRY_SECONDS = 100 * 365 * 24 * 3600;
 
 @Injectable()
 export class ApiKeyService {
@@ -29,7 +29,6 @@ export class ApiKeyService {
     private readonly tokenService: TokenService,
     private readonly userRepo: UserRepo,
     private readonly workspaceRepo: WorkspaceRepo,
-    private readonly environmentService: EnvironmentService,
     @Inject(AUDIT_SERVICE) private readonly auditService: IAuditService,
   ) {}
 
@@ -47,7 +46,7 @@ export class ApiKeyService {
   async create(
     workspaceId: string,
     user: User,
-    data: { name: string; expiresAt?: string },
+    data: { name: string; expiresAt?: string; scopes?: string[] },
   ) {
     const expiresAt = this.parseExpiry(data.expiresAt);
 
@@ -56,17 +55,21 @@ export class ApiKeyService {
       creatorId: user.id,
       workspaceId,
       expiresAt,
+      // jsonb column: stringify, or pg would send a Postgres array literal
+      ...(data.scopes && { scopes: JSON.stringify(data.scopes) }),
     });
 
     // The JWT carries the same expiry as the DB row (defense in depth: the
     // token dies on its own even if the DB check were ever bypassed).
+    // No expiry: generateApiToken refuses a missing lifetime, so use 100 years.
+    // Revoking the key (soft delete) still kills it, validateApiKey checks the row.
     const token = await this.tokenService.generateApiToken({
       apiKeyId: apiKey.id,
       user,
       workspaceId,
       expiresIn: expiresAt
         ? Math.ceil((expiresAt.getTime() - Date.now()) / 1000)
-        : (this.environmentService.getJwtTokenExpiresIn() as StringValue),
+        : NO_EXPIRY_SECONDS,
     });
 
     this.auditService.log({
@@ -172,6 +175,7 @@ export class ApiKeyService {
     // best-effort bookkeeping: keep it off the request's critical path
     this.apiKeyRepo.touchLastUsed(apiKey.id).catch(() => undefined);
 
-    return { user, workspace };
+    // JwtAuthGuard enforces read-only keys from `apiKey.scopes`
+    return { user, workspace, apiKey: { id: apiKey.id, scopes: apiKey.scopes } };
   }
 }

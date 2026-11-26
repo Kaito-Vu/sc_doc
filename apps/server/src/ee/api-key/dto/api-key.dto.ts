@@ -1,4 +1,7 @@
 import {
+  ArrayNotEmpty,
+  IsArray,
+  IsIn,
   IsNotEmpty,
   IsOptional,
   IsString,
@@ -16,6 +19,13 @@ export class CreateApiKeyDto {
   @IsOptional()
   @IsString()
   expiresAt?: string;
+
+  // Omitted = DB default (read + write).
+  @IsOptional()
+  @IsArray()
+  @ArrayNotEmpty()
+  @IsIn(['read', 'write'], { each: true })
+  scopes?: Array<'read' | 'write'>;
 }
 
 export class UpdateApiKeyDto {

@@ -5,6 +5,11 @@ import {
   OnApplicationBootstrap,
   OnModuleInit,
 } from '@nestjs/common';
+import {
+  CopyObjectCommand,
+  DeleteObjectCommand,
+  ListObjectsV2Command,
+} from '@aws-sdk/client-s3';
 import { InjectKysely } from 'nestjs-kysely';
 import { resolveSpaceBucketName } from './space-bucket-name';
 import { getBucketRoutedDriver, setSpaceBucketResolver } from './bucket-routing';
@@ -52,6 +57,60 @@ export class RelocateAllOnBoot implements OnApplicationBootstrap {
   }
 }
 
+/**
+ * One-off: with AWS_S3_STRIP_PREFIX_ON_BOOT=true, renames objects still stored
+ * as {workspaceId}/{spaceId}/... inside a space bucket to the prefix-less key
+ * (see objectKey()). Only keys whose 2nd segment is that bucket's own space id
+ * are touched, so already-migrated keys ({rootPage}/{childPage}/...) are safe.
+ * Idempotent; set the flag on ONE app instance only, then unset it.
+ */
+@Injectable()
+export class StripSpacePrefixOnBoot implements OnApplicationBootstrap {
+  private readonly logger = new Logger(StripSpacePrefixOnBoot.name);
+
+  constructor(@InjectKysely() private readonly db: KyselyDB) {}
+
+  onApplicationBootstrap() {
+    if (process.env.AWS_S3_STRIP_PREFIX_ON_BOOT !== 'true') return;
+    if (getBucketRoutedDriver()) void this.run();
+  }
+
+  async run(): Promise<void> {
+    const client = getBucketRoutedDriver()!.getDriver();
+    const spaces = await this.db.selectFrom('spaces').select('id').execute();
+    let moved = 0;
+    for (const { id } of spaces) {
+      try {
+        const bucket = await resolveSpaceBucketName(this.db, id);
+        let token: string | undefined;
+        do {
+          const page = await client.send(
+            new ListObjectsV2Command({ Bucket: bucket, ContinuationToken: token }),
+          );
+          for (const { Key } of page.Contents ?? []) {
+            const parts = Key!.split('/');
+            if (parts.length < 3 || parts[1].toLowerCase() !== id.toLowerCase()) continue;
+            const target = parts.slice(2).join('/');
+            await client.send(
+              new CopyObjectCommand({
+                Bucket: bucket,
+                CopySource: `${bucket}/${parts.map(encodeURIComponent).join('/')}`,
+                Key: target,
+              }),
+            );
+            await client.send(new DeleteObjectCommand({ Bucket: bucket, Key: Key! }));
+            moved++;
+          }
+          token = page.NextContinuationToken;
+        } while (token);
+      } catch (err) {
+        this.logger.error(`Strip prefix failed for space ${id}: ${err}`);
+      }
+    }
+    this.logger.log(`Prefix stripped from ${moved} objects; unset AWS_S3_STRIP_PREFIX_ON_BOOT`);
+  }
+}
+
 /** Gives the storage driver its spaceId -> bucket lookup (space_bucket_name()). */
 @Injectable()
 export class SpaceBucketResolverRegistrar implements OnModuleInit {
@@ -93,6 +152,11 @@ export class EnsureSpaceBucketsOnBoot implements OnApplicationBootstrap {
 }
 
 @Module({
-  providers: [SpaceBucketResolverRegistrar, EnsureSpaceBucketsOnBoot, RelocateAllOnBoot],
+  providers: [
+    SpaceBucketResolverRegistrar,
+    EnsureSpaceBucketsOnBoot,
+    RelocateAllOnBoot,
+    StripSpacePrefixOnBoot,
+  ],
 })
 export class StorageBucketsModule {}
